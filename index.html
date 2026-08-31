@@ -9,58 +9,7 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
-</html>  family: { greeting: { x: 50, y: 34 }, quote: { x: 50, y: 52 }, names: { x: 50, y: 76 } },
-  timeline: { heading: { x: 50, y: 13 }, list: { x: 50, y: 58 } },
-  locations: { heading: { x: 50, y: 11 }, list: { x: 50, y: 55 } },
-  rsvp: { heading: { x: 50, y: 17 }, countdown: { x: 50, y: 44 }, buttons: { x: 50, y: 81 } },
-};
-
-const seedGuests = () => {
-  const now = Date.now();
-  const day = 86400000;
-  return [
-    { id: uid(), name: "Sarah Malik", status: "yes", lang: "en", respondedAt: now - 2 * day },
-    { id: uid(), name: "Ahmed Nasser", status: "yes", lang: "ar", respondedAt: now - 1 * day },
-    { id: uid(), name: "Julie Laurent", status: "no", lang: "fr", respondedAt: now - 3 * day },
-    { id: uid(), name: "Carlos Mendes", status: "yes", lang: "es", respondedAt: now - 4 * day },
-    { id: uid(), name: "Fatima Zahra", status: "pending", lang: "ar", respondedAt: null },
-    { id: uid(), name: "Tom Whitfield", status: "yes", lang: "en", respondedAt: now - 5 * day },
-    { id: uid(), name: "Camille Rousseau", status: "pending", lang: "fr", respondedAt: null },
-    { id: uid(), name: "Lucía Fernández", status: "yes", lang: "es", respondedAt: now - 6 * day },
-    { id: uid(), name: "Omar Haddad", status: "no", lang: "ar", respondedAt: now - 2 * day },
-    { id: uid(), name: "Grace Kim", status: "yes", lang: "en", respondedAt: now - 1 * day },
-    { id: uid(), name: "Pierre Dubois", status: "pending", lang: "fr", respondedAt: null },
-    { id: uid(), name: "Mateo García", status: "no", lang: "es", respondedAt: now - 7 * day },
-  ];
-};
-
-/* ---------------------------------------------------------------------- */
-/* Small UI atoms                                                          */
-/* ---------------------------------------------------------------------- */
-
-function FieldLabel({ children }) {
-  return (
-    <div className="mb-1.5 text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.12em", fontFamily: FONT_BODY }}>
-      {children}
-    </div>
-  );
-}
-
-function TextInput({ value, onChange, placeholder, type = "text" }) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-colors"
-      style={{ background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY }}
-      onFocus={(e) => (e.target.style.border = `1px solid ${GOLD}`)}
-      onBlur={(e) => (e.target.style.border = `1px solid ${INK_3}`)}
-    />
-  );
-}
-
+</html>
 function TextArea({ value, onChange, placeholder, rows = 3 }) {
   return (
     <textarea
