@@ -9,58 +9,7 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
-</html>  } catch {
-    return false;
-  }
-}
-
-// Phone camera photos can be several MB — far more than a saved draft can hold once
-// base64-encoded. Downscale and re-compress to JPEG before it ever enters state, so
-// uploads stay fast, previews stay smooth, and Save doesn't hit the storage size limit.
-function readImageCompressed(file, maxDim = 1400, quality = 0.78) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Could not decode image"));
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) { height = Math.round((height * maxDim) / width); width = maxDim; }
-          else { width = Math.round((width * maxDim) / height); height = maxDim; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-/* ---------------------------------------------------------------------- */
-/* Languages                                                                */
-/* ---------------------------------------------------------------------- */
-
-const LANGS = ["en", "ar", "fr", "es"];
-const LANG_META = {
-  en: { label: "English", short: "EN", dir: "ltr", locale: "en-US" },
-  ar: { label: "العربية", short: "AR", dir: "rtl", locale: "ar" },
-  fr: { label: "Français", short: "FR", dir: "ltr", locale: "fr-FR" },
-  es: { label: "Español", short: "ES", dir: "ltr", locale: "es-ES" },
-};
-
-const PREVIEW_T = {
-  en: { orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", directions: "Get Directions", tapToStart: "Tap to start" },
-  ar: { orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء" },
-  fr: { orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", directions: "Itinéraire", tapToStart: "Touchez pour commencer" },
-  es: { orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", directions: "Cómo llegar", tapToStart: "Toca para comenzar" },
-};
+</html>};
 
 /* ---------------------------------------------------------------------- */
 /* Default content / data                                                  */
