@@ -4648,10 +4648,16 @@ export default function InvitationBuilder() {
                 <GhostButton onClick={() => selectStep(Math.max(0, activeIndex - 1))}>
                   <ChevronDown size={13} /> Back
                 </GhostButton>
-                {activeIndex < steps.length - 1 ? (
-                  <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
-                ) : (
-                  <GoldButton onClick={() => {}}><Check size={14} /> Finish</GoldButton>
+               {activeIndex < steps.length - 1 ? (
+  <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
+) : (
+  <GoldButton onClick={async () => {
+    await saveDraft();
+    setView("dashboard");
+  }}>
+    <Check size={14} /> Finish & View Dashboard
+  </GoldButton>
+)}
                 )}
               </div>
             </div>
