@@ -9,32 +9,7 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
-</html>
-function TextArea({ value, onChange, placeholder, rows = 3 }) {
-  return (
-    <textarea
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className="w-full resize-none rounded-lg px-3 py-2.5 text-sm outline-none transition-colors"
-      style={{ background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY }}
-      onFocus={(e) => (e.target.style.border = `1px solid ${GOLD}`)}
-      onBlur={(e) => (e.target.style.border = `1px solid ${INK_3}`)}
-    />
-  );
-}
-
-function GhostButton({ children, onClick, danger, active }) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"
-      style={{
-        color: danger ? "#E29B9B" : active ? INK : GOLD_SOFT,
-        background: active ? GOLD : "transparent",
-        border: `1px solid ${danger ? "rgba(226,155,155,0.35)" : "rgba(201,164,76,0.35)"}`,
-        fontFamily: FONT_BODY,
+</html>        fontFamily: FONT_BODY,
       }}
     >
       {children}
