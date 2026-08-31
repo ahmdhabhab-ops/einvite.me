@@ -1,65 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import {
-  Heart, Users, Clock, MapPin, CalendarClock, ChevronUp, ChevronDown,
-  Plus, Trash2, Upload, Navigation2,
-  Church, Wine, UtensilsCrossed, PartyPopper, Sparkles, Check, X, Music2, Star,
-  Settings, BarChart3, Copy, Link2, ImagePlus, Search, CheckCircle2, XCircle, Move, Mail, Film,
-  ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
-  FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
-  ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video,
-} from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
-
-/* ---------------------------------------------------------------------- */
-/* Tokens                                                                  */
-/* ---------------------------------------------------------------------- */
-
-const INK = "#161F1B";
-const INK_2 = "#1E2B25";
-const INK_3 = "#28382F";
-const GOLD = "#C9A44C";
-const GOLD_SOFT = "#E4CE95";
-const IVORY = "#F4EDE4";
-const MUTED = "#93A69B";
-const PAPER = "#FBF1E7";
-const PAPER_2 = "#F1E2D2";
-const EMERALD = "#24463D";
-const ROSE = "#B76E6E";
-
-const FONT_DISPLAY = "'Fraunces', serif";
-const FONT_BODY = "'Inter', sans-serif";
-const FONT_SCRIPT = "'Parisienne', cursive";
-const FONT_AR = "'Cairo', sans-serif";
-
-const CHART_COLORS = { yes: "#8FBFA3", no: "#D98E8E", pending: "#6C7C74" };
-
-const BG_PRESETS = {
-  botanical: { name: "Botanical", css: "linear-gradient(160deg, #1f3a2e 0%, #24463d 45%, #16211d 100%)" },
-  blush: { name: "Blush", css: "linear-gradient(160deg, #7a4a52 0%, #b76e6e 55%, #e4cd9a 100%)" },
-  dusk: { name: "Dusk", css: "linear-gradient(160deg, #2b1f3a 0%, #4a2f4d 50%, #b76e6e 100%)" },
-  gilded: { name: "Gilded", css: "linear-gradient(160deg, #3a2f14 0%, #8a6a2c 50%, #e4ce95 100%)" },
-};
-
-const TIMELINE_ICONS = {
-  church: { icon: Church }, wine: { icon: Wine }, utensils: { icon: UtensilsCrossed },
-  party: { icon: PartyPopper }, heart: { icon: Heart }, sparkles: { icon: Sparkles },
-};
-
-const GATE_ICONS = { heart: Heart, mail: Mail, sparkles: Sparkles, star: Star };
-const MUSIC_ICONS = {
-  speaker: { name: "Speaker", playing: Volume2, muted: VolumeX },
-  note: { name: "Music note", playing: Music2, muted: Music2 },
-  disc: { name: "Vinyl disc", playing: Disc3, muted: Disc3 },
-  headphones: { name: "Headphones", playing: Headphones, muted: Headphones },
-};
-
-const GATE_ANIMATIONS = {
-  floatingHearts: { name: "Floating hearts", icon: Heart, colors: [GOLD_SOFT, PAPER, "#E8A9A9"] },
-  confetti: { name: "Confetti", icon: Sparkles, colors: [GOLD, ROSE, PAPER] },
-  petals: { name: "Falling petals", icon: PartyPopper, colors: ["#E8B4B4", GOLD_SOFT, PAPER] },
-  sparkleDrift: { name: "Sparkle drift", icon: Star, colors: [GOLD_SOFT, PAPER, GOLD] },
-};
-
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
 const ENVELOPE_STYLES = {
   kraftGold: {
     name: "Golden Kraft",
