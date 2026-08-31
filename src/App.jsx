@@ -4226,8 +4226,42 @@ export default function InvitationBuilder() {
     return () => { cancelled = true; };
   }, []);
 
-  const saveDraft = async () => {
-    if (typeof window === "undefined" || !window.storage) {
+const saveDraft = async () => {
+    setSaveStatus("saving");
+    try {
+      const fullInvitationsStore = { ...invitationsStore, [activeInvitationId]: getActiveSnapshot() };
+      const corePayload = {
+        content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts, customBlocks,
+        guestGroups, tables, rsvpSettings, users, integrations,
+        invitationsStore: fullInvitationsStore, activeInvitationId,
+        ogText: { title: og.title, description: og.description },
+        intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign },
+        musicMeta: { enabled: music.enabled, name: music.name },
+      };
+
+      localStorage.setItem("einvite:draft-core", JSON.stringify(corePayload));
+      
+      ALL_STEPS.forEach(({ key }) => {
+        localStorage.setItem(`einvite:bg-${key}`, JSON.stringify(pageBackgrounds[key]));
+      });
+
+      LANGS.forEach((lang) => {
+        if (intro.media[lang]?.type === "image" && intro.media[lang]?.url) {
+          localStorage.setItem(`einvite:introbg-${lang}`, intro.media[lang].url);
+        }
+      });
+
+      if (og.image) {
+        localStorage.setItem("einvite:og-image", og.image);
+      }
+
+      setSaveStatus("saved");
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("error");
+    }
+    setTimeout(() => setSaveStatus("idle"), 3200);
+  };    if (typeof window === "undefined" || !window.storage) {
       setSaveStatus("unavailable");
       setTimeout(() => setSaveStatus("idle"), 4000);
       return;
