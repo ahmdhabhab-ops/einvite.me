@@ -4714,15 +4714,21 @@ export default function InvitationBuilder() {
                 </div>
               )}
 
-              <div className="mt-7 flex justify-between border-t pt-5" style={{ borderColor: "rgba(147,166,155,0.15)" }}>
+              <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t pt-5" style={{ borderColor: "rgba(147,166,155,0.15)" }}>
                 <GhostButton onClick={() => selectStep(Math.max(0, activeIndex - 1))}>
                   <ChevronDown size={13} /> Back
                 </GhostButton>
-                {activeIndex < steps.length - 1 ? (
-                  <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
-                ) : (
-                  <GoldButton onClick={saveDraft}><Check size={14} /> Finish &amp; Save</GoldButton>
-                )}
+                <div className="flex items-center gap-3">
+                  {saveStatus === "saved" && <span className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Saved ✓</span>}
+                  {saveStatus === "error" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
+                  {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
+                  {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
+                  {activeIndex < steps.length - 1 ? (
+                    <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
+                  ) : (
+                    <GoldButton onClick={saveDraft}><Check size={14} /> {saveStatus === "saving" ? "Saving…" : "Finish & Save"}</GoldButton>
+                  )}
+                </div>
               </div>
             </div>
 
