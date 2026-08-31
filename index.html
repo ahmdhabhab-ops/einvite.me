@@ -9,32 +9,7 @@
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
-</html>        fontFamily: FONT_BODY,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-// Styled identically to GhostButton, but a <label> directly wrapping the file input —
-// no ref, no programmatic .click(). This is the pattern that reliably opens the native
-// file/photo picker on mobile browsers (the same one already used for image uploads).
-function GhostUploadButton({ children, accept, onChange }) {
-  return (
-    <label
-      className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"
-      style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }}
-    >
-      {children}
-      <input type="file" accept={accept} style={VISUALLY_HIDDEN} onChange={onChange} />
-    </label>
-  );
-}
-
-function GoldButton({ children, onClick }) {
-  return (
-    <button
+</html>    <button
       onClick={onClick}
       className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-transform active:scale-[0.98]"
       style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}
