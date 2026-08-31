@@ -1,66 +1,15 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>eInvite.me - Digital Invitation & Event Management</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
-const FONT_OPTIONS = [
-  { key: "auto", label: "Default", value: null },
-  { key: "display", label: "Display serif (Fraunces)", value: "'Fraunces', serif" },
-  { key: "script", label: "Script (Parisienne)", value: "'Parisienne', cursive" },
-  { key: "body", label: "Sans (Inter)", value: "'Inter', sans-serif" },
-  { key: "arabic", label: "Arabic (Cairo)", value: "'Cairo', sans-serif" },
-];
-const fontValue = (key) => FONT_OPTIONS.find((f) => f.key === key)?.value || null;
-
-const emptyCustomBlocks = () => ({ cover: [], family: [], timeline: [], locations: [], rsvp: [] });
-
-// display:none breaks programmatic .click() on file inputs in iOS Safari, so hide them
-// visually instead — this keeps the input "present" enough for the OS picker to open.
-const VISUALLY_HIDDEN = { position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 };
-
-
-const STEPS = [
-  { key: "cover", label: "Cover & Intro", icon: Heart },
-  { key: "family", label: "Family & Details", icon: Users },
-  { key: "timeline", label: "Timeline", icon: Clock },
-  { key: "locations", label: "The Celebration", icon: MapPin },
-  { key: "rsvp", label: "Countdown & RSVP", icon: CalendarClock },
-];
-
-const uid = () => Math.random().toString(36).slice(2, 10);
-
-// navigator.clipboard.writeText() is async — a plain try/catch around the call
-// (without awaiting it) never actually catches a rejection, so failures were
-// silent. This awaits it properly and falls back to the older execCommand
-// approach, which works in more sandboxed/embedded contexts.
-async function copyToClipboard(text) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // fall through to the fallback below
-  }
-  try {
-    const el = document.createElement("textarea");
-    el.value = text;
-    el.style.position = "fixed";
-    el.style.opacity = "0";
-    document.body.appendChild(el);
-    el.focus();
-    el.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(el);
-    return ok;
-  } catch {
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>eInvite.me</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>  } catch {
     return false;
   }
 }
