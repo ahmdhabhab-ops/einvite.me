@@ -2350,7 +2350,7 @@ function WaxSealGate({ tapText, design, customMedia }) {
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen }) {
   const [playing, setPlaying] = useState(false);
   const [gateClosing, setGateClosing] = useState(false);
   const [animKey, setAnimKey] = useState(0);
@@ -2490,10 +2490,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative flex-shrink-0" style={{ width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }}>
-        <div className="relative h-full w-full overflow-hidden" style={{ borderRadius: 32, background: PAPER }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
-          <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />
+    <div className={fullscreen ? "flex flex-col items-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh" } : undefined}>
+      <div
+        className={fullscreen ? "relative w-full" : "relative flex-shrink-0"}
+        style={
+          fullscreen
+            ? { minHeight: "100vh", background: PAPER, padding: 0, boxShadow: "none" }
+            : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
+        }
+      >
+        <div className="relative h-full w-full overflow-hidden" style={fullscreen ? { minHeight: "100vh" } : { borderRadius: 32, background: PAPER }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
+          {!fullscreen && <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />}
 
           {started && (
             <div className="absolute left-3 right-3 top-4 z-20 flex gap-1.5">
@@ -4574,7 +4581,7 @@ export default function InvitationBuilder() {
 
   if (guestView && guestView.found) {
     return (
-      <div className="flex min-h-screen items-center justify-center py-10" style={{ background: INK }}>
+      <div style={{ background: PAPER, minHeight: "100vh" }}>
         <PhonePreview
           data={guestData}
           steps={guestSteps}
@@ -4590,6 +4597,7 @@ export default function InvitationBuilder() {
           onMoveCustomBlock={() => {}}
           onRemoveCustomBlock={() => {}}
           onSubmitRsvp={submitGuestViewRsvp}
+          fullscreen
         />
       </div>
     );
