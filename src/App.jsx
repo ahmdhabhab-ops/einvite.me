@@ -2490,19 +2490,32 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   return (
-    <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK, padding: "24px 0" } : undefined}>
+    <>
+      <style>{`
+        @keyframes slideUpIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDownIn { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
+        @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
+        @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
+        .pv-fullscreen-card { max-width: 420px; aspect-ratio: 292 / 600; }
+        @media (max-width: 420px) {
+          .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; }
+        }
+      `}</style>
+    <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK } : undefined}>
       <div
-        className={fullscreen ? "relative w-full" : "relative flex-shrink-0"}
+        className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { maxWidth: 420, width: "100%", aspectRatio: "292 / 600", margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none" }
+            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none" }
             : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
         <div className="relative h-full w-full overflow-hidden" style={fullscreen ? undefined : { borderRadius: 32, background: PAPER }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
           {!fullscreen && <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />}
 
-          {started && (
+          {started && !fullscreen && (
             <div className="absolute left-3 right-3 top-4 z-20 flex gap-1.5">
               {steps.map((_, i) => (
                 <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.35)" }}>
@@ -2649,6 +2662,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         </div>
       )}
     </div>
+    </>
   );
 }
 
