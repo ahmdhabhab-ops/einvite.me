@@ -4897,18 +4897,10 @@ import { BrowserRouter, Switch, Route } from "react-router-dom";
   <Route path="/e/:slug" component={GuestInvitePage} />
 </Switch>
 ```
-
-## What this does and doesn't do
-
-- ✅ Real client-side routing — no 404, no falling back to the homepage.
-- ✅ Personalized greeting from the guest's name in the link.
-- ✅ Zero backend, zero network requests — works entirely from files already
-  in your bundle.
-- ❌ **No real RSVP persistence.** There's nowhere for a static frontend to
-  durably store a guest's response — clicking "Attending" has nothing to
-  save it to. If/when you want that, that's the point where you'd need a
-  real backend (the `invitation-viewer` project from earlier in this
-  conversation is exactly that, if you want it later).
-- ❌ **Adding a new couple's invitation means editing and redeploying**
-  `invitations.js` — there's no self-serve "publish" flow without a backend
-  behind it.
+import { BrowserRouter, Switch, Route } from "react-router-dom";
+// ...
+<Switch>
+  <Route exact path="/" component={HomePage} />
+  <Route path="/builder" component={BuilderPage} />
+  <Route path="/e/:slug" component={GuestInvitePage} />
+</Switch>
