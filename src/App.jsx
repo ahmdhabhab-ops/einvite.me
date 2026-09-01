@@ -2638,14 +2638,16 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
       {data.music.url && <audio ref={audioRef} src={data.music.url} loop />}
 
-      <div className="mt-4 text-center">
-        <div className="text-[11px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>
-          Slide {activeIndex + 1} of {steps.length} — {steps[activeIndex].label}
+      {!fullscreen && (
+        <div className="mt-4 text-center">
+          <div className="text-[11px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+            Slide {activeIndex + 1} of {steps.length} — {steps[activeIndex].label}
+          </div>
+          <div className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            {layoutEditMode ? "Drag any dashed block to move it" : "Swipe up / down on the phone, scroll, or tap a step to preview"}
+          </div>
         </div>
-        <div className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-          {layoutEditMode ? "Drag any dashed block to move it" : "Swipe up / down on the phone, scroll, or tap a step to preview"}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
