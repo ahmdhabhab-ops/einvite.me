@@ -4789,3 +4789,126 @@ export default function InvitationBuilder() {
     </div>
   );
 }
+# Wiring `/e/:slug` into your existing React Router setup
+
+Two files to drop in:
+- `src/data/invitations.js` — your invitation content (no backend needed)
+- `src/pages/GuestInvitePage.jsx` — the page component
+
+Then **one change** to your router itself.
+
+## The actual fix for the 404 / falls-back-to-homepage problem
+
+That symptom — `/e/elena-marcus` either 404s or shows your homepage — is
+almost always one of these two things in an existing router:
+
+**1. A catch-all route is listed *before* your dynamic route.**
+React Router matches routes in the order that makes the best match, but a
+wildcard defined carelessly can still shadow things if your routes aren't
+inside a single `<Routes>` block, or if you're manually checking paths
+somewhere before the router gets a chance to run. Fix: make sure `/e/:slug`
+is a sibling `<Route>` inside the *same* `<Routes>` as your homepage — not
+nested somewhere it won't be reached.
+
+**2. There's no route registered for `/e/:slug` at all**, so the router
+falls through to whatever your default/catch-all route is (often the
+homepage). This is the more common cause. Fix: add the route, shown below.
+
+## Add this to your router
+
+If your `App.jsx` (or wherever your routes live) looks roughly like this:
+
+```jsx
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import BuilderPage from "./pages/BuilderPage";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/builder" element={<BuilderPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+Add the import and the new route — **order doesn't matter here** as long as
+it's a direct child of the same `<Routes>` (React Router resolves the most
+specific match, not just the first one it sees):
+
+```jsx
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import BuilderPage from "./pages/BuilderPage";
+import GuestInvitePage from "./pages/GuestInvitePage"; // ← add this
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/builder" element={<BuilderPage />} />
+        <Route path="/e/:slug" element={<GuestInvitePage />} /> {/* ← add this */}
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+That's it — `/e/elena-marcus` and `/e/elena-marcus?guest=Daniel%20Gonzalez`
+will now both resolve to `GuestInvitePage`, which reads the slug from the URL
+path and the guest's name from the `?guest=` query param, with no fetch and
+no backend involved.
+
+## If you're on React Router v5 (not v6)
+
+The import names and a couple of hooks differ. In `GuestInvitePage.jsx`,
+replace:
+
+```jsx
+import { useParams, useSearchParams, Link } from "react-router-dom";
+// ...
+const { slug } = useParams();
+const [searchParams] = useSearchParams();
+const guestName = searchParams.get("guest");
+```
+
+with:
+
+```jsx
+import { useParams, Link } from "react-router-dom";
+// ...
+const { slug } = useParams();
+const guestName = new URLSearchParams(window.location.search).get("guest");
+```
+
+And your route registration looks like this instead (v5 uses `Switch`, not
+`Routes`):
+
+```jsx
+import { BrowserRouter, Switch, Route } from "react-router-dom";
+// ...
+<Switch>
+  <Route exact path="/" component={HomePage} />
+  <Route path="/builder" component={BuilderPage} />
+  <Route path="/e/:slug" component={GuestInvitePage} />
+</Switch>
+```
+
+## What this does and doesn't do
+
+- ✅ Real client-side routing — no 404, no falling back to the homepage.
+- ✅ Personalized greeting from the guest's name in the link.
+- ✅ Zero backend, zero network requests — works entirely from files already
+  in your bundle.
+- ❌ **No real RSVP persistence.** There's nowhere for a static frontend to
+  durably store a guest's response — clicking "Attending" has nothing to
+  save it to. If/when you want that, that's the point where you'd need a
+  real backend (the `invitation-viewer` project from earlier in this
+  conversation is exactly that, if you want it later).
+- ❌ **Adding a new couple's invitation means editing and redeploying**
+  `invitations.js` — there's no self-serve "publish" flow without a backend
+  behind it.
