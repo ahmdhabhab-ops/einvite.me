@@ -2490,12 +2490,12 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   return (
-    <div className={fullscreen ? "flex flex-col items-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh" } : undefined}>
+    <div className="flex flex-col items-center" style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK } : undefined}>
       <div
         className={fullscreen ? "relative w-full" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { minHeight: "100vh", background: PAPER, padding: 0, boxShadow: "none" }
+            ? { maxWidth: 420, width: "100%", minHeight: "100vh", margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none" }
             : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
@@ -4581,7 +4581,7 @@ export default function InvitationBuilder() {
 
   if (guestView && guestView.found) {
     return (
-      <div style={{ background: PAPER, minHeight: "100vh" }}>
+      <div>
         <PhonePreview
           data={guestData}
           steps={guestSteps}
