@@ -4584,7 +4584,12 @@ export default function InvitationBuilder() {
     }
     const snapshot = invitationsStore[matchedUser.id] || freshInvitationSnapshot();
     setGuestView({ found: true, ownSlug: false, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam });
-  }, []); // run once, on load
+    // Re-run once the real saved data finishes loading (it loads
+    // asynchronously in a separate effect) — without this, a guest link can
+    // get permanently evaluated against the initial seed/demo data instead
+    // of the couple's real saved content, since this effect would otherwise
+    // only run once, before that async load has had a chance to complete.
+  }, [slug, users, invitationsStore]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
     ? { ...guestView.snapshot, totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length }
