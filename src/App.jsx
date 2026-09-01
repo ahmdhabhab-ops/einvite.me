@@ -2490,16 +2490,16 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   return (
-    <div className="flex flex-col items-center" style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK } : undefined}>
+    <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK, padding: "24px 0" } : undefined}>
       <div
         className={fullscreen ? "relative w-full" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { maxWidth: 420, width: "100%", minHeight: "100vh", margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none" }
+            ? { maxWidth: 420, width: "100%", aspectRatio: "292 / 600", margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none" }
             : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
-        <div className="relative h-full w-full overflow-hidden" style={fullscreen ? { minHeight: "100vh" } : { borderRadius: 32, background: PAPER }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
+        <div className="relative h-full w-full overflow-hidden" style={fullscreen ? undefined : { borderRadius: 32, background: PAPER }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
           {!fullscreen && <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />}
 
           {started && (
