@@ -166,11 +166,46 @@ const uid = () => Math.random().toString(36).slice(2, 10);
  * shared across different people's devices — that still needs a real
  * backend + database, same as the DJ/Networking projects.
  */
+// Fill in your own Supabase project's values here to make saves go to a real
+// shared cloud database instead of this browser's local storage — that's
+// what actually makes data visible across different devices/guests. Get
+// these from your Supabase project: Settings → API. The anon key is
+// DESIGNED to be public (safe to put directly in client-side code like
+// this) — real protection comes from the RLS policies on the table itself,
+// not from hiding this key. See sql/kv_store.sql for the table this expects.
+const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"; // <-- replace with your real Project URL
+const SUPABASE_ANON_KEY = "YOUR-ANON-KEY"; // <-- replace with your real anon public key
+const supabaseConfigured = !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
+
+const supabaseHeaders = {
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  "Content-Type": "application/json",
+};
+
+// Talks to Supabase's auto-generated REST API (PostgREST) directly via
+// fetch() — deliberately not using the @supabase/supabase-js package, since
+// that's not among the libraries available inside this artifact environment.
+// A plain key/value table (see sql/kv_store.sql) is enough here: it mirrors
+// exactly the get(key)/set(key,value) shape this app already calls
+// everywhere, so nothing else in the app needs to change to benefit from
+// this — every existing call site (saveDraft, the load effect, per-client
+// invitation keys) keeps working completely unchanged.
 const persistentStorage = {
   async get(key) {
+    if (supabaseConfigured) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: supabaseHeaders });
+        if (!res.ok) return null;
+        const rows = await res.json();
+        return rows[0] ? { key, value: rows[0].value, shared: false } : null;
+      } catch {
+        return null; // network error, Supabase down, CORS misconfigured, etc.
+      }
+    }
     if (typeof window === "undefined") return null;
     if (window.storage) {
-      try { return await persistentStorage.get(key, false); } catch { return null; }
+      try { return await window.storage.get(key, false); } catch { return null; } // was calling itself before — infinite recursion whenever window.storage existed
     }
     try {
       const raw = window.localStorage?.getItem(key);
@@ -180,9 +215,22 @@ const persistentStorage = {
     }
   },
   async set(key, value) {
+    if (supabaseConfigured) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store`, {
+          method: "POST",
+          headers: { ...supabaseHeaders, Prefer: "resolution=merge-duplicates" }, // upsert on the primary key
+          body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+        });
+        if (!res.ok) return null;
+        return { key, value, shared: false };
+      } catch {
+        return null;
+      }
+    }
     if (typeof window === "undefined") return null;
     if (window.storage) {
-      try { return await persistentStorage.set(key, value, false); } catch { return null; }
+      try { return await window.storage.set(key, value, false); } catch { return null; } // same fix as get() above
     }
     try {
       window.localStorage?.setItem(key, value);
@@ -193,6 +241,7 @@ const persistentStorage = {
   },
   /** Whether ANY persistence backend is actually available right now. */
   available() {
+    if (supabaseConfigured) return true;
     if (typeof window === "undefined") return false;
     if (window.storage) return true;
     try { window.localStorage?.setItem("__probe__", "1"); window.localStorage?.removeItem("__probe__"); return true; }
