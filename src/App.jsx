@@ -4483,6 +4483,118 @@ export default function InvitationBuilder() {
   const autoDescription = content.en.cover.intro;
   const slug = `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
 
+  // ------------------------------------------------------------------ //
+  // Guest-link detection — runs once on load. If the URL is /e/:slug,
+  // figure out which invitation that slug belongs to (this device's own
+  // active one, or another client's from invitationsStore), and — if a
+  // ?g=<guest group id> or ?guest=<name> is present — which guest. This
+  // does NOT touch the actively-loaded editing state; it's a completely
+  // separate, read-only path that short-circuits the whole app below.
+  // ------------------------------------------------------------------ //
+
+  const [guestView, setGuestView] = useState(null); // null = checking, false = not a guest link, { ... } = resolved
+  const [guestActiveIndex, setGuestActiveIndex] = useState(0);
+  const [guestStarted, setGuestStarted] = useState(false);
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/e\/([^/]+)\/?$/);
+    if (!match) {
+      setGuestView(false);
+      return;
+    }
+    const urlSlug = decodeURIComponent(match[1]);
+    const params = new URLSearchParams(window.location.search);
+    const groupId = params.get("g");
+    const guestNameParam = params.get("guest");
+
+    // This device's own currently-loaded invitation matches directly —
+    // reuse the live state, no snapshot lookup needed.
+    if (urlSlug === slug) {
+      setGuestView({ found: true, ownSlug: true, snapshotGuestGroups: guestGroups, groupId, guestNameParam });
+      return;
+    }
+    // Otherwise, find which client this slug actually belongs to.
+    const matchedUser = users.find((u) => u.invitationSlug === urlSlug);
+    if (!matchedUser) {
+      setGuestView({ found: false });
+      return;
+    }
+    const snapshot = invitationsStore[matchedUser.id] || freshInvitationSnapshot();
+    setGuestView({ found: true, ownSlug: false, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam });
+  }, []); // run once, on load
+
+  const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
+    ? { ...guestView.snapshot, totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length }
+    : null;
+  const guestData = guestView && guestView.found ? (guestView.ownSlug ? data : guestSnapshotData) : null;
+  const guestSteps = guestView && guestView.found
+    ? (guestView.ownSlug ? steps : (guestView.snapshot.pageOrder || ALL_STEPS.map((s) => s.key)).map((k) => ALL_STEPS.find((s) => s.key === k)).filter(Boolean).filter((s) => (guestView.snapshot.enabledSteps || {})[s.key]))
+    : null;
+  const guestLang = guestView && guestView.found ? (guestView.ownSlug ? activeLang : (guestView.snapshot.defaultLang || "en")) : "en";
+  const matchedGroup = guestView && guestView.found ? guestView.snapshotGuestGroups.find((g) => g.id === guestView.groupId) : null;
+  const resolvedGuestName = matchedGroup?.members?.find((m) => m.status === "yes")?.name || matchedGroup?.members?.[0]?.name || guestView?.guestNameParam || null;
+
+  // Submitting an RSVP from a guest view needs to write into the RIGHT
+  // place — the live state if it's this device's own invitation, or the
+  // correct client's slot in invitationsStore otherwise (without touching
+  // whatever invitation is currently loaded for editing).
+  const submitGuestViewRsvp = ({ names, status, additionalGuests }) => {
+    if (!guestView?.found) return;
+    if (guestView.ownSlug) {
+      submitGuestRsvp({ names, status, additionalGuests });
+      return;
+    }
+    const cleanNames = (names || []).filter((n) => n && n.trim());
+    const newGroup = {
+      id: uid(), lastName: "",
+      members: cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [],
+      additionalGuests: status === "yes" ? additionalGuests || 0 : 0,
+      table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
+    };
+    setInvitationsStore((store) => {
+      const current = store[guestView.userId] || freshInvitationSnapshot();
+      return { ...store, [guestView.userId]: { ...current, guestGroups: [newGroup, ...(current.guestGroups || [])] } };
+    });
+  };
+
+  if (guestView === null) {
+    return null; // still checking the URL — avoid flashing the homepage/builder first
+  }
+
+  if (guestView && guestView.found === false) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6 text-center" style={{ background: INK, fontFamily: FONT_BODY }}>
+        <div>
+          <h1 className="mb-2 text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>This invitation link isn't available</h1>
+          <p className="text-[13px]" style={{ color: MUTED }}>It may not be published yet, or the link may be incorrect.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (guestView && guestView.found) {
+    return (
+      <div className="flex min-h-screen items-center justify-center py-10" style={{ background: INK }}>
+        <PhonePreview
+          data={guestData}
+          steps={guestSteps}
+          activeIndex={guestActiveIndex}
+          onNavigate={setGuestActiveIndex}
+          lang={guestLang}
+          layoutEditMode={false}
+          onMoveBlock={() => {}}
+          started={guestStarted}
+          onStart={() => setGuestStarted(true)}
+          selectedBlockId={null}
+          onSelectBlock={() => {}}
+          onMoveCustomBlock={() => {}}
+          onRemoveCustomBlock={() => {}}
+          onSubmitRsvp={submitGuestViewRsvp}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
       <style>{`
