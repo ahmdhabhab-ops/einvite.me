@@ -2352,6 +2352,18 @@ function WaxSealGate({ tapText, design, customMedia }) {
 
 function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen }) {
   const [playing, setPlaying] = useState(false);
+  const cardRef = useRef(null);
+  const [fsScale, setFsScale] = useState(1);
+
+  useEffect(() => {
+    if (!fullscreen || !cardRef.current) return;
+    const el = cardRef.current;
+    const update = () => setFsScale(el.offsetWidth / 292); // 292 = the fixed px width every layout/font size in this app was designed against
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fullscreen]);
   const [gateClosing, setGateClosing] = useState(false);
   const [animKey, setAnimKey] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -2505,14 +2517,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK } : undefined}>
       <div
+        ref={cardRef}
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none" }
+            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
             : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
-        <div className="relative h-full w-full overflow-hidden" style={{ touchAction: "none", ...(fullscreen ? {} : { borderRadius: 32, background: PAPER }) }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
+        <div
+          className="relative overflow-hidden"
+          style={
+            fullscreen
+              ? { touchAction: "none", width: 292, height: 600, transform: `scale(${fsScale})`, transformOrigin: "top left" }
+              : { touchAction: "none", borderRadius: 32, background: PAPER, height: "100%", width: "100%" }
+          }
+          dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
+        >
           {!fullscreen && <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />}
 
           {started && !fullscreen && (
@@ -4223,6 +4244,7 @@ export default function InvitationBuilder() {
   const bgKey = (stepKey) => `einvite:bg-${stepKey}`;
   const introBgKey = (lang) => `einvite:introbg-${lang}`;
   const OG_IMAGE_KEY = "einvite:og-image";
+  const invitationKey = (id) => `einvite:invitation-${id}`;
 
   const selectStep = (i) => { setActiveIndex(i); setVisited((v) => new Set(v).add(i)); setStarted(true); setSelectedBlockId(null); };
   const previewFromStart = () => { setActiveIndex(0); setStarted(false); };
@@ -4276,7 +4298,19 @@ export default function InvitationBuilder() {
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
         if (d.integrations) setIntegrations((i) => ({ ...i, ...d.integrations }));
-        if (d.invitationsStore) setInvitationsStore(d.invitationsStore);
+        if (Array.isArray(d.invitationIds) && d.invitationIds.length) {
+          const results = await Promise.allSettled(d.invitationIds.map((id) => persistentStorage.get(invitationKey(id), false)));
+          if (!cancelled) {
+            const restoredStore = {};
+            d.invitationIds.forEach((id, i) => {
+              const r = results[i];
+              if (r.status === "fulfilled" && r.value?.value) {
+                try { restoredStore[id] = JSON.parse(r.value.value); } catch {} // skip a corrupted individual entry rather than failing the whole load
+              }
+            });
+            setInvitationsStore(restoredStore);
+          }
+        }
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
         if (d.users) setUsers(d.users);
         if (d.siteDomain) setSiteDomain(d.siteDomain);
@@ -4327,10 +4361,11 @@ export default function InvitationBuilder() {
     }
     setSaveStatus("saving");
     const fullInvitationsStore = { ...invitationsStore, [activeInvitationId]: getActiveSnapshot() };
+    const invitationIds = Object.keys(fullInvitationsStore);
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts, customBlocks,
       guestGroups, tables, rsvpSettings, users, integrations, siteDomain,
-      invitationsStore: fullInvitationsStore, activeInvitationId,
+      invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media omitted below: video entries use blob URLs that don't survive reload
       musicMeta: { enabled: music.enabled, name: music.name }, // url omitted for the same reason
@@ -4339,6 +4374,11 @@ export default function InvitationBuilder() {
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
       ...ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)),
       ...LANGS.filter((lang) => intro.media[lang]?.type === "image").map((lang) => persistentStorage.set(introBgKey(lang), intro.media[lang].url, false)),
+      // Each client's full snapshot (which can include embedded base64 images
+      // in customBlocks) gets its own key — this is what actually keeps any
+      // single write under the 5MB-per-key limit, instead of one giant blob
+      // holding every client's data at once.
+      ...invitationIds.map((id) => persistentStorage.set(invitationKey(id), JSON.stringify(fullInvitationsStore[id]), false)),
     ];
     if (og.image) imageJobs.push(persistentStorage.set(OG_IMAGE_KEY, og.image, false));
     try {
