@@ -2512,7 +2512,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
-        <div className="relative h-full w-full overflow-hidden" style={fullscreen ? undefined : { borderRadius: 32, background: PAPER }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
+        <div className="relative h-full w-full overflow-hidden" style={{ touchAction: "none", ...(fullscreen ? {} : { borderRadius: 32, background: PAPER }) }} dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}>
           {!fullscreen && <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />}
 
           {started && !fullscreen && (
