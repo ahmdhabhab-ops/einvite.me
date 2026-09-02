@@ -4485,7 +4485,7 @@ export default function InvitationBuilder() {
       setSelectedBlockId(`custom:${newBlock.id}`);
     };
     try {
-      addBlock(await readImageCompressed(file, 900, 0.85));
+      addBlock(await readImageCompressed(file, 1400, 0.88));
     } catch {
       const reader = new FileReader();
       reader.onload = () => addBlock(reader.result);
