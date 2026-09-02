@@ -4325,6 +4325,8 @@ export default function InvitationBuilder() {
   const introBgKey = (lang) => `einvite:introbg-${lang}`;
   const OG_IMAGE_KEY = "einvite:og-image";
   const invitationKey = (id) => `einvite:invitation-${id}`;
+  const CUSTOM_BLOCKS_KEY = "einvite:custom-blocks";
+  const MUSIC_AUDIO_KEY = "einvite:music-audio";
 
   const selectStep = (i) => { setActiveIndex(i); setVisited((v) => new Set(v).add(i)); setStarted(true); setSelectedBlockId(null); };
   const previewFromStart = () => { setActiveIndex(0); setStarted(false); };
@@ -4373,7 +4375,6 @@ export default function InvitationBuilder() {
         if (d.defaultLang) setDefaultLang(d.defaultLang);
         if (d.enabledLanguages) setEnabledLanguages(d.enabledLanguages);
         if (d.layouts) setLayouts((l) => ({ ...DEFAULT_LAYOUTS, ...l, ...d.layouts }));
-        if (d.customBlocks) setCustomBlocks((c) => ({ ...emptyCustomBlocks(), ...c, ...d.customBlocks }));
         if (d.guestGroups) setGuestGroups(d.guestGroups);
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
@@ -4396,7 +4397,7 @@ export default function InvitationBuilder() {
         if (d.siteDomain) setSiteDomain(d.siteDomain);
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
-        if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name, url: d.musicMeta.url || m.url }));
+        if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
       } catch {
         // No saved draft yet — start fresh with the defaults.
       }
@@ -4434,6 +4435,21 @@ export default function InvitationBuilder() {
         setOg((o) => ({ ...o, image: res.value }));
       } catch {}
     })();
+    (async () => {
+      try {
+        const res = await persistentStorage.get(CUSTOM_BLOCKS_KEY, false);
+        if (cancelled || !res?.value) return;
+        const cb = JSON.parse(res.value);
+        setCustomBlocks((c) => ({ ...emptyCustomBlocks(), ...c, ...cb }));
+      } catch {}
+    })();
+    (async () => {
+      try {
+        const res = await persistentStorage.get(MUSIC_AUDIO_KEY, false);
+        if (cancelled || !res?.value) return;
+        setMusic((m) => ({ ...m, url: res.value }));
+      } catch {}
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -4447,17 +4463,21 @@ export default function InvitationBuilder() {
     const fullInvitationsStore = { ...invitationsStore, [activeInvitationId]: getActiveSnapshot() };
     const invitationIds = Object.keys(fullInvitationsStore);
     const corePayload = {
-      content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts, customBlocks,
+      content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
       guestGroups, tables, rsvpSettings, users, integrations, siteDomain,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media omitted below: video entries still use blob URLs that don't survive reload
-      musicMeta: { enabled: music.enabled, name: music.name, url: music.url }, // now a persistent base64 string (see handleAudioUpload), safe to save directly
+      musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
     const imageJobs = [
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
       ...ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)),
       ...LANGS.filter((lang) => intro.media[lang]?.type === "image").map((lang) => persistentStorage.set(introBgKey(lang), intro.media[lang].url, false)),
+      // customBlocks can contain embedded base64 images (custom image blocks) —
+      // its own key, same reasoning as everything else here: keep the core
+      // payload small and fast, regardless of how many images are in it.
+      persistentStorage.set(CUSTOM_BLOCKS_KEY, JSON.stringify(customBlocks), false),
       // Each client's full snapshot (which can include embedded base64 images
       // in customBlocks) gets its own key — this is what actually keeps any
       // single write under the 5MB-per-key limit, instead of one giant blob
@@ -4465,6 +4485,7 @@ export default function InvitationBuilder() {
       ...invitationIds.map((id) => persistentStorage.set(invitationKey(id), JSON.stringify(fullInvitationsStore[id]), false)),
     ];
     if (og.image) imageJobs.push(persistentStorage.set(OG_IMAGE_KEY, og.image, false));
+    if (music.url) imageJobs.push(persistentStorage.set(MUSIC_AUDIO_KEY, music.url, false));
     try {
       const outcomes = await Promise.allSettled(imageJobs);
       const [coreOutcome, ...restOutcomes] = outcomes;
