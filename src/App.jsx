@@ -312,6 +312,12 @@ function readImageCompressed(file, maxDim = 1800, quality = 0.88) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
+        // Without explicitly requesting high-quality smoothing, browsers aren't
+        // guaranteed to use good interpolation when scaling a large source image
+        // down — this is what actually makes canvas-resized images look soft,
+        // independent of the target resolution or JPEG quality below.
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
         resolve(preserveTransparency ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", quality));
       };
