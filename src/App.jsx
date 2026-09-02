@@ -1728,7 +1728,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
 
 function StoryPage({ bg, children }) {
   const isPhoto = bg.mode === "photo";
-  const background = isPhoto ? (bg.image ? `url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
+  const background = isPhoto ? (bg.image ? `${INK} url(${bg.image}) center/contain no-repeat` : BG_PRESETS[bg.preset].css) : PAPER;
   // "darken" (0-100) sets the strength of the bottom stop; top/mid scale with it
   // at the same ratios as the original fixed overlay, so 55 looks identical to before.
   const amount = (bg.darken ?? 55) / 100;
@@ -2614,7 +2614,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
+            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: fsViewportHeight } : {}) }
             : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
