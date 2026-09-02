@@ -289,7 +289,7 @@ async function copyToClipboard(text) {
 // Phone camera photos can be several MB — far more than a saved draft can hold once
 // base64-encoded. Downscale and re-compress to JPEG before it ever enters state, so
 // uploads stay fast, previews stay smooth, and Save doesn't hit the storage size limit.
-function readImageCompressed(file, maxDim = 1400, quality = 0.78) {
+function readImageCompressed(file, maxDim = 1800, quality = 0.88) {
   // JPEG has no alpha channel — compressing a transparent PNG/WebP/GIF down to
   // JPEG silently flattens every transparent pixel to black. Keep transparency-
   // capable formats as PNG (lossless, so no quality param) and only use JPEG
@@ -2318,7 +2318,7 @@ function GateAnimation({ style }) {
 
 // Envelope gate with an embossed wax seal. Either a built-in style (no upload
 // needed, everything CSS) or a custom uploaded photo/video behind the seal.
-function WaxSealGate({ tapText, design, customMedia }) {
+function WaxSealGate({ tapText, design, customMedia, videoRef }) {
   const d = ENVELOPE_STYLES[design] || ENVELOPE_STYLES.kraftGold;
   const EngraveIcon = d.engrave;
   const hasCustomBg = !!customMedia;
@@ -2328,7 +2328,16 @@ function WaxSealGate({ tapText, design, customMedia }) {
       {hasCustomBg ? (
         <>
           {customMedia.type === "video" ? (
-            <video src={customMedia.url} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover" />
+            <video
+              ref={videoRef}
+              src={customMedia.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              onPause={(e) => { e.currentTarget.play().catch(() => {}); }} // some mobile browsers pause an off-screen/backgrounded video; keep it running while the gate is up
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           ) : (
             <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover` }} />
           )}
@@ -2630,13 +2639,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 <button
                   onClick={() => {
                     if (gateClosing) return;
+                    if (introMedia?.type === "video" && gateVideoRef.current) {
+                      gateVideoRef.current.muted = true;
+                      gateVideoRef.current.play().catch(() => {});
+                    }
                     setGateClosing(true);
                     setTimeout(() => { onStart(); setGateClosing(false); }, 480);
                   }}
                   className="absolute inset-0"
                   style={{ opacity: gateClosing ? 0 : 1, transition: "opacity 0.48s ease", pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
-                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} />
+                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} />
                 </button>
               ) : (
                 <div className="absolute inset-0" style={{ background: gateBackground }}>
@@ -4377,7 +4390,7 @@ export default function InvitationBuilder() {
         if (d.siteDomain) setSiteDomain(d.siteDomain);
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
-        if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
+        if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name, url: d.musicMeta.url || m.url }));
       } catch {
         // No saved draft yet — start fresh with the defaults.
       }
@@ -4428,8 +4441,8 @@ export default function InvitationBuilder() {
       guestGroups, tables, rsvpSettings, users, integrations, siteDomain,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
-      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media omitted below: video entries use blob URLs that don't survive reload
-      musicMeta: { enabled: music.enabled, name: music.name }, // url omitted for the same reason
+      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media omitted below: video entries still use blob URLs that don't survive reload
+      musicMeta: { enabled: music.enabled, name: music.name, url: music.url }, // now a persistent base64 string (see handleAudioUpload), safe to save directly
     };
     const imageJobs = [
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
@@ -4492,8 +4505,20 @@ export default function InvitationBuilder() {
   const handleAudioUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setMusic((m) => ({ ...m, url, name: file.name }));
+    if (file.size > 8 * 1024 * 1024) {
+      alert("That audio file is quite large (over 8MB) — try a shorter clip or a more compressed format (MP3 rather than WAV) for a smoother experience.");
+      return;
+    }
+    // Read as a persistent base64 data URI instead of a temporary blob URL —
+    // a blob URL only exists within the current browser tab's session, so it
+    // never survives a reload, a different tab, or the guest-facing view
+    // reading this data back later — exactly why uploaded music stopped
+    // being audible after upload.
+    const reader = new FileReader();
+    reader.onload = () => {
+      setMusic((m) => ({ ...m, url: reader.result, name: file.name, enabled: true }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const addGuestGroup = (g) => setGuestGroups((list) => [g, ...list]);
