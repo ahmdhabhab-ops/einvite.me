@@ -196,10 +196,14 @@ const persistentStorage = {
     if (supabaseConfigured) {
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: supabaseHeaders });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          console.error(`Supabase GET failed for key "${key}": ${res.status} ${res.statusText}`, await res.text().catch(() => ""));
+          return null;
+        }
         const rows = await res.json();
         return rows[0] ? { key, value: rows[0].value, shared: false } : null;
-      } catch {
+      } catch (err) {
+        console.error(`Supabase GET threw for key "${key}":`, err);
         return null; // network error, Supabase down, CORS misconfigured, etc.
       }
     }
@@ -222,9 +226,13 @@ const persistentStorage = {
           headers: { ...supabaseHeaders, Prefer: "resolution=merge-duplicates" }, // upsert on the primary key
           body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          console.error(`Supabase SET failed for key "${key}": ${res.status} ${res.statusText}`, await res.text().catch(() => ""));
+          return null;
+        }
         return { key, value, shared: false };
-      } catch {
+      } catch (err) {
+        console.error(`Supabase SET threw for key "${key}":`, err);
         return null;
       }
     }
