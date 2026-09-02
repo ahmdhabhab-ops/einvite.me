@@ -173,8 +173,8 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 // DESIGNED to be public (safe to put directly in client-side code like
 // this) — real protection comes from the RLS policies on the table itself,
 // not from hiding this key. See sql/kv_store.sql for the table this expects.
-const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"; // <-- replace with your real Project URL
-const SUPABASE_ANON_KEY = "YOUR-ANON-KEY"; // <-- replace with your real anon public key
+const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"; // <-- still needs your real Project URL (Settings → API)
+const SUPABASE_ANON_KEY = "sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM";
 const supabaseConfigured = !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
 
 const supabaseHeaders = {
