@@ -2345,7 +2345,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover` }} />
+            <div className="absolute inset-0" style={{ background: `${INK} url(${customMedia.url}) center/contain no-repeat` }} />
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.25) 0%, rgba(10,12,10,0.5) 100%)" }} />
         </>
@@ -2513,7 +2513,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
   const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || data.pageBackgrounds.cover.image;
-  const gateBackground = gateImage ? `url(${gateImage}) center/cover` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  const gateBackground = gateImage ? `${INK} url(${gateImage}) center/contain no-repeat` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
