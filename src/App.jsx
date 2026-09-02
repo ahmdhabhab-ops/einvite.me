@@ -1728,7 +1728,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
 
 function StoryPage({ bg, children }) {
   const isPhoto = bg.mode === "photo";
-  const background = isPhoto ? (bg.image ? `${INK} url(${bg.image}) center/contain no-repeat` : BG_PRESETS[bg.preset].css) : PAPER;
+  const background = isPhoto ? (bg.image ? `url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
   // "darken" (0-100) sets the strength of the bottom stop; top/mid scale with it
   // at the same ratios as the original fixed overlay, so 55 looks identical to before.
   const amount = (bg.darken ?? 55) / 100;
@@ -2345,7 +2345,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0" style={{ background: `${INK} url(${customMedia.url}) center/contain no-repeat` }} />
+            <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover` }} />
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.25) 0%, rgba(10,12,10,0.5) 100%)" }} />
         </>
@@ -2513,7 +2513,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
   const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || data.pageBackgrounds.cover.image;
-  const gateBackground = gateImage ? `${INK} url(${gateImage}) center/contain no-repeat` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  const gateBackground = gateImage ? `url(${gateImage}) center/cover` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
@@ -4445,7 +4445,8 @@ export default function InvitationBuilder() {
         try {
           const res = await persistentStorage.get(introBgKey(lang), false);
           if (cancelled || !res?.value) return;
-          setIntro((i) => ({ ...i, media: { ...i.media, [lang]: { type: "image", url: res.value, name: "" } } }));
+          const media = JSON.parse(res.value);
+          setIntro((i) => ({ ...i, media: { ...i.media, [lang]: media } }));
         } catch {}
       })();
     });
@@ -4488,13 +4489,13 @@ export default function InvitationBuilder() {
       guestGroups, tables, rsvpSettings, users, integrations, siteDomain,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
-      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media omitted below: video entries still use blob URLs that don't survive reload
+      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media (image or video) saved separately below via introBgKey
       musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
     const imageJobs = [
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
       ...ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)),
-      ...LANGS.filter((lang) => intro.media[lang]?.type === "image").map((lang) => persistentStorage.set(introBgKey(lang), intro.media[lang].url, false)),
+      ...LANGS.filter((lang) => intro.media[lang]?.url).map((lang) => persistentStorage.set(introBgKey(lang), JSON.stringify(intro.media[lang]), false)),
       // customBlocks can contain embedded base64 images (custom image blocks) —
       // its own key, same reasoning as everything else here: keep the core
       // payload small and fast, regardless of how many images are in it.
@@ -4660,8 +4661,19 @@ export default function InvitationBuilder() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type.startsWith("video/")) {
-      const url = URL.createObjectURL(file);
-      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url, name: file.name } } }));
+      if (file.size > 20 * 1024 * 1024) {
+        alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
+        return;
+      }
+      // Read as a persistent base64 data URI instead of a temporary blob URL —
+      // a blob URL only exists within the current browser tab's session, so
+      // it never survives a reload or a different device reading this data
+      // back later. Same bug class, same fix, as the music upload earlier.
+      const reader = new FileReader();
+      reader.onload = () => {
+        setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: reader.result, name: file.name } } }));
+      };
+      reader.readAsDataURL(file);
       return;
     }
     try {
