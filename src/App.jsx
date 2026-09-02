@@ -2426,6 +2426,27 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
+  const [fsViewportHeight, setFsViewportHeight] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 700));
+  const [fsIsNarrow, setFsIsNarrow] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 420 : true));
+
+  useEffect(() => {
+    if (!fullscreen || typeof window === "undefined") return;
+    // window.visualViewport tracks the ACTUALLY-visible area on mobile as the
+    // browser's own address bar shrinks/grows — this is what makes the card's
+    // height reliable across different mobile browsers, regardless of
+    // whether a given browser supports the dvh CSS unit at all.
+    const update = () => {
+      setFsViewportHeight(window.visualViewport?.height || window.innerHeight);
+      setFsIsNarrow(window.innerWidth <= 420);
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+    };
+  }, [fullscreen]);
 
   useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
