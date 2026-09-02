@@ -2584,10 +2584,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         .pv-fullscreen-card { max-width: 420px; aspect-ratio: 292 / 600; }
         @media (max-width: 420px) {
-          .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; }
+          .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; height: 100dvh; }
         }
       `}</style>
-    <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100vh", background: INK } : undefined}>
+    <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
         ref={cardRef}
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
@@ -4536,8 +4536,8 @@ export default function InvitationBuilder() {
   const handleAudioUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      alert("That audio file is quite large (over 8MB) — try a shorter clip or a more compressed format (MP3 rather than WAV) for a smoother experience.");
+    if (file.size > 20 * 1024 * 1024) {
+      alert("That audio file is quite large (over 20MB) — try a shorter clip or a more compressed format (MP3 rather than WAV) for a smoother experience.");
       return;
     }
     // Read as a persistent base64 data URI instead of a temporary blob URL —
