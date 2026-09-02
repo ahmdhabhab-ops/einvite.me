@@ -4401,18 +4401,22 @@ export default function InvitationBuilder() {
         // No saved draft yet — start fresh with the defaults.
       }
     })();
-    // Each background image loads independently — one missing/corrupt key never blocks the rest.
-    // Loads for ALL possible pages, not just currently-visible ones, so a background survives
-    // being hidden and later shown again.
-    ALL_STEPS.forEach(({ key }) => {
-      (async () => {
-        try {
-          const res = await persistentStorage.get(bgKey(key), false);
-          if (cancelled || !res?.value) return;
-          const bg = JSON.parse(res.value);
-          setPageBackgrounds((p) => ({ ...p, [key]: bg }));
-        } catch {}
-      })();
+    // The Cover page's background is the one thing a guest actually needs
+    // for the first paint — load it first and alone, so it isn't racing
+    // nine other pages' background images for the same bandwidth. Only once
+    // it settles do the rest start loading (still independently of each
+    // other, one missing/corrupt key never blocks the rest).
+    const [firstStep, ...restSteps] = ALL_STEPS;
+    const loadBg = (key) => (async () => {
+      try {
+        const res = await persistentStorage.get(bgKey(key), false);
+        if (cancelled || !res?.value) return;
+        const bg = JSON.parse(res.value);
+        setPageBackgrounds((p) => ({ ...p, [key]: bg }));
+      } catch {}
+    })();
+    loadBg(firstStep.key).then(() => {
+      restSteps.forEach(({ key }) => loadBg(key));
     });
     LANGS.forEach((lang) => {
       (async () => {
