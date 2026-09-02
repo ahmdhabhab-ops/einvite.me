@@ -289,7 +289,7 @@ async function copyToClipboard(text) {
 // Phone camera photos can be several MB — far more than a saved draft can hold once
 // base64-encoded. Downscale and re-compress to JPEG before it ever enters state, so
 // uploads stay fast, previews stay smooth, and Save doesn't hit the storage size limit.
-function readImageCompressed(file, maxDim = 1800, quality = 0.88) {
+function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
   // JPEG has no alpha channel — compressing a transparent PNG/WebP/GIF down to
   // JPEG silently flattens every transparent pixel to black. Keep transparency-
   // capable formats as PNG (lossless, so no quality param) and only use JPEG
@@ -4491,7 +4491,7 @@ export default function InvitationBuilder() {
       setSelectedBlockId(`custom:${newBlock.id}`);
     };
     try {
-      addBlock(await readImageCompressed(file, 1400, 0.88));
+      addBlock(await readImageCompressed(file, 2400, 0.92));
     } catch {
       const reader = new FileReader();
       reader.onload = () => addBlock(reader.result);
