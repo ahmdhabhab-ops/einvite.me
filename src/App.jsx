@@ -404,7 +404,7 @@ const defaultPageBackgrounds = {
 };
 
 const DEFAULT_LAYOUTS = {
-  cover: { names: { x: 50, y: 68 }, intro: { x: 50, y: 83 } },
+  cover: { names: { x: 50, y: 62 }, intro: { x: 50, y: 76 } },
   family: { greeting: { x: 50, y: 34 }, quote: { x: 50, y: 52 }, names: { x: 50, y: 76 } },
   timeline: { heading: { x: 50, y: 13 }, list: { x: 50, y: 58 } },
   locations: { heading: { x: 50, y: 11 }, list: { x: 50, y: 55 } },
@@ -2742,9 +2742,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
-              <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1 rounded-full px-4 py-2" style={{ background: "rgba(10,12,10,0.5)", backdropFilter: "blur(4px)" }}>
-                <ChevronsUp size={20} color={PAPER} style={{ animation: "bounceUp 1.4s ease-in-out infinite" }} />
-                <span className="text-[10px] font-semibold uppercase" style={{ color: PAPER, fontFamily: FONT_BODY, letterSpacing: "0.2em" }}>
+              <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+                <ChevronsUp size={20} color={PAPER} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
+                <span className="text-[10px] font-semibold uppercase" style={{ color: PAPER, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
                   {t.swipeUp}
                 </span>
               </button>
