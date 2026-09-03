@@ -4827,9 +4827,11 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs }) {
 
   return (
     <div className="mx-auto max-w-md">
-      <button onClick={onExit} className="mb-5 flex items-center gap-1.5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        <ArrowLeft size={13} /> Back to admin app
-      </button>
+      {onExit && (
+        <button onClick={onExit} className="mb-5 flex items-center gap-1.5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          <ArrowLeft size={13} /> Back to admin app
+        </button>
+      )}
 
       {screen === "signup" &&
         shell(
@@ -5532,12 +5534,26 @@ export default function InvitationBuilder() {
   // Switches which client's invitation is currently loaded into the editor —
   // saving the outgoing one first so nothing is lost, then loading (or
   // freshly creating) the incoming one.
-  const switchActiveInvitation = (nextId) => {
+  const switchActiveInvitation = async (nextId) => {
     const outgoing = getActiveSnapshot();
     const incoming = invitationsStore[nextId] || freshInvitationSnapshot();
     setInvitationsStore((store) => ({ ...store, [activeInvitationId]: outgoing, [nextId]: incoming }));
     applySnapshot(incoming);
     setActiveInvitationId(nextId);
+    // THE ACTUAL FIX: persist the outgoing client's data directly to
+    // Supabase right now, not just to local invitationsStore state. Without
+    // this, the only place that data ever reached the database was
+    // saveDraft's blanket re-save of EVERY client using whatever was
+    // sitting in local state — which could silently overwrite fresher data
+    // written elsewhere (a guest's direct RSVP, for example) with a stale
+    // local copy the owner's browser hadn't refreshed in a while.
+    if (activeInvitationId && persistentStorage.available()) {
+      try {
+        await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(outgoing), false);
+      } catch (err) {
+        console.error(`switchActiveInvitation: failed to save outgoing invitation "${activeInvitationId}" to Supabase:`, err);
+      }
+    }
   };
 
 
@@ -5699,8 +5715,7 @@ export default function InvitationBuilder() {
       return;
     }
     setSaveStatus("saving");
-    const fullInvitationsStore = { ...invitationsStore, [activeInvitationId]: getActiveSnapshot() };
-    const invitationIds = Object.keys(fullInvitationsStore);
+    const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
       guestGroups, tables, rsvpSettings, users, integrations, siteDomain,
@@ -5717,11 +5732,16 @@ export default function InvitationBuilder() {
       // its own key, same reasoning as everything else here: keep the core
       // payload small and fast, regardless of how many images are in it.
       persistentStorage.set(CUSTOM_BLOCKS_KEY, JSON.stringify(customBlocks), false),
-      // Each client's full snapshot (which can include embedded base64 images
-      // in customBlocks) gets its own key — this is what actually keeps any
-      // single write under the 5MB-per-key limit, instead of one giant blob
-      // holding every client's data at once.
-      ...invitationIds.map((id) => persistentStorage.set(invitationKey(id), JSON.stringify(fullInvitationsStore[id]), false)),
+      // THE ACTUAL FIX: only write the CURRENTLY ACTIVE invitation's own
+      // snapshot here — not every other known client's local copy. Other
+      // clients' data is now saved at the moment of switching away from
+      // them (see switchActiveInvitation), which is the only place their
+      // data actually changes from this browser's perspective. Re-saving
+      // all of them here, from whatever was sitting in local state, was
+      // the actual bug: it could silently overwrite fresher writes made
+      // directly by a guest (an RSVP, for example) with a stale copy this
+      // browser hadn't refreshed recently.
+      persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(getActiveSnapshot()), false),
     ];
     if (og.image) imageJobs.push(persistentStorage.set(OG_IMAGE_KEY, og.image, false));
     if (music.url) imageJobs.push(persistentStorage.set(MUSIC_AUDIO_KEY, music.url, false));
@@ -5951,6 +5971,7 @@ export default function InvitationBuilder() {
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
   const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
   const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
+  const [isAdminPath, setIsAdminPath] = useState(null); // null = checking, true/false = resolved
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
@@ -5960,6 +5981,11 @@ export default function InvitationBuilder() {
   useEffect(() => {
     const match = window.location.pathname.match(/^\/checkin\/([^/]+)\/?$/);
     setCheckinTokenFromUrl(match ? decodeURIComponent(match[1]) : false);
+  }, []);
+
+  useEffect(() => {
+    const p = window.location.pathname;
+    setIsAdminPath(p === "/admin" || p.startsWith("/admin/"));
   }, []);
 
   useEffect(() => {
@@ -6055,7 +6081,8 @@ export default function InvitationBuilder() {
       console.error(`RSVP for "${cleanNames.join(", ") || "Guest"}" (slug: ${guestView.slug}) could not be confirmed as saved to the shared database.`);
     }
     if (status !== "yes") return null;
-    const displayNames = cleanNames.length ? cleanNames.join(", ") : "Guest";
+    const extra = additionalGuests || 0;
+    const displayNames = (cleanNames.length ? cleanNames.join(", ") : "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
     return await createCheckinToken(guestView.slug, newGroup.id, displayNames);
   };
 
@@ -6117,6 +6144,24 @@ export default function InvitationBuilder() {
           slug={guestView.slug}
           siteDomain={siteDomain}
         />
+      </div>
+    );
+  }
+
+  if (isAdminPath === null) {
+    return null; // still checking the URL
+  }
+
+  // The actual fix: the site's default landing (anything that isn't /admin
+  // and isn't one of the other special paths already handled above) now
+  // shows login/signup instead of dropping straight into the builder. A
+  // client who's already logged in (actingAsUser, restored from
+  // localStorage after a refresh) still goes straight to their own portal
+  // — this only gates people who aren't recognized as anything yet.
+  if (!isAdminPath && !actingAsUser) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
+        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} />
       </div>
     );
   }
