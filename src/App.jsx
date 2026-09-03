@@ -1501,7 +1501,7 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
     } else {
       x = Math.min(92, Math.max(8, x));
     }
-    y = Math.min(94, Math.max(6, y));
+    y = Math.min(88, Math.max(6, y));
     return { x, y };
   };
 
