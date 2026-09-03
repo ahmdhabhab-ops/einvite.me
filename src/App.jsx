@@ -2451,18 +2451,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
-    const update = () => {
-      // Scale by whichever dimension is more constraining, not width alone.
-      // A real device's aspect ratio rarely matches the 292:600 reference
-      // exactly — scaling by width alone let the content run taller than
-      // the card on devices proportionally shorter/wider than that ratio,
-      // and since the card clips overflow, bottom-anchored elements (the
-      // swipe-up hint, the music icon) were getting cut off entirely. Using
-      // the smaller ratio guarantees the content always fits both ways.
-      const widthRatio = el.offsetWidth / 292;
-      const heightRatio = el.offsetHeight / 600;
-      setFsScale(Math.min(widthRatio, heightRatio));
-    };
+    const update = () => setFsScale(el.offsetWidth / 292); // 292 = the fixed px width every layout/font size in this app was designed against
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -2734,40 +2723,48 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          {started && (layoutEditMode ? (
-            <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
-              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.6)", backdropFilter: "blur(4px)" }}>
-                <Move size={11} color={GOLD_SOFT} />
-                <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
-              </div>
-            </div>
-          ) : (
-            <>
-              {activeIndex < steps.length - 1 && (
-                <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
-                  <ChevronsUp size={20} color={PAPER} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
-                  <span className="text-[10px] font-semibold uppercase" style={{ color: PAPER, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
-                    {t.swipeUp}
-                  </span>
-                </button>
-              )}
-
-              {/* Bottom-right action icons — data-driven so more than the music toggle can be added here */}
-              <div className="absolute bottom-5 right-3 z-20 flex flex-col items-center gap-2">
-                {bottomRightActions.map((action) => (
-                  <button
-                    key={action.key}
-                    onClick={action.onClick}
-                    className="flex h-8 w-8 items-center justify-center rounded-full"
-                    style={{ background: "rgba(10,12,10,0.5)", backdropFilter: "blur(4px)", opacity: action.dim ? 0.5 : 1 }}
-                  >
-                    <action.icon size={14} color={PAPER} style={{ animation: action.pulse ? "musicPulse 1.6s ease-in-out infinite" : "none" }} />
-                  </button>
-                ))}
-              </div>
-            </>
-          ))}
         </div>
+
+        {/* Swipe-up hint and bottom-right action icons live OUTSIDE the scaled
+            292x600 canvas on purpose — they're UI chrome, not invitation
+            content, so they're positioned against the card's own real
+            dimensions instead of the fixed reference canvas. This is what
+            keeps them always visible regardless of how a real device's
+            aspect ratio compares to 292:600, without needing to compromise
+            on filling the full width. */}
+        {started && (layoutEditMode ? (
+          <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
+            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.6)", backdropFilter: "blur(4px)" }}>
+              <Move size={11} color={GOLD_SOFT} />
+              <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeIndex < steps.length - 1 && (
+              <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+                <ChevronsUp size={20} color={PAPER} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
+                <span className="text-[10px] font-semibold uppercase" style={{ color: PAPER, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
+                  {t.swipeUp}
+                </span>
+              </button>
+            )}
+
+            {/* Bottom-right action icons — data-driven so more than the music toggle can be added here */}
+            <div className="absolute bottom-5 right-3 z-20 flex flex-col items-center gap-2">
+              {bottomRightActions.map((action) => (
+                <button
+                  key={action.key}
+                  onClick={action.onClick}
+                  className="flex h-8 w-8 items-center justify-center rounded-full"
+                  style={{ background: "rgba(10,12,10,0.5)", backdropFilter: "blur(4px)", opacity: action.dim ? 0.5 : 1 }}
+                >
+                  <action.icon size={14} color={PAPER} style={{ animation: action.pulse ? "musicPulse 1.6s ease-in-out infinite" : "none" }} />
+                </button>
+              ))}
+            </div>
+          </>
+        ))}
       </div>
 
       {data.music.url && <audio ref={audioRef} src={data.music.url} loop />}
