@@ -6,7 +6,7 @@ import {
   Settings, BarChart3, Copy, Link2, ImagePlus, Search, CheckCircle2, XCircle, Move, Mail, Film,
   ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
-  ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video,
+  ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -490,6 +490,62 @@ async function getNetworkingGuestById(guestId) {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------- //
+// QR check-in — when a guest group RSVPs yes, a random token is created
+// and encoded into a QR code as a URL (not raw data). That's what lets
+// this work with any phone's completely ordinary camera app — no custom
+// in-app scanner or QR-decoding library needed, since scanning a URL and
+// opening it is something every modern phone camera already does.
+// ---------------------------------------------------------------------- //
+
+async function createCheckinToken(slug, guestGroupId, guestNames) {
+  const token = crypto.randomUUID();
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins`, {
+    method: "POST",
+    headers: { ...supabaseHeaders, Prefer: "return=representation" },
+    body: JSON.stringify({ invitation_slug: slug, guest_group_id: guestGroupId, guest_names: guestNames, token }),
+  });
+  if (!res.ok) {
+    console.error("createCheckinToken failed:", res.status, await res.text().catch(() => ""));
+    return null; // check-in is a bonus on top of RSVP, not something that should block the RSVP itself from succeeding
+  }
+  return token;
+}
+
+async function getCheckinByToken(token) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?token=eq.${encodeURIComponent(token)}`, { headers: supabaseHeaders });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function markCheckedIn(token) {
+  try {
+    // Only sets checked_in_at if it's currently null — this is what
+    // preserves the ORIGINAL check-in time if the same QR code somehow
+    // gets scanned twice, instead of silently overwriting it.
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?token=eq.${encodeURIComponent(token)}&checked_in_at=is.null`, {
+      method: "PATCH",
+      headers: { ...supabaseHeaders, Prefer: "return=representation" },
+      body: JSON.stringify({ checked_in_at: new Date().toISOString() }),
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null; // null here specifically means "already had a checked_in_at" — the filter excluded it, not an error
+  } catch {
+    return null;
+  }
+}
+
+/** Uses a free, no-API-key QR generation service — this app has no QR-encoding library available, so this renders the code as a plain <img>. */
+function qrCodeImageUrl(data, size = 220) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 }
 
 // navigator.clipboard.writeText() is async — a plain try/catch around the call
@@ -2351,7 +2407,7 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
   );
 }
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp }) {
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug }) {
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   const [choice, setChoice] = useState(null);
@@ -2359,6 +2415,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [guestCount, setGuestCount] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [checkinToken, setCheckinToken] = useState(null);
 
   const [showModal, setShowModal] = useState(false);
   const [modalGuestCount, setModalGuestCount] = useState(1);
@@ -2370,14 +2427,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const nameNeeded = choice === "yes" ? rsvpSettings.namesRequired : choice === "no" && rsvpSettings.namesRequiredWhenDeclining;
   const isFull = rsvpSettings.maxTotalRsvps > 0 && totalAttending >= rsvpSettings.maxTotalRsvps;
 
-  const submit = () => {
+  const submit = async () => {
     if (nameNeeded && !name.trim()) {
       setError("Please enter your name.");
       return;
     }
     setError("");
-    onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
-    setSubmitted(true);
+    setSubmitted(true); // show the confirmation immediately — the QR code appears a moment later once the token comes back, rather than making the guest wait on a network call before seeing anything
+    const token = await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
+    if (token) setCheckinToken(token);
   };
 
   const openGuestModal = () => {
@@ -2404,14 +2462,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     }
   };
 
-  const confirmModal = () => {
+  const confirmModal = async () => {
     if (rsvpSettings.namesRequired && confirmedNames.length < modalGuestCount) {
       setModalError("Please name every guest before saving.");
       return;
     }
-    onSubmitRsvp({ status: "yes", names: confirmedNames, additionalGuests: Math.max(0, modalGuestCount - confirmedNames.length) });
     setShowModal(false);
     setSubmitted(true);
+    const token = await onSubmitRsvp({ status: "yes", names: confirmedNames, additionalGuests: Math.max(0, modalGuestCount - confirmedNames.length) });
+    if (token) setCheckinToken(token);
   };
 
   const guestStepper = (light) => (
@@ -2443,6 +2502,18 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         <p className="mt-2 text-[11.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>
           {totalAttending} {totalAttending === 1 ? "person is" : "people are"} coming so far
         </p>
+      )}
+      {checkinToken && (
+        <div className="mt-4">
+          <img
+            src={qrCodeImageUrl(`https://${siteDomain}/checkin/${checkinToken}`, 150)}
+            alt="Check-in QR code"
+            style={{ width: 130, height: 130, margin: "0 auto", borderRadius: 10, background: "#fff", padding: 6 }}
+          />
+          <p className="mt-2 text-[10px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, maxWidth: 200, margin: "6px auto 0" }}>
+            Save this — show it at the door for quick check-in
+          </p>
+        </div>
       )}
     </div>
   );
@@ -3200,7 +3271,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
@@ -4956,6 +5027,81 @@ function DjDashboard({ slug }) {
 /* and simple messaging once a connection is accepted.                     */
 /* ---------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------- */
+/* Check-in scan page — served at /checkin/:token. This is what a phone's  */
+/* ordinary camera app opens after scanning a guest's QR code — no        */
+/* special scanner app needed, since the code just encodes this URL.       */
+/* ---------------------------------------------------------------------- */
+
+function CheckinPage({ token }) {
+  const [checkin, setCheckin] = useState(null); // null=loading, false=invalid, {...}=result
+  const [justMarked, setJustMarked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const existing = await getCheckinByToken(token);
+      if (!existing) { setCheckin(false); return; }
+      if (existing.checked_in_at) {
+        setCheckin(existing);
+        return;
+      }
+      const marked = await markCheckedIn(token);
+      if (marked) {
+        setCheckin(marked);
+        setJustMarked(true);
+      } else {
+        // Someone else scanned it between our read and write — re-fetch so
+        // this screen shows the real, current state rather than a stale one.
+        setCheckin((await getCheckinByToken(token)) || existing);
+      }
+    })();
+  }, [token]);
+
+  if (checkin === null) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>Checking…</p>
+      </div>
+    );
+  }
+
+  if (checkin === false) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ textAlign: "center", maxWidth: 300 }}>
+          <XCircle size={40} color="#E29B9B" style={{ margin: "0 auto 14px" }} />
+          <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 20, color: IVORY }}>Invalid Code</h1>
+          <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>This check-in code doesn't match any guest.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const alreadyCheckedIn = !justMarked && checkin.checked_in_at;
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ textAlign: "center", maxWidth: 320 }}>
+        {alreadyCheckedIn ? (
+          <>
+            <AlertTriangle size={44} color="#E0B84C" style={{ margin: "0 auto 14px" }} />
+            <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Already Checked In</h1>
+            <p className="mt-2 text-lg" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{checkin.guest_names}</p>
+            <p className="mt-2 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Checked in at {new Date(checkin.checked_in_at).toLocaleString()}</p>
+          </>
+        ) : (
+          <>
+            <CheckCircle2 size={48} color="#8FBFA3" style={{ margin: "0 auto 14px" }} />
+            <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Checked In</h1>
+            <p className="mt-2 text-lg" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{checkin.guest_names}</p>
+            <p className="mt-2 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Welcome — enjoy the celebration!</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function NetworkingHub({ slug }) {
   const storageKey = `einvite:networking-guest:${slug}`;
   const [me, setMe] = useState(null); // null = checking, false = not registered, {id,name,...} = registered
@@ -5654,10 +5800,11 @@ export default function InvitationBuilder() {
   // though both land in the same guest list. `names` may contain zero, one, or
   // several people (from the "Who's joining us?" modal); anyone not named counts
   // toward additionalGuests as an unnamed slot, same as guests added manually.
-  const submitGuestRsvp = ({ names, status, additionalGuests }) => {
+  const submitGuestRsvp = async ({ names, status, additionalGuests }) => {
     const cleanNames = (names || []).filter((n) => n && n.trim());
+    const groupId = uid();
     addGuestGroup({
-      id: uid(),
+      id: groupId,
       lastName: "",
       members: cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [],
       additionalGuests: status === "yes" ? additionalGuests || 0 : 0,
@@ -5667,6 +5814,9 @@ export default function InvitationBuilder() {
       invitationViewed: true, // they just viewed it — they're submitting from the page itself
       updatedAt: Date.now(),
     });
+    if (status !== "yes") return null;
+    const displayNames = cleanNames.length ? cleanNames.join(", ") : "Guest";
+    return await createCheckinToken(slug, groupId, displayNames);
   };
 
   const deleteUser = (id) => setUsers((list) => list.filter((u) => u.id !== id));
@@ -5687,8 +5837,21 @@ export default function InvitationBuilder() {
   const createInvitationFor = (user) => {
     let finalUser = user;
     if (!user.invitationSlug) {
-      const base = user.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-      const slug = base || `guest-${user.id.slice(0, 6)}`;
+      const base = user.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `guest-${user.id.slice(0, 6)}`;
+      // THE ACTUAL FIX: the previous version used `base` directly with no
+      // check at all — two clients with the same name (or both left blank
+      // during testing, which happens constantly) silently got the exact
+      // same slug. Since every guest link and data lookup resolves BY
+      // slug, a colliding slug can make a brand-new client's link resolve
+      // to a completely different, earlier client — which looks exactly
+      // like "the new invitation shows the previous one's data."
+      const existingSlugs = new Set(users.map((u) => u.invitationSlug).filter(Boolean));
+      let slug = base;
+      let suffix = 2;
+      while (existingSlugs.has(slug)) {
+        slug = `${base}-${suffix}`;
+        suffix++;
+      }
       setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, invitationSlug: slug } : u)));
       finalUser = { ...user, invitationSlug: slug };
     }
@@ -5761,10 +5924,16 @@ export default function InvitationBuilder() {
   const [guestStarted, setGuestStarted] = useState(false);
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
   const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
+  const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
     setDjDashboardSlug(match ? decodeURIComponent(match[1]) : false);
+  }, []);
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/checkin\/([^/]+)\/?$/);
+    setCheckinTokenFromUrl(match ? decodeURIComponent(match[1]) : false);
   }, []);
 
   useEffect(() => {
@@ -5819,11 +5988,10 @@ export default function InvitationBuilder() {
   // place — the live state if it's this device's own invitation, or the
   // correct client's slot in invitationsStore otherwise (without touching
   // whatever invitation is currently loaded for editing).
-  const submitGuestViewRsvp = ({ names, status, additionalGuests }) => {
-    if (!guestView?.found) return;
+  const submitGuestViewRsvp = async ({ names, status, additionalGuests }) => {
+    if (!guestView?.found) return null;
     if (guestView.ownSlug) {
-      submitGuestRsvp({ names, status, additionalGuests });
-      return;
+      return await submitGuestRsvp({ names, status, additionalGuests });
     }
     const cleanNames = (names || []).filter((n) => n && n.trim());
     const newGroup = {
@@ -5832,10 +6000,37 @@ export default function InvitationBuilder() {
       additionalGuests: status === "yes" ? additionalGuests || 0 : 0,
       table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
     };
+    // THE ACTUAL FIX: write straight to Supabase, not just to local
+    // invitationsStore state. A guest submitting this is on their OWN
+    // device/browser, loading the page fresh via a shared link — their
+    // local React state is never seen by the owner's dashboard, which
+    // loads its own copy from Supabase on a completely different device.
+    // Without this, the RSVP only ever existed in the guest's own browser
+    // memory and vanished the moment they closed the tab.
+    let savedOk = false;
+    try {
+      const res = await persistentStorage.get(invitationKey(guestView.userId), false);
+      const latest = res?.value ? JSON.parse(res.value) : (guestView.snapshot || freshInvitationSnapshot());
+      const updated = { ...latest, guestGroups: [newGroup, ...(latest.guestGroups || [])] };
+      const saveRes = await persistentStorage.set(invitationKey(guestView.userId), JSON.stringify(updated), false);
+      savedOk = !!saveRes;
+      if (!savedOk) console.error("submitGuestViewRsvp: save to Supabase returned falsy — RSVP may not have persisted.");
+    } catch (err) {
+      console.error("submitGuestViewRsvp: failed to save RSVP to Supabase:", err);
+    }
+    // Also update local state so the UI reflects this immediately without
+    // waiting on a re-fetch — but this is now a mirror of what's saved,
+    // not the only copy of the data.
     setInvitationsStore((store) => {
       const current = store[guestView.userId] || freshInvitationSnapshot();
       return { ...store, [guestView.userId]: { ...current, guestGroups: [newGroup, ...(current.guestGroups || [])] } };
     });
+    if (!savedOk) {
+      console.error(`RSVP for "${cleanNames.join(", ") || "Guest"}" (slug: ${guestView.slug}) could not be confirmed as saved to the shared database.`);
+    }
+    if (status !== "yes") return null;
+    const displayNames = cleanNames.length ? cleanNames.join(", ") : "Guest";
+    return await createCheckinToken(guestView.slug, newGroup.id, displayNames);
   };
 
   if (djDashboardSlug === null) {
@@ -5850,6 +6045,13 @@ export default function InvitationBuilder() {
   }
   if (networkingSlug) {
     return <NetworkingHub slug={networkingSlug} />;
+  }
+
+  if (checkinToken === null) {
+    return null; // still checking the URL
+  }
+  if (checkinToken) {
+    return <CheckinPage token={checkinToken} />;
   }
 
   if (guestView === null) {
@@ -6163,7 +6365,7 @@ export default function InvitationBuilder() {
           />
         )}
 
-        {view === "users" && (
+        {view === "users" && !actingAsUser && (
           <UsersView
             users={users}
             invitationsStore={invitationsStore}
