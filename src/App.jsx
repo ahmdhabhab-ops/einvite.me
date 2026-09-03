@@ -2337,11 +2337,11 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
             <video
               ref={videoRef}
               src={customMedia.url}
-              autoPlay
+              preload="auto"
               muted
               loop
               playsInline
-              onPause={(e) => { e.currentTarget.play().catch(() => {}); }} // some mobile browsers pause an off-screen/backgrounded video; keep it running while the gate is up
+              onPause={(e) => { if (e.currentTarget.currentTime > 0) e.currentTarget.play().catch(() => {}); }} // only auto-resume a video that's actually been started (currentTime > 0) — never before the tap
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
@@ -2451,7 +2451,18 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
-    const update = () => setFsScale(el.offsetWidth / 292); // 292 = the fixed px width every layout/font size in this app was designed against
+    const update = () => {
+      // Scale by whichever dimension is more constraining, not width alone.
+      // A real device's aspect ratio rarely matches the 292:600 reference
+      // exactly — scaling by width alone let the content run taller than
+      // the card on devices proportionally shorter/wider than that ratio,
+      // and since the card clips overflow, bottom-anchored elements (the
+      // swipe-up hint, the music icon) were getting cut off entirely. Using
+      // the smaller ratio guarantees the content always fits both ways.
+      const widthRatio = el.offsetWidth / 292;
+      const heightRatio = el.offsetHeight / 600;
+      setFsScale(Math.min(widthRatio, heightRatio));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -2474,14 +2485,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [playing, data.music.url]);
 
   const introMedia = data.intro.media[lang];
-
-  useEffect(() => {
-    if (started || introMedia?.type !== "video" || !gateVideoRef.current) return;
-    const v = gateVideoRef.current;
-    v.muted = true; // required for autoplay to be allowed without a user gesture on mobile
-    const p = v.play();
-    if (p?.catch) p.catch(() => {}); // if still blocked, it'll show the first frame until tapped
-  }, [started, introMedia]);
 
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
@@ -2685,11 +2688,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     <video
                       ref={gateVideoRef}
                       src={introMedia.url}
-                      autoPlay
+                      preload="auto"
                       muted
                       loop
                       playsInline
-                      onPause={(e) => { if (!started) e.currentTarget.play().catch(() => {}); }}
+                      onPause={(e) => { if (started) e.currentTarget.play().catch(() => {}); }}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   )}
