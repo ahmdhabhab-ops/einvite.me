@@ -1563,6 +1563,12 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
     };
   }, [editMode]);
 
+  // Clamped here (not just during dragging) so an already-saved position from
+  // before this safe zone existed is corrected automatically the moment it's
+  // displayed — this is what actually fixes old saved data, not just future
+  // drags. 88 keeps any block clear of the swipe-up hint's zone at the bottom.
+  const safeY = Math.min(pos.y, 88);
+
   return (
     <div
       ref={ref}
@@ -1572,7 +1578,7 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
       className="absolute"
       style={{
         left: `${pos.x}%`,
-        top: `${pos.y}%`,
+        top: `${safeY}%`,
         transform: "translate(-50%, -50%)",
         width: widthPercent ? `${widthPercent}%` : undefined,
         maxHeight: maxHeightPercent ? `${maxHeightPercent}%` : undefined,
