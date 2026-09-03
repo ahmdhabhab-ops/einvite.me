@@ -2725,6 +2725,14 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
         </div>
 
+        {/* A subtle bottom scrim guarantees the swipe-up hint and action icons
+            stay legible no matter what invitation content sits behind them —
+            this works regardless of saved text positions or screen size,
+            rather than depending on content never drifting into this zone. */}
+        {started && !layoutEditMode && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10" style={{ height: 110, background: "linear-gradient(180deg, rgba(10,12,10,0) 0%, rgba(10,12,10,0.45) 55%, rgba(10,12,10,0.6) 100%)" }} />
+        )}
+
         {/* Swipe-up hint and bottom-right action icons live OUTSIDE the scaled
             292x600 canvas on purpose — they're UI chrome, not invitation
             content, so they're positioned against the card's own real
