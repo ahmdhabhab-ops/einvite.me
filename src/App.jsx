@@ -357,6 +357,141 @@ async function getStreamUrl(paymentReference) {
   return await res.json(); // { authorized, embedUrl? , status? }
 }
 
+// ---------------------------------------------------------------------- //
+// Guest Networking — built directly into this app now, backed by the same
+// Supabase project, instead of a separate external backend project. Same
+// graceful-degradation pattern as everything else here: safe empty/no-op
+// results if Supabase isn't configured, real errors surfaced via
+// console.error when a call actually fails.
+// ---------------------------------------------------------------------- //
+
+async function registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn }) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests`, {
+    method: "POST",
+    headers: { ...supabaseHeaders, Prefer: "return=representation" },
+    body: JSON.stringify({
+      invitation_slug: slug,
+      name: (name || "").trim().slice(0, 100),
+      field: (field || "").trim().slice(0, 100) || null,
+      interests: (interests || "").trim().slice(0, 300) || null,
+      linkedin: (linkedin || "").trim().slice(0, 200) || null,
+      instagram: (instagram || "").trim().slice(0, 200) || null,
+      opted_in: optedIn !== false,
+    }),
+  });
+  if (!res.ok) {
+    console.error("registerNetworkingGuest failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't complete registration — please try again.");
+  }
+  const rows = await res.json();
+  return rows[0];
+}
+
+async function getNetworkingDirectory(slug, excludeGuestId) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/networking_guests?invitation_slug=eq.${encodeURIComponent(slug)}&opted_in=eq.true&id=neq.${encodeURIComponent(excludeGuestId)}&order=created_at.desc`,
+      { headers: supabaseHeaders }
+    );
+    if (!res.ok) {
+      console.error("getNetworkingDirectory failed:", res.status, await res.text().catch(() => ""));
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("getNetworkingDirectory threw:", err);
+    return [];
+  }
+}
+
+/** Simple shared-interests + same-field match score, computed client-side over the small directory list this app expects for one event. */
+function networkingMatchScore(me, other) {
+  const myInterests = (me.interests || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+  const otherInterests = (other.interests || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+  const shared = myInterests.filter((i) => otherInterests.includes(i)).length;
+  const sameField = me.field && other.field && me.field.trim().toLowerCase() === other.field.trim().toLowerCase() ? 1 : 0;
+  return shared * 2 + sameField;
+}
+
+async function sendConnectionRequest(slug, fromGuestId, toGuestId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_connections`, {
+    method: "POST",
+    headers: { ...supabaseHeaders, Prefer: "return=representation" },
+    body: JSON.stringify({ invitation_slug: slug, from_guest_id: fromGuestId, to_guest_id: toGuestId, status: "pending" }),
+  });
+  if (!res.ok) {
+    console.error("sendConnectionRequest failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't send that connection request — you may have already sent one to this guest.");
+  }
+  const rows = await res.json();
+  return rows[0];
+}
+
+async function getConnectionsForGuest(guestId) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/networking_connections?or=(from_guest_id.eq.${encodeURIComponent(guestId)},to_guest_id.eq.${encodeURIComponent(guestId)})&order=created_at.desc`,
+      { headers: supabaseHeaders }
+    );
+    if (!res.ok) {
+      console.error("getConnectionsForGuest failed:", res.status, await res.text().catch(() => ""));
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("getConnectionsForGuest threw:", err);
+    return [];
+  }
+}
+
+async function respondToConnection(connectionId, status) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_connections?id=eq.${encodeURIComponent(connectionId)}`, {
+      method: "PATCH",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ status, responded_at: new Date().toISOString() }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function sendNetworkingMessage(connectionId, senderId, text) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_messages`, {
+    method: "POST",
+    headers: { ...supabaseHeaders, Prefer: "return=representation" },
+    body: JSON.stringify({ connection_id: connectionId, sender_id: senderId, text: (text || "").trim().slice(0, 1000) }),
+  });
+  if (!res.ok) {
+    console.error("sendNetworkingMessage failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't send that message — please try again.");
+  }
+  const rows = await res.json();
+  return rows[0];
+}
+
+async function getNetworkingMessages(connectionId) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_messages?connection_id=eq.${encodeURIComponent(connectionId)}&order=created_at.asc`, { headers: supabaseHeaders });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+async function getNetworkingGuestById(guestId) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests?id=eq.${encodeURIComponent(guestId)}`, { headers: supabaseHeaders });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 // navigator.clipboard.writeText() is async — a plain try/catch around the call
 // (without awaiting it) never actually catches a rejection, so failures were
 // silent. This awaits it properly and falls back to the older execCommand
@@ -1511,7 +1646,8 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
 // this page is just a nicely designed doorway to wherever you've deployed
 // that project.
 function SecureStreamUrlSetter({ slug }) {
-  const [ownerSecret, setOwnerSecret] = useState(() => (typeof window !== "undefined" ? window.localStorage.getItem("einvite:owner-secret") || "" : ""));
+  const [rememberedSecret] = useState(() => (typeof window !== "undefined" ? window.localStorage.getItem("einvite:owner-secret") || "" : "")); // read once on mount, never reassigned — safe to use as an effect dependency without re-firing per keystroke
+  const [ownerSecret, setOwnerSecret] = useState(rememberedSecret); // the actual input field's editable value
   const [embedUrl, setEmbedUrl] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | saving | saved | error
   const [error, setError] = useState("");
@@ -1522,23 +1658,35 @@ function SecureStreamUrlSetter({ slug }) {
   // looks empty after a refresh." Still gated by the same code as writing,
   // so this doesn't weaken the security model at all.
   useEffect(() => {
-    if (!ownerSecret || !slug) return;
+    if (!rememberedSecret || !slug) return;
     let cancelled = false;
     setStatus("loading");
     fetch(`${EDGE_FUNCTIONS_URL}/get-stream-secret-for-owner`, {
       method: "POST",
       headers: supabaseHeaders,
-      body: JSON.stringify({ invitationSlug: slug, ownerSecret }),
+      body: JSON.stringify({ invitationSlug: slug, ownerSecret: rememberedSecret }),
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json();
         if (cancelled) return;
+        if (!res.ok) {
+          console.error(`get-stream-secret-for-owner failed (${res.status}) for slug "${slug}":`, data.error);
+          setError(`Couldn't load the saved link: ${data.error || `status ${res.status}`}`);
+          setStatus("idle");
+          return;
+        }
         if (data.embedUrl) { setEmbedUrl(data.embedUrl); setLastUpdated(data.updatedAt); }
+        else { console.log(`No stream secret saved yet for slug "${slug}".`); } // legitimately empty, not an error — nothing saved for this invitation yet
         setStatus("idle");
       })
-      .catch(() => { if (!cancelled) setStatus("idle"); });
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("get-stream-secret-for-owner threw:", err);
+        setError("Couldn't reach the server to load the saved link — check your connection.");
+        setStatus("idle");
+      });
     return () => { cancelled = true; };
-  }, [slug]); // deliberately not re-running on every ownerSecret keystroke — only on mount, when a remembered value already exists
+  }, [slug, rememberedSecret]); // rememberedSecret never changes after mount, so this effectively only re-fires when slug itself settles to its real, final value — see the guest-detection fix elsewhere in this file for why that timing matters
 
   const save = async () => {
     if (!embedUrl.trim()) { setError("Enter the real stream URL first."); return; }
@@ -1581,6 +1729,31 @@ function SecureStreamUrlSetter({ slug }) {
       <GhostButton onClick={save} active={status === "saved"}>
         {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden stream URL"}
       </GhostButton>
+    </div>
+  );
+}
+
+function NetworkingPanel({ heading, setHeading, subtitle, setSubtitle, buttonLabel, setButtonLabel, bg, setBg }) {
+  return (
+    <div>
+      <div className="mb-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.08)", border: `1px solid rgba(201,164,76,0.2)` }}>
+        <p className="text-[11.5px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+          Built directly into eInvite.me now — no separate project to deploy, no link to paste. Guests tap the button on this page to register, browse a match-sorted list of other opted-in guests, send connection requests, and message once connected — all within your invitation's own domain.
+        </p>
+      </div>
+      <FieldLabel>Heading</FieldLabel>
+      <TextInput value={heading} onChange={setHeading} placeholder="Meet the Other Guests" />
+      <div className="mt-3">
+        <FieldLabel>Subtitle</FieldLabel>
+        <TextInput value={subtitle} onChange={setSubtitle} placeholder="Discover guests who share your interests, and connect right from your phone." />
+      </div>
+      <div className="mt-3">
+        <FieldLabel>Button text</FieldLabel>
+        <TextInput value={buttonLabel} onChange={setButtonLabel} placeholder="Open Guest Networking" />
+      </div>
+      <div className="mt-4">
+        <BackgroundPicker bg={bg} onChange={setBg} />
+      </div>
     </div>
   );
 }
@@ -2907,7 +3080,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -3046,7 +3219,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             heading={data.integrations.networkingHeading}
             subtitle={data.integrations.networkingSubtitle}
             buttonLabel={data.integrations.networkingButtonLabel}
-            url={data.integrations.networkingUrl}
+            url={slug ? `https://${siteDomain}/network/${slug}` : ""}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
         );
@@ -4778,8 +4951,317 @@ function DjDashboard({ slug }) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* App                                                                      */
+/* Guest Networking Hub — served at /network/:slug. Registration, a        */
+/* match-sorted directory of other opted-in guests, connection requests,   */
+/* and simple messaging once a connection is accepted.                     */
 /* ---------------------------------------------------------------------- */
+
+function NetworkingHub({ slug }) {
+  const storageKey = `einvite:networking-guest:${slug}`;
+  const [me, setMe] = useState(null); // null = checking, false = not registered, {id,name,...} = registered
+  const [view, setView] = useState("discover"); // discover | connections | messages
+  const [activeConnection, setActiveConnection] = useState(null);
+
+  useEffect(() => {
+    const storedId = window.localStorage.getItem(storageKey);
+    if (!storedId) { setMe(false); return; }
+    getNetworkingGuestById(storedId).then((guest) => setMe(guest || false));
+  }, [slug]);
+
+  const handleRegistered = (guest) => {
+    window.localStorage.setItem(storageKey, guest.id);
+    setMe(guest);
+  };
+
+  if (me === null) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>Loading…</p>
+      </div>
+    );
+  }
+
+  if (!me) {
+    return <NetworkingRegisterForm slug={slug} onRegistered={handleRegistered} />;
+  }
+
+  if (activeConnection) {
+    return <NetworkingMessageThread slug={slug} me={me} connection={activeConnection} onBack={() => setActiveConnection(null)} />;
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK, color: IVORY, fontFamily: FONT_BODY }}>
+      <div className="mx-auto max-w-2xl px-5 py-8">
+        <div className="mb-2 flex items-center gap-2">
+          <Handshake size={20} color={GOLD} />
+          <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic" }}>Guest Networking</h1>
+        </div>
+        <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>Hi {me.name} — connect with other guests before the big day.</p>
+
+        <div className="mb-5 flex gap-2">
+          <GhostButton active={view === "discover"} onClick={() => setView("discover")}>Discover</GhostButton>
+          <GhostButton active={view === "connections"} onClick={() => setView("connections")}>My Connections</GhostButton>
+        </div>
+
+        {view === "discover" ? (
+          <NetworkingDiscoverList slug={slug} me={me} />
+        ) : (
+          <NetworkingConnectionsList slug={slug} me={me} onOpenConnection={setActiveConnection} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NetworkingRegisterForm({ slug, onRegistered }) {
+  const [name, setName] = useState("");
+  const [field, setField] = useState("");
+  const [interests, setInterests] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!name.trim()) { setError("Please enter your name."); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      const guest = await registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn: true });
+      onRegistered(guest);
+    } catch (err) {
+      setError(err.message);
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle = { width: "100%", background: INK_3, border: `1px solid ${INK_3}`, color: IVORY, borderRadius: 10, padding: "11px 14px", fontSize: 14, fontFamily: FONT_BODY, outline: "none", marginBottom: 10, boxSizing: "border-box" };
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ maxWidth: 360, width: "100%" }}>
+        <div className="mb-5 text-center">
+          <Handshake size={26} color={GOLD} style={{ margin: "0 auto 10px" }} />
+          <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Meet the Other Guests</h1>
+          <p className="mt-1.5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Tell us a bit about yourself to find people worth meeting.</p>
+        </div>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inputStyle} />
+        <input value={field} onChange={(e) => setField(e.target.value)} placeholder="What do you do? (optional)" style={inputStyle} />
+        <input value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="Interests, comma-separated (e.g. hiking, wine, travel)" style={inputStyle} />
+        <input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="LinkedIn (optional)" style={inputStyle} />
+        <input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="Instagram (optional)" style={inputStyle} />
+        {error && <p style={{ color: "#E29B9B", fontSize: 12, marginBottom: 10, fontFamily: FONT_BODY }}>{error}</p>}
+        <button
+          onClick={submit}
+          disabled={submitting}
+          style={{ width: "100%", background: GOLD, color: INK, border: "none", borderRadius: 999, padding: 12, fontWeight: 700, fontSize: 12.5, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", fontFamily: FONT_BODY, opacity: submitting ? 0.7 : 1 }}
+        >
+          {submitting ? "Joining…" : "Join Guest Networking"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NetworkingDiscoverList({ slug, me }) {
+  const [directory, setDirectory] = useState(null);
+  const [connections, setConnections] = useState([]);
+  const [sending, setSending] = useState(null);
+
+  const load = async () => {
+    const [dir, conns] = await Promise.all([getNetworkingDirectory(slug, me.id), getConnectionsForGuest(me.id)]);
+    setDirectory(dir.map((g) => ({ ...g, score: networkingMatchScore(me, g) })).sort((a, b) => b.score - a.score));
+    setConnections(conns);
+  };
+
+  useEffect(() => { load(); }, [slug, me.id]);
+
+  const connectionStatusWith = (guestId) => {
+    const c = connections.find((c) => c.from_guest_id === guestId || c.to_guest_id === guestId);
+    return c ? c.status : null;
+  };
+
+  const connect = async (guestId) => {
+    setSending(guestId);
+    try {
+      await sendConnectionRequest(slug, me.id, guestId);
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSending(null);
+    }
+  };
+
+  if (directory === null) return <p className="text-[12.5px]" style={{ color: MUTED }}>Loading…</p>;
+  if (directory.length === 0) return <p className="text-[12.5px]" style={{ color: MUTED }}>No other guests have joined yet — check back soon.</p>;
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {directory.map((g) => {
+        const status = connectionStatusWith(g.id);
+        return (
+          <div key={g.id} className="flex items-center justify-between gap-3 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="truncate text-[14px] font-semibold">{g.name}</div>
+                {g.score > 0 && <span className="flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ background: "rgba(201,164,76,0.18)", color: GOLD_SOFT }}>Good match</span>}
+              </div>
+              {g.field && <div className="truncate text-[12px]" style={{ color: MUTED }}>{g.field}</div>}
+              {g.interests && <div className="truncate text-[11px]" style={{ color: GOLD_SOFT, marginTop: 2 }}>{g.interests}</div>}
+            </div>
+            <div className="flex-shrink-0">
+              {status === "accepted" ? (
+                <span className="text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Connected</span>
+              ) : status === "pending" ? (
+                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Pending</span>
+              ) : status === "declined" ? (
+                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>—</span>
+              ) : (
+                <GhostButton onClick={() => connect(g.id)}>{sending === g.id ? "Sending…" : "Connect"}</GhostButton>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NetworkingConnectionsList({ slug, me, onOpenConnection }) {
+  const [connections, setConnections] = useState(null);
+  const [guestsById, setGuestsById] = useState({});
+
+  const load = async () => {
+    const conns = await getConnectionsForGuest(me.id);
+    setConnections(conns);
+    const otherIds = [...new Set(conns.map((c) => (c.from_guest_id === me.id ? c.to_guest_id : c.from_guest_id)))];
+    const guests = await Promise.all(otherIds.map((id) => getNetworkingGuestById(id)));
+    setGuestsById(Object.fromEntries(guests.filter(Boolean).map((g) => [g.id, g])));
+  };
+
+  useEffect(() => { load(); }, [slug, me.id]);
+
+  const respond = async (connectionId, status) => {
+    await respondToConnection(connectionId, status);
+    load();
+  };
+
+  if (connections === null) return <p className="text-[12.5px]" style={{ color: MUTED }}>Loading…</p>;
+  if (connections.length === 0) return <p className="text-[12.5px]" style={{ color: MUTED }}>No connections yet — head to Discover to meet someone.</p>;
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {connections.map((c) => {
+        const otherId = c.from_guest_id === me.id ? c.to_guest_id : c.from_guest_id;
+        const other = guestsById[otherId];
+        const incoming = c.to_guest_id === me.id && c.status === "pending";
+        return (
+          <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
+            <div className="min-w-0">
+              <div className="truncate text-[14px] font-semibold">{other?.name || "Guest"}</div>
+              <div className="text-[11px]" style={{ color: MUTED }}>
+                {c.status === "accepted" ? "Connected" : incoming ? "Wants to connect with you" : c.status === "pending" ? "Request sent — waiting" : "Declined"}
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 gap-1.5">
+              {incoming ? (
+                <>
+                  <GhostButton onClick={() => respond(c.id, "accepted")}>Accept</GhostButton>
+                  <GhostButton onClick={() => respond(c.id, "declined")} danger>Decline</GhostButton>
+                </>
+              ) : c.status === "accepted" ? (
+                <GhostButton onClick={() => onOpenConnection({ ...c, otherGuest: other })}>Message</GhostButton>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NetworkingMessageThread({ slug, me, connection, onBack }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef(null);
+
+  const load = async () => {
+    const msgs = await getNetworkingMessages(connection.id);
+    setMessages(msgs);
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 4000);
+    return () => clearInterval(interval);
+  }, [connection.id]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length]);
+
+  const send = async () => {
+    if (!text.trim()) return;
+    setSending(true);
+    try {
+      await sendNetworkingMessage(connection.id, me.id, text);
+      setText("");
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK, color: IVORY, fontFamily: FONT_BODY, display: "flex", flexDirection: "column" }}>
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-5 py-6">
+        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-[12px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
+          <ChevronDown size={13} style={{ transform: "rotate(90deg)" }} /> Back
+        </button>
+        <h2 className="mb-4 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic" }}>{connection.otherGuest?.name || "Guest"}</h2>
+
+        <div className="flex-1 overflow-y-auto" style={{ minHeight: 300 }}>
+          {messages.length === 0 ? (
+            <p className="text-[12px]" style={{ color: MUTED }}>No messages yet — say hi!</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {messages.map((m) => {
+                const mine = m.sender_id === me.id;
+                return (
+                  <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                    <div className="max-w-[75%] rounded-2xl px-3.5 py-2 text-[13px]" style={{ background: mine ? GOLD : INK_2, color: mine ? INK : IVORY, fontFamily: FONT_BODY }}>
+                      {m.text}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder="Write a message…"
+            style={{ flex: 1, background: INK_3, border: `1px solid ${INK_3}`, color: IVORY, borderRadius: 999, padding: "10px 16px", fontSize: 13, fontFamily: FONT_BODY, outline: "none" }}
+          />
+          <button
+            onClick={send}
+            disabled={sending}
+            style={{ background: GOLD, color: INK, border: "none", borderRadius: 999, padding: "10px 18px", fontWeight: 700, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", opacity: sending ? 0.7 : 1 }}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function InvitationBuilder() {
   const [view, setView] = useState("builder");
@@ -5278,10 +5760,16 @@ export default function InvitationBuilder() {
   const [guestActiveIndex, setGuestActiveIndex] = useState(0);
   const [guestStarted, setGuestStarted] = useState(false);
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
+  const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
     setDjDashboardSlug(match ? decodeURIComponent(match[1]) : false);
+  }, []);
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/network\/([^/]+)\/?$/);
+    setNetworkingSlug(match ? decodeURIComponent(match[1]) : false);
   }, []);
 
   useEffect(() => {
@@ -5357,6 +5845,13 @@ export default function InvitationBuilder() {
     return <DjDashboard slug={djDashboardSlug} />;
   }
 
+  if (networkingSlug === null) {
+    return null; // still checking the URL
+  }
+  if (networkingSlug) {
+    return <NetworkingHub slug={networkingSlug} />;
+  }
+
   if (guestView === null) {
     return null; // still checking the URL — avoid flashing the homepage/builder first
   }
@@ -5392,6 +5887,7 @@ export default function InvitationBuilder() {
           onSubmitRsvp={submitGuestViewRsvp}
           fullscreen
           slug={guestView.slug}
+          siteDomain={siteDomain}
         />
       </div>
     );
@@ -5550,18 +6046,13 @@ export default function InvitationBuilder() {
                 />
               )}
               {stepKey === "networking" && (
-                <IntegrationStep
-                  label="Guest Networking"
-                  projectHint="guest-networking"
-                  helpText="This page links out to the Guest Networking project — a separate backend for guest profiles, matching, and messaging (Socket.IO real-time). Deploy it, then paste the register link here, e.g. https://your-host.com/register.html?event=your-slug"
-                  url={integrations.networkingUrl}
-                  setUrl={(v) => updateIntegrations({ networkingUrl: v })}
-                  buttonLabel={integrations.networkingButtonLabel}
-                  setButtonLabel={(v) => updateIntegrations({ networkingButtonLabel: v })}
+                <NetworkingPanel
                   heading={integrations.networkingHeading}
                   setHeading={(v) => updateIntegrations({ networkingHeading: v })}
                   subtitle={integrations.networkingSubtitle}
                   setSubtitle={(v) => updateIntegrations({ networkingSubtitle: v })}
+                  buttonLabel={integrations.networkingButtonLabel}
+                  setButtonLabel={(v) => updateIntegrations({ networkingButtonLabel: v })}
                   bg={pageBackgrounds.networking}
                   setBg={setBgFor("networking")}
                 />
@@ -5635,7 +6126,7 @@ export default function InvitationBuilder() {
             </div>
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
-              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} />
+              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} />
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
