@@ -257,6 +257,106 @@ const persistentStorage = {
   },
 };
 
+// ---------------------------------------------------------------------- //
+// DJ Song Requests — built directly into this app now, backed by the same
+// Supabase project, instead of a separate external backend project. Falls
+// back to safe no-ops if Supabase isn't configured, matching the same
+// graceful-degradation pattern as persistentStorage above.
+// ---------------------------------------------------------------------- //
+
+async function submitSongRequest(slug, { songName, artist, requesterName }) {
+  if (!supabaseConfigured) throw new Error("Song requests aren't set up yet — the site owner needs to finish configuring the database.");
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/song_requests`, {
+    method: "POST",
+    headers: { ...supabaseHeaders, Prefer: "return=representation" },
+    body: JSON.stringify({
+      invitation_slug: slug,
+      song_name: (songName || "").trim().slice(0, 200),
+      artist: (artist || "").trim().slice(0, 200) || null,
+      requester_name: (requesterName || "").trim().slice(0, 100) || null,
+    }),
+  });
+  if (!res.ok) {
+    console.error("submitSongRequest failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't send your request — please try again.");
+  }
+  const rows = await res.json();
+  return rows[0];
+}
+
+async function getSongRequests(slug) {
+  if (!supabaseConfigured) return [];
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/song_requests?invitation_slug=eq.${encodeURIComponent(slug)}&order=created_at.desc`, { headers: supabaseHeaders });
+    if (!res.ok) {
+      console.error("getSongRequests failed:", res.status, await res.text().catch(() => ""));
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("getSongRequests threw:", err);
+    return [];
+  }
+}
+
+async function updateSongRequestStatus(id, status) {
+  if (!supabaseConfigured) return false;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/song_requests?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ status }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------- //
+// Secure paid live stream — unlike everything else in this file, these
+// three calls go to Supabase EDGE FUNCTIONS (real server-side code), not
+// directly to a table via the public anon key. That's the whole point:
+// the real stream URL never gets sent to a guest's browser until a
+// server-side check confirms their specific session is marked 'paid' —
+// something only a genuine payment webhook (not the guest's own browser)
+// can cause. See the paid-stream-backend project for the actual function
+// code and setup instructions.
+// ---------------------------------------------------------------------- //
+
+const EDGE_FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`;
+
+/** A stable per-browser id, so a guest's session survives leaving to pay and coming back. */
+function getOrCreateGuestToken() {
+  if (typeof window === "undefined") return "server";
+  let token = window.localStorage.getItem("einvite:guest-token");
+  if (!token) {
+    token = crypto.randomUUID();
+    window.localStorage.setItem("einvite:guest-token", token);
+  }
+  return token;
+}
+
+async function createPaymentSession(invitationSlug, amount, currency) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/create-payment-session`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ invitationSlug, amount, currency, guestToken: getOrCreateGuestToken() }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't start payment — please try again.");
+  return data; // { paymentReference, paymentUrl }
+}
+
+async function getStreamUrl(paymentReference) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/get-stream-url`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ paymentReference }),
+  });
+  return await res.json(); // { authorized, embedUrl? , status? }
+}
+
 // navigator.clipboard.writeText() is async — a plain try/catch around the call
 // (without awaiting it) never actually catches a rejection, so failures were
 // silent. This awaits it properly and falls back to the older execCommand
@@ -289,6 +389,37 @@ async function copyToClipboard(text) {
 // Phone camera photos can be several MB — far more than a saved draft can hold once
 // base64-encoded. Downscale and re-compress to JPEG before it ever enters state, so
 // uploads stay fast, previews stay smooth, and Save doesn't hit the storage size limit.
+// Converts a normal YouTube/Vimeo watch URL (whatever a couple would
+// naturally paste, copied straight from their browser) into the specific
+// embeddable player URL those platforms actually require for an <iframe>.
+// Returns null for anything else — including Zoom, which doesn't support
+// this at all (a Zoom meeting is joined through Zoom's own client/app, not
+// embedded as a video player), and for URLs we don't recognize the shape
+// of. That null is the signal to fall back to a plain "open in new tab"
+// link instead of guessing at an embed that won't actually work.
+function getEmbedUrl(url) {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube.com") || u.hostname === "youtu.be") {
+      let videoId = null;
+      if (u.hostname === "youtu.be") videoId = u.pathname.slice(1);
+      else if (u.pathname.startsWith("/watch")) videoId = u.searchParams.get("v");
+      else if (u.pathname.startsWith("/live/")) videoId = u.pathname.split("/live/")[1];
+      else if (u.pathname.startsWith("/embed/")) videoId = u.pathname.split("/embed/")[1];
+      videoId = videoId ? videoId.split("?")[0].split("&")[0] : null;
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    }
+    if (u.hostname.includes("vimeo.com")) {
+      const match = u.pathname.match(/\/(\d+)/);
+      return match ? `https://player.vimeo.com/video/${match[1]}` : null;
+    }
+  } catch {
+    return null; // not a valid URL at all
+  }
+  return null;
+}
+
 function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
   // JPEG has no alpha channel — compressing a transparent PNG/WebP/GIF down to
   // JPEG silently flattens every transparent pixel to black. Keep transparency-
@@ -411,7 +542,7 @@ const DEFAULT_LAYOUTS = {
   countdown: { heading: { x: 50, y: 30 }, countdown: { x: 50, y: 58 } },
   rsvp: { heading: { x: 50, y: 22 }, buttons: { x: 50, y: 55 } },
   registry: { heading: { x: 50, y: 13 }, list: { x: 50, y: 55 } },
-  djRequests: { heading: { x: 50, y: 32 }, button: { x: 50, y: 58 } },
+  djRequests: { heading: { x: 50, y: 26 }, form: { x: 50, y: 60 } },
   networking: { heading: { x: 50, y: 32 }, button: { x: 50, y: 58 } },
   livestream: { heading: { x: 50, y: 32 }, button: { x: 50, y: 58 } },
 };
@@ -1379,6 +1510,109 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
 // (they need a real server + database for multi-guest real-time sync), so
 // this page is just a nicely designed doorway to wherever you've deployed
 // that project.
+function SecureStreamUrlSetter({ slug }) {
+  const [ownerSecret, setOwnerSecret] = useState("");
+  const [embedUrl, setEmbedUrl] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | saving | saved | error
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    if (!embedUrl.trim()) { setError("Enter the real stream URL first."); return; }
+    setStatus("saving");
+    setError("");
+    try {
+      const res = await fetch(`${EDGE_FUNCTIONS_URL}/set-stream-secret`, {
+        method: "POST",
+        headers: supabaseHeaders,
+        body: JSON.stringify({ invitationSlug: slug, embedUrl: embedUrl.trim(), ownerSecret }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't save.");
+      setStatus("saved");
+      setEmbedUrl("");
+      setTimeout(() => setStatus("idle"), 3000);
+    } catch (err) {
+      setStatus("error");
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="rounded-lg p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
+      <FieldLabel>Real stream URL (kept hidden — never shown to guests directly)</FieldLabel>
+      <TextInput value={embedUrl} onChange={setEmbedUrl} placeholder="https://youtube.com/watch?v=… or the actual private stream link" />
+      <div className="mt-2">
+        <FieldLabel>Owner access code</FieldLabel>
+        <TextInput value={ownerSecret} onChange={setOwnerSecret} placeholder="Set by whoever deployed this (see paid-stream-backend setup)" />
+        <p className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          A basic safeguard for now, not full per-client security — see the honest note in set-stream-secret's own code.
+        </p>
+      </div>
+      {error && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+      <GhostButton onClick={save} active={status === "saved"}>
+        {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden stream URL"}
+      </GhostButton>
+    </div>
+  );
+}
+
+function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, bg, setBg, dashboardUrl, slug }) {
+  const [copied, setCopied] = useState(false);
+  const [pendingCount, setPendingCount] = useState(null);
+  const [checking, setChecking] = useState(false);
+
+  const copyLink = async () => {
+    const ok = await copyToClipboard(dashboardUrl);
+    setCopied(ok);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const checkPending = async () => {
+    setChecking(true);
+    const rows = await getSongRequests(slug);
+    setPendingCount(rows.filter((r) => r.status === "pending").length);
+    setChecking(false);
+  };
+
+  return (
+    <div>
+      <div className="mb-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.08)", border: `1px solid rgba(201,164,76,0.2)` }}>
+        <p className="text-[11.5px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+          Built directly into eInvite.me now — no separate project to deploy. Guests fill in a song request right on this page, and it's saved instantly. Share the dashboard link below with your DJ so they can see requests come in live.
+        </p>
+      </div>
+
+      <FieldLabel>DJ Dashboard link (private — for the DJ only)</FieldLabel>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 truncate rounded-lg px-3 py-2 text-[12px]" style={{ background: INK_3, color: GOLD_SOFT, fontFamily: FONT_BODY }}>{dashboardUrl}</div>
+        <GhostButton onClick={copyLink}>{copied ? "Copied ✓" : <><Copy size={12} /> Copy</>}</GhostButton>
+      </div>
+      <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        Don't post this publicly — anyone with this link can see and manage requests. Send it directly to your DJ.
+      </p>
+
+      <div className="mt-4 flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: INK_3 }}>
+        <span className="text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+          {pendingCount === null ? "Check for pending requests" : `${pendingCount} pending request${pendingCount === 1 ? "" : "s"}`}
+        </span>
+        <GhostButton onClick={checkPending}>{checking ? "Checking…" : "Check now"}</GhostButton>
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Heading</FieldLabel>
+        <TextInput value={heading} onChange={setHeading} placeholder="Song Requests" />
+      </div>
+      <div className="mt-3">
+        <FieldLabel>Subtitle</FieldLabel>
+        <TextInput value={subtitle} onChange={setSubtitle} placeholder="Have a song you want to hear tonight? Send it straight to the DJ." />
+      </div>
+      <div className="mt-4">
+        <BackgroundPicker bg={bg} onChange={setBg} />
+      </div>
+    </div>
+  );
+}
+
 function IntegrationStep({ label, helpText, projectHint, url, setUrl, buttonLabel, setButtonLabel, heading, setHeading, subtitle, setSubtitle, bg, setBg, dashboardFileName, dashboardLabel, guestFileName = "guest.html", placeholderUrl, urlHelpText }) {
   const [copied, setCopied] = useState(false);
   const dashboardUrl = dashboardFileName && url && url.includes(guestFileName) ? url.replace(guestFileName, dashboardFileName) : "";
@@ -1678,7 +1912,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         src={block.url}
         alt=""
         draggable={false}
-        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8, boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8 }}
       />
     );
     return (
@@ -1756,7 +1990,6 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
         <div className="relative h-full w-full">
           <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
             <div className="text-center">
-              <Sparkles size={16} style={{ color: GOLD_SOFT, margin: "0 auto 10px" }} />
               <div style={{ fontFamily: namesStyle.fontFamily || fontScript, fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.1 }}>
                 {content.name1 || "—"} <span style={{ color: light ? GOLD_SOFT : ROSE }}>&amp;</span> {content.name2 || "—"}
               </div>
@@ -1781,7 +2014,6 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
         <div className="relative h-full w-full">
           <DraggableBlock id="greeting" pos={gs} editMode={editMode} onMove={(p) => onMoveBlock("greeting", p)} label="Greeting" light={light} selected={selectedBlock === "greeting"} onSelect={() => onSelectBlock("greeting")}>
             <div className="text-center">
-              <Sparkles size={14} style={{ color: light ? GOLD_SOFT : GOLD, margin: "0 auto 10px" }} />
               <p style={{ fontFamily: gs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: gs.fontSize ? `${gs.fontSize}px` : 16, color: gs.color || (light ? PAPER : EMERALD), lineHeight: 1.5 }}>{content.greeting}</p>
             </div>
           </DraggableBlock>
@@ -2292,6 +2524,224 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
   );
 }
 
+function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+  const [songName, setSongName] = useState("");
+  const [artist, setArtist] = useState("");
+  const [requesterName, setRequesterName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const hs = layout.heading, fs = layout.form;
+
+  const submit = async () => {
+    if (!songName.trim()) { setError("Please enter a song name."); return; }
+    setError("");
+    setSubmitting(true);
+    try {
+      await submitSongRequest(slug, { songName, artist, requesterName });
+      setSent(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle = (light) => ({
+    width: "100%", background: light ? "rgba(244,237,228,0.12)" : "rgba(36,70,61,0.08)",
+    border: `1px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, borderRadius: 8,
+    padding: "8px 10px", fontSize: 12, color: light ? PAPER : EMERALD, fontFamily: FONT_BODY, outline: "none",
+    marginBottom: 8, boxSizing: "border-box",
+  });
+
+  return (
+    <StoryPage bg={bg}>
+      {(light) => (
+        <div className="relative h-full w-full">
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+            <div className="text-center" style={{ width: 220 }}>
+              <Music2 size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
+              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
+              <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
+            </div>
+          </DraggableBlock>
+          <DraggableBlock id="form" pos={fs} editMode={editMode} onMove={(p) => onMoveBlock("form", p)} label="Request form" light={light} selected={selectedBlock === "form"} onSelect={() => onSelectBlock("form")}>
+            {editMode ? (
+              <div style={{ width: 220, padding: "12px 14px", borderRadius: 10, border: `1.5px dashed ${light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)"}`, textAlign: "center" }}>
+                <span style={{ fontSize: 11, color: light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)", fontFamily: FONT_BODY }}>Song request form — guests fill this in live on the real page</span>
+              </div>
+            ) : sent ? (
+              <div className="text-center" style={{ width: 220 }}>
+                <Check size={20} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 8px" }} />
+                <p style={{ color: light ? PAPER : EMERALD, fontFamily: FONT_BODY, fontSize: 12.5 }}>Sent to the DJ!</p>
+              </div>
+            ) : !slug ? (
+              <p style={{ color: light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)", fontFamily: FONT_BODY, fontSize: 11, textAlign: "center", width: 220 }}>Song requests aren't available in this preview.</p>
+            ) : (
+              <div style={{ width: 220 }}>
+                <input value={songName} onChange={(e) => setSongName(e.target.value)} placeholder="Song name" style={inputStyle(light)} />
+                <input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist (optional)" style={inputStyle(light)} />
+                <input value={requesterName} onChange={(e) => setRequesterName(e.target.value)} placeholder="Your name (optional)" style={inputStyle(light)} />
+                {error && <p style={{ color: "#E29B9B", fontSize: 10.5, marginBottom: 6, fontFamily: FONT_BODY }}>{error}</p>}
+                <button
+                  onClick={submit}
+                  disabled={submitting}
+                  className="w-full rounded-full text-[11px] font-bold uppercase"
+                  style={{ padding: "9px 0", background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.08em", fontFamily: FONT_BODY, opacity: submitting ? 0.7 : 1 }}
+                >
+                  {submitting ? "Sending…" : "Send Request"}
+                </button>
+              </div>
+            )}
+          </DraggableBlock>
+        </div>
+      )}
+    </StoryPage>
+  );
+}
+
+function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+  const [session, setSession] = useState(null); // null=not checked yet, {status,...}
+  const [starting, setStarting] = useState(false);
+
+  // For a paid stream, check whether THIS guest's browser already has an
+  // authorized session — this is what makes "leave to pay, come back" and
+  // "revisit later, still unlocked" both work without re-showing the
+  // payment button. Polls while a payment is pending, since the guest may
+  // still be off completing checkout on Whish's own site.
+  useEffect(() => {
+    if (!paid || editMode || !slug) return;
+    let cancelled = false;
+    const storageKey = `einvite:stream-session:${slug}`;
+    const storedRef = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
+
+    if (!storedRef) {
+      setSession({ status: "unauthorized" });
+      return;
+    }
+
+    setSession({ status: "checking" });
+    const check = async () => {
+      try {
+        const result = await getStreamUrl(storedRef);
+        if (cancelled) return;
+        setSession(result.authorized ? { status: "authorized", embedUrl: result.embedUrl } : { status: "pending" });
+      } catch {
+        if (!cancelled) setSession({ status: "unauthorized" });
+      }
+    };
+    check();
+    const interval = setInterval(check, 4000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [paid, editMode, slug]);
+
+  const startPayment = async () => {
+    setStarting(true);
+    try {
+      const amount = parseFloat(String(price || "").replace(/[^0-9.]/g, "")) || 0;
+      const { paymentReference, paymentUrl: whishUrl } = await createPaymentSession(slug, amount, "USD");
+      window.localStorage.setItem(`einvite:stream-session:${slug}`, paymentReference);
+      window.location.href = whishUrl; // hand off to Whish's own checkout — real payment happens there, not in this app
+    } catch (err) {
+      setSession({ status: "error", error: err.message });
+      setStarting(false);
+    }
+  };
+
+  // Never auto-embed a paid stream from the `url` field — for paid streams
+  // the real URL is never even present here at all; it only ever comes
+  // back from getStreamUrl() after a verified payment (see the useEffect
+  // above). Only free streams on a platform that actually supports iframe
+  // embedding get the inline player this way; everything else (paid, or a
+  // non-embeddable URL like Zoom) falls through to the button-based version.
+  const embedUrl = !paid ? getEmbedUrl(url) : null;
+
+  if (embedUrl && !editMode) {
+    return (
+      <StoryPage bg={bg}>
+        {(light) => (
+          <div className="relative flex h-full w-full flex-col">
+            <div className="flex-shrink-0 px-4 pb-2 pt-8 text-center">
+              <Video size={18} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 6px" }} />
+              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: light ? PAPER : EMERALD }}>{heading}</div>
+              {subtitle && <p className="mt-1 text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : ROSE, fontFamily: FONT_BODY }}>{subtitle}</p>}
+            </div>
+            <div className="flex-1 px-3 pb-6">
+              <iframe
+                src={embedUrl}
+                className="h-full w-full rounded-xl"
+                style={{ border: "none" }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="Live stream"
+              />
+            </div>
+          </div>
+        )}
+      </StoryPage>
+    );
+  }
+
+  if (paid && !editMode) {
+    return (
+      <StoryPage bg={bg}>
+        {(light) => (
+          <div className="relative flex h-full w-full flex-col items-center justify-center px-6 text-center">
+            <Video size={26} color={light ? GOLD_SOFT : EMERALD} style={{ marginBottom: 10 }} />
+            <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
+            {subtitle && <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, maxWidth: 220 }}>{subtitle}</p>}
+
+            {!session || session.status === "checking" ? (
+              <p className="mt-6 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Checking access…</p>
+            ) : session.status === "authorized" ? (
+              <div className="mt-5 w-full" style={{ maxWidth: 260, aspectRatio: "9 / 16" }}>
+                <iframe
+                  src={session.embedUrl}
+                  className="h-full w-full rounded-xl"
+                  style={{ border: "none" }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Live stream"
+                />
+              </div>
+            ) : session.status === "pending" ? (
+              <p className="mt-6 text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Waiting for payment confirmation…</p>
+            ) : (
+              <>
+                {session.status === "error" && <p className="mt-3 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{session.error}</p>}
+                <button
+                  onClick={startPayment}
+                  disabled={starting}
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
+                  style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY, opacity: starting ? 0.7 : 1 }}
+                >
+                  <Lock size={11} /> {starting ? "Starting…" : `${buttonLabel}${price ? ` — ${price}` : ""}`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </StoryPage>
+    );
+  }
+
+  // Editor preview (owner editing/positioning blocks), or the free-but-not-
+  // embeddable case — falls back to the generic draggable button version.
+  return (
+    <IntegrationSlide
+      icon={Video}
+      heading={heading}
+      subtitle={subtitle}
+      buttonLabel={buttonLabel}
+      url={url}
+      paid={paid}
+      price={price}
+      paymentUrl={paymentUrl}
+      bg={bg} fontDisplay={fontDisplay} layout={layout} editMode={editMode} onMoveBlock={onMoveBlock} selectedBlock={selectedBlock} onSelectBlock={onSelectBlock}
+    />
+  );
+}
+
 function GateAnimation({ style }) {
   const conf = GATE_ANIMATIONS[style] || GATE_ANIMATIONS.floatingHearts;
   const Icon = conf.icon;
@@ -2428,7 +2878,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -2553,12 +3003,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
         return (
-          <IntegrationSlide
-            icon={Music2}
+          <DjRequestSlide
             heading={data.integrations.djHeading}
             subtitle={data.integrations.djSubtitle}
-            buttonLabel={data.integrations.djButtonLabel}
-            url={data.integrations.djUrl}
+            slug={slug}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
         );
@@ -2575,8 +3023,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         );
       case "livestream":
         return (
-          <IntegrationSlide
-            icon={Video}
+          <LivestreamSlide
             heading={data.integrations.livestreamHeading}
             subtitle={data.integrations.livestreamSubtitle}
             buttonLabel={data.integrations.livestreamButtonLabel}
@@ -2584,6 +3031,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             paid={data.integrations.livestreamPaid}
             price={data.integrations.livestreamPrice}
             paymentUrl={data.integrations.livestreamPaymentUrl}
+            slug={slug}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
         );
@@ -4225,6 +4673,82 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs }) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* DJ Dashboard — served at /dj/:slug, a private link for the DJ only.      */
+/* Polls for new requests every few seconds rather than a real websocket    */
+/* subscription, since this app talks to Supabase via plain fetch() calls   */
+/* rather than the full client SDK — simpler, and good enough for this.     */
+/* ---------------------------------------------------------------------- */
+
+function DjDashboard({ slug }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("pending");
+
+  const load = async () => {
+    const rows = await getSongRequests(slug);
+    setRequests(rows);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [slug]);
+
+  const setStatus = async (id, status) => {
+    setRequests((list) => list.map((r) => (r.id === id ? { ...r, status } : r))); // optimistic, corrected by the next poll if it fails
+    await updateSongRequestStatus(id, status);
+  };
+
+  const filtered = filter === "all" ? requests : requests.filter((r) => r.status === filter);
+  const pendingCount = requests.filter((r) => r.status === "pending").length;
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK, color: IVORY, fontFamily: FONT_BODY }}>
+      <div className="mx-auto max-w-2xl px-5 py-8">
+        <div className="mb-2 flex items-center gap-2">
+          <Music2 size={20} color={GOLD} />
+          <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic" }}>DJ Dashboard</h1>
+        </div>
+        <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>
+          Live song requests for this event — refreshes automatically every few seconds. {pendingCount} pending right now.
+        </p>
+
+        <div className="mb-5 flex gap-2">
+          {["pending", "played", "skipped", "all"].map((f) => (
+            <GhostButton key={f} active={filter === f} onClick={() => setFilter(f)}>{f[0].toUpperCase() + f.slice(1)}</GhostButton>
+          ))}
+        </div>
+
+        {loading ? (
+          <p className="text-[12.5px]" style={{ color: MUTED }}>Loading requests…</p>
+        ) : filtered.length === 0 ? (
+          <p className="text-[12.5px]" style={{ color: MUTED }}>No {filter === "all" ? "" : filter} requests yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {filtered.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
+                <div className="min-w-0">
+                  <div className="truncate text-[14px] font-semibold" style={{ fontFamily: FONT_BODY }}>{r.song_name}</div>
+                  {r.artist && <div className="truncate text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{r.artist}</div>}
+                  {r.requester_name && <div className="mt-1 text-[10.5px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Requested by {r.requester_name}</div>}
+                </div>
+                <div className="flex flex-shrink-0 gap-1.5">
+                  {r.status !== "played" && <GhostButton onClick={() => setStatus(r.id, "played")}>Played</GhostButton>}
+                  {r.status !== "skipped" && <GhostButton onClick={() => setStatus(r.id, "skipped")}>Skip</GhostButton>}
+                  {r.status !== "pending" && <GhostButton onClick={() => setStatus(r.id, "pending")}>Undo</GhostButton>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
 /* App                                                                      */
 /* ---------------------------------------------------------------------- */
 
@@ -4547,7 +5071,9 @@ export default function InvitationBuilder() {
     if (!file) return;
     const stepKey = steps[activeIndex].key;
     const addBlock = (url) => {
-      const newBlock = { id: uid(), type: "image", url, x: 50, y: 50, width: 40 };
+      const existingImages = customBlocks[stepKey].filter((b) => b.type === "image").length;
+      const offset = (existingImages % 4) * 8; // small staggered offset so new images don't land exactly on top of existing ones
+      const newBlock = { id: uid(), type: "image", url, x: 50 + offset, y: 50 + offset, width: 40 };
       setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
       setSelectedBlockId(`custom:${newBlock.id}`);
     };
@@ -4722,6 +5248,12 @@ export default function InvitationBuilder() {
   const [guestView, setGuestView] = useState(null); // null = checking, false = not a guest link, { ... } = resolved
   const [guestActiveIndex, setGuestActiveIndex] = useState(0);
   const [guestStarted, setGuestStarted] = useState(false);
+  const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
+    setDjDashboardSlug(match ? decodeURIComponent(match[1]) : false);
+  }, []);
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/e\/([^/]+)\/?$/);
@@ -4737,7 +5269,7 @@ export default function InvitationBuilder() {
     // This device's own currently-loaded invitation matches directly —
     // reuse the live state, no snapshot lookup needed.
     if (urlSlug === slug) {
-      setGuestView({ found: true, ownSlug: true, snapshotGuestGroups: guestGroups, groupId, guestNameParam });
+      setGuestView({ found: true, ownSlug: true, slug: urlSlug, snapshotGuestGroups: guestGroups, groupId, guestNameParam });
       return;
     }
     // Otherwise, find which client this slug actually belongs to.
@@ -4747,7 +5279,7 @@ export default function InvitationBuilder() {
       return;
     }
     const snapshot = invitationsStore[matchedUser.id] || freshInvitationSnapshot();
-    setGuestView({ found: true, ownSlug: false, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam });
+    setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam });
     // Re-run once the real saved data finishes loading (it loads
     // asynchronously in a separate effect) — without this, a guest link can
     // get permanently evaluated against the initial seed/demo data instead
@@ -4789,6 +5321,13 @@ export default function InvitationBuilder() {
     });
   };
 
+  if (djDashboardSlug === null) {
+    return null; // still checking the URL
+  }
+  if (djDashboardSlug) {
+    return <DjDashboard slug={djDashboardSlug} />;
+  }
+
   if (guestView === null) {
     return null; // still checking the URL — avoid flashing the homepage/builder first
   }
@@ -4823,6 +5362,7 @@ export default function InvitationBuilder() {
           onRemoveCustomBlock={() => {}}
           onSubmitRsvp={submitGuestViewRsvp}
           fullscreen
+          slug={guestView.slug}
         />
       </div>
     );
@@ -4969,22 +5509,15 @@ export default function InvitationBuilder() {
               {stepKey === "rsvp" && <RsvpStep c={c.rsvp} updateContent={(p) => updateContentSection("rsvp", p)} bg={pageBackgrounds.rsvp} setBg={setBgFor("rsvp")} rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />}
               {stepKey === "registry" && <RegistryStep items={registry} update={setRegistry} activeLang={activeLang} bg={pageBackgrounds.registry} setBg={setBgFor("registry")} />}
               {stepKey === "djRequests" && (
-                <IntegrationStep
-                  label="DJ Requests"
-                  projectHint="dj-song-requests"
-                  helpText="This page links out to the DJ Song Requests project — a separate backend with a live guest form and DJ dashboard (Socket.IO real-time). Deploy it (Render, Railway, or your own server), then paste the guest link here, e.g. https://your-host.com/guest.html?event=your-slug"
-                  url={integrations.djUrl}
-                  setUrl={(v) => updateIntegrations({ djUrl: v })}
-                  buttonLabel={integrations.djButtonLabel}
-                  setButtonLabel={(v) => updateIntegrations({ djButtonLabel: v })}
+                <DjRequestsPanel
                   heading={integrations.djHeading}
                   setHeading={(v) => updateIntegrations({ djHeading: v })}
                   subtitle={integrations.djSubtitle}
                   setSubtitle={(v) => updateIntegrations({ djSubtitle: v })}
                   bg={pageBackgrounds.djRequests}
                   setBg={setBgFor("djRequests")}
-                  dashboardFileName="dj.html"
-                  dashboardLabel="DJ Dashboard"
+                  dashboardUrl={`https://${siteDomain}/dj/${slug}`}
+                  slug={slug}
                 />
               )}
               {stepKey === "networking" && (
@@ -5007,7 +5540,7 @@ export default function InvitationBuilder() {
               {stepKey === "livestream" && (
                 <IntegrationStep
                   label="Live Stream"
-                  helpText="No separate backend needed here — just paste the link to wherever the ceremony is actually being streamed (YouTube Live, Zoom, Instagram Live, Facebook Live, etc). The photographer or videographer sets that stream up on their own platform; this page is just a clean doorway to it for your guests."
+                  helpText="Paste a YouTube or Vimeo link and it plays directly embedded on this page — guests never leave your invitation to watch. Zoom (and anything else not from YouTube/Vimeo) still works, but opens as a link instead, since Zoom meetings are joined through Zoom's own app, not embeddable as a video player."
                   url={integrations.livestreamUrl}
                   setUrl={(v) => updateIntegrations({ livestreamUrl: v })}
                   placeholderUrl="https://youtube.com/live/…  or  https://zoom.us/j/…"
@@ -5041,19 +5574,14 @@ export default function InvitationBuilder() {
                     <>
                       <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(201,164,76,0.08)", border: `1px solid rgba(201,164,76,0.2)` }}>
                         <p className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                          Real payment needs a real, secure checkout — that's not something this app can safely fake, since anyone could just claim they paid. The good part: you don't need a developer for this either. Create a <strong>Stripe Payment Link</strong> or a <strong>PayPal.me</strong> link (free, a few minutes, no code) and paste it below. In that payment link's own settings, set the "after payment" redirect to the actual stream URL above ({integrations.livestreamUrl || "set your stream link first"}) — Stripe/PayPal only send someone there once they've genuinely paid.
+                          The real stream link is kept genuinely hidden now — it's stored server-side and only ever sent to a guest's browser after Whish confirms their payment actually went through. It never sits in this invitation's normal saved data, so there's nothing for a guest to find by inspecting the page, copying a link, or sharing it with someone who hasn't paid.
                         </p>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <FieldLabel>Price to show</FieldLabel>
-                          <TextInput value={integrations.livestreamPrice} onChange={(v) => updateIntegrations({ livestreamPrice: v })} placeholder="$10" />
-                        </div>
-                        <div>
-                          <FieldLabel>Payment link</FieldLabel>
-                          <TextInput value={integrations.livestreamPaymentUrl} onChange={(v) => updateIntegrations({ livestreamPaymentUrl: v })} placeholder="https://buy.stripe.com/… or paypal.me/…" />
-                        </div>
+                      <div className="mb-3">
+                        <FieldLabel>Price to show</FieldLabel>
+                        <TextInput value={integrations.livestreamPrice} onChange={(v) => updateIntegrations({ livestreamPrice: v })} placeholder="$10" />
                       </div>
+                      <SecureStreamUrlSetter slug={slug} />
                     </>
                   )}
                 </div>
@@ -5078,7 +5606,7 @@ export default function InvitationBuilder() {
             </div>
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
-              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} />
+              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} />
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
