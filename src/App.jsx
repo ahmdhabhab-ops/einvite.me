@@ -5458,7 +5458,29 @@ export default function InvitationBuilder() {
   const [users, setUsers] = useState(seedUsers);
   const [siteDomain, setSiteDomain] = useState("einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
+  const restoredSessionRef = useRef(false);
+
+  // Restore a client's logged-in session after a page refresh — without
+  // this, actingAsUser always starts at null on every fresh page load
+  // (React state doesn't survive a refresh on its own), which silently
+  // dropped a logged-in client back into the owner/admin experience every
+  // single time they refreshed. Runs once real data has actually arrived
+  // (not the initial seed list) — the ref guarantees it only fires once,
+  // so it doesn't fight with someone deliberately switching invitations
+  // afterward.
+  useEffect(() => {
+    if (restoredSessionRef.current) return;
+    const savedId = window.localStorage.getItem("einvite:acting-as-user-id");
+    if (!savedId) { restoredSessionRef.current = true; return; }
+    const match = users.find((u) => u.id === savedId);
+    if (!match) return; // real user list may not have loaded yet — try again once it does, rather than giving up after checking only the initial seed data
+    restoredSessionRef.current = true;
+    switchActiveInvitation(match.id);
+    setActingAsUser(match);
+  }, [users]);
+
   const [showAuthPreview, setShowAuthPreview] = useState(false);
+
   const [intro, setIntro] = useState(defaultIntroSettings);
 
   // --- Per-client data isolation -----------------------------------------
@@ -5815,7 +5837,8 @@ export default function InvitationBuilder() {
       updatedAt: Date.now(),
     });
     if (status !== "yes") return null;
-    const displayNames = cleanNames.length ? cleanNames.join(", ") : "Guest";
+    const extra = status === "yes" ? additionalGuests || 0 : 0;
+    const displayNames = (cleanNames.length ? cleanNames.join(", ") : "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
     return await createCheckinToken(slug, groupId, displayNames);
   };
 
@@ -5857,17 +5880,20 @@ export default function InvitationBuilder() {
     }
     switchActiveInvitation(finalUser.id);
     setActingAsUser(finalUser);
+    window.localStorage.setItem("einvite:acting-as-user-id", finalUser.id);
     setView("overview");
   };
   const enterBuilderAsLoggedInUser = (user) => {
     switchActiveInvitation(user.id);
     setActingAsUser(user);
+    window.localStorage.setItem("einvite:acting-as-user-id", user.id); // survives a refresh — see the restore effect near the other load effects
     setShowAuthPreview(false);
     setView("builder");
   };
   const exitActingAs = () => {
     switchActiveInvitation(OWNER_SLOT);
     setActingAsUser(null);
+    window.localStorage.removeItem("einvite:acting-as-user-id");
   };
 
   const updateIntro = (patch) => setIntro((i) => ({ ...i, ...patch }));
