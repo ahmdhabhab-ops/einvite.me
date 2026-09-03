@@ -1511,10 +1511,34 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
 // this page is just a nicely designed doorway to wherever you've deployed
 // that project.
 function SecureStreamUrlSetter({ slug }) {
-  const [ownerSecret, setOwnerSecret] = useState("");
+  const [ownerSecret, setOwnerSecret] = useState(() => (typeof window !== "undefined" ? window.localStorage.getItem("einvite:owner-secret") || "" : ""));
   const [embedUrl, setEmbedUrl] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | saving | saved | error
+  const [status, setStatus] = useState("idle"); // idle | loading | saving | saved | error
   const [error, setError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  // If this browser already remembers an owner code, automatically load
+  // what's currently saved — this is what actually fixes "the field always
+  // looks empty after a refresh." Still gated by the same code as writing,
+  // so this doesn't weaken the security model at all.
+  useEffect(() => {
+    if (!ownerSecret || !slug) return;
+    let cancelled = false;
+    setStatus("loading");
+    fetch(`${EDGE_FUNCTIONS_URL}/get-stream-secret-for-owner`, {
+      method: "POST",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ invitationSlug: slug, ownerSecret }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.embedUrl) { setEmbedUrl(data.embedUrl); setLastUpdated(data.updatedAt); }
+        setStatus("idle");
+      })
+      .catch(() => { if (!cancelled) setStatus("idle"); });
+    return () => { cancelled = true; };
+  }, [slug]); // deliberately not re-running on every ownerSecret keystroke — only on mount, when a remembered value already exists
 
   const save = async () => {
     if (!embedUrl.trim()) { setError("Enter the real stream URL first."); return; }
@@ -1528,8 +1552,9 @@ function SecureStreamUrlSetter({ slug }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't save.");
+      window.localStorage.setItem("einvite:owner-secret", ownerSecret); // remember it now that we know it's correct
       setStatus("saved");
-      setEmbedUrl("");
+      setLastUpdated(new Date().toISOString());
       setTimeout(() => setStatus("idle"), 3000);
     } catch (err) {
       setStatus("error");
@@ -1539,13 +1564,17 @@ function SecureStreamUrlSetter({ slug }) {
 
   return (
     <div className="rounded-lg p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
-      <FieldLabel>Real stream URL (kept hidden — never shown to guests directly)</FieldLabel>
+      <div className="mb-1.5 flex items-center justify-between">
+        <FieldLabel>Real stream URL (kept hidden — never shown to guests directly)</FieldLabel>
+        {status === "loading" && <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading current value…</span>}
+      </div>
       <TextInput value={embedUrl} onChange={setEmbedUrl} placeholder="https://youtube.com/watch?v=… or the actual private stream link" />
+      {lastUpdated && <p className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Currently saved — last updated {new Date(lastUpdated).toLocaleString()}</p>}
       <div className="mt-2">
         <FieldLabel>Owner access code</FieldLabel>
         <TextInput value={ownerSecret} onChange={setOwnerSecret} placeholder="Set by whoever deployed this (see paid-stream-backend setup)" />
         <p className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-          A basic safeguard for now, not full per-client security — see the honest note in set-stream-secret's own code.
+          Remembered on this device after a successful save — you won't need to retype it here every time. A basic safeguard for now, not full per-client security — see the honest note in set-stream-secret's own code.
         </p>
       </div>
       {error && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
