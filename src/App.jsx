@@ -5617,6 +5617,19 @@ export default function InvitationBuilder() {
     return () => clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    // THE ACTUAL FIX for "stuck on Still loading account data forever":
+    // coreDataLoaded is normally set by the main load effect's own
+    // try/catch/finally once persistentStorage.get(DRAFT_KEY) settles —
+    // but if that fetch hangs indefinitely instead of cleanly resolving
+    // or rejecting (a network issue that doesn't time out on its own, for
+    // example), that finally block never runs at all, and coreDataLoaded
+    // stays false forever. Without this, login would be permanently
+    // stuck showing "still loading" with no way out, exactly as reported.
+    const timeout = setTimeout(() => setCoreDataLoaded(true), 6000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   const [showAuthPreview, setShowAuthPreview] = useState(false);
 
   const [intro, setIntro] = useState(defaultIntroSettings);
