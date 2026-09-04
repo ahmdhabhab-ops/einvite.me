@@ -4680,7 +4680,6 @@ function UsersView({ users, invitationsStore, onDelete, onToggleStatus, onCreate
     onApprove(user.id);
     setApprovalNotice(user.email);
     setTimeout(() => setApprovalNotice(null), 4000);
-    onCreateInvitationFor({ ...user, status: "active", dashboardAccess: true, canDesign: true });
   };
 
   const filtered = users
@@ -6114,19 +6113,15 @@ export default function InvitationBuilder() {
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
 
+  // Admin-side: opens/sets up a client's invitation directly, no template
+  // step — the admin isn't the one who should be picking a client's
+  // design for them. Used for "New invite" on an already-active user, or
+  // any other admin action that needs to get into a client's portal.
   const createInvitationFor = (user) => {
-    if (!user.invitationSlug) {
-      // Genuinely new — show the template picker first, rather than
-      // dropping straight into a blank Builder. Re-opening an existing
-      // client (they already have a slug, meaning their invitation is
-      // already configured) skips this entirely and proceeds as before.
-      setPendingNewUser(user);
-      return;
-    }
-    finalizeInvitationCreation(user, null);
+    finalizeInvitationCreation(user, null, "overview");
   };
 
-  const finalizeInvitationCreation = (user, template) => {
+  const finalizeInvitationCreation = (user, template, destinationView) => {
     let finalUser = user;
     if (!user.invitationSlug) {
       const base = user.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `guest-${user.id.slice(0, 6)}`;
@@ -6157,9 +6152,20 @@ export default function InvitationBuilder() {
     switchActiveInvitation(finalUser.id);
     setActingAsUser(finalUser);
     window.localStorage.setItem("einvite:acting-as-user-id", finalUser.id);
-    setView("overview");
+    setShowAuthPreview(false);
+    setView(destinationView);
   };
+
+  // Client-side: this is where the CLIENT THEMSELVES lands after logging
+  // in on their own device — this is what actually connects the template
+  // picker to the right person. Gated on invitationSlug as a stand-in for
+  // "has this client already picked a design" — if they haven't, they see
+  // the picker now; once chosen, they land straight in their own Builder.
   const enterBuilderAsLoggedInUser = (user) => {
+    if (!user.invitationSlug) {
+      setPendingNewUser(user);
+      return;
+    }
     switchActiveInvitation(user.id);
     setActingAsUser(user);
     window.localStorage.setItem("einvite:acting-as-user-id", user.id); // survives a refresh — see the restore effect near the other load effects
@@ -6434,6 +6440,20 @@ export default function InvitationBuilder() {
 
   // The actual fix: the site's default landing (anything that isn't /admin
   // and isn't one of the other special paths already handled above) now
+  if (pendingNewUser) {
+    return (
+      <div className="min-h-screen" style={{ background: INK }}>
+        <TemplatePicker
+          onChoose={(template) => {
+            finalizeInvitationCreation(pendingNewUser, template, "builder");
+            setPendingNewUser(null);
+          }}
+          onCancel={() => setPendingNewUser(null)}
+        />
+      </div>
+    );
+  }
+
   // shows login/signup instead of dropping straight into the builder. A
   // client who's already logged in (actingAsUser, restored from
   // localStorage after a refresh) still goes straight to their own portal
@@ -6442,20 +6462,6 @@ export default function InvitationBuilder() {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
         <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
-      </div>
-    );
-  }
-
-  if (pendingNewUser) {
-    return (
-      <div className="min-h-screen" style={{ background: INK }}>
-        <TemplatePicker
-          onChoose={(template) => {
-            finalizeInvitationCreation(pendingNewUser, template);
-            setPendingNewUser(null);
-          }}
-          onCancel={() => setPendingNewUser(null)}
-        />
       </div>
     );
   }
