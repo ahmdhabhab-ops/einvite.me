@@ -6129,36 +6129,37 @@ export default function InvitationBuilder() {
     return await createCheckinToken(slug, groupId, displayNames);
   };
 
-  const deleteUser = (id) => setUsers((list) => list.filter((u) => u.id !== id));
-  const toggleUserStatus = (id) =>
-    setUsers((list) => list.map((u) => (u.id === id ? { ...u, status: u.status === "active" ? "inactive" : "active" } : u)));
-  const approveUser = (id) => setUsers((list) => list.map((u) => (u.id === id ? { ...u, status: "active", dashboardAccess: true, canDesign: true } : u)));
-  const toggleDashboardAccess = (id) =>
-    setUsers((list) => list.map((u) => (u.id === id ? { ...u, dashboardAccess: !u.dashboardAccess } : u)));
-  const toggleCanDesign = (id) =>
-    setUsers((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
-  const updateUserEmail = (id, email) => setUsers((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
-  const signUpUser = async ({ name, email, phone, password }) => {
-    const newUser = { id: uid(), name, email, phone, password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null };
-    setUsers((list) => [newUser, ...list]);
-    // THE ACTUAL FIX: a new signup happens on the CLIENT'S OWN browser —
-    // their local state was never seen by the admin's dashboard on a
-    // completely separate device, same bug class as the RSVP and guest-list
-    // issues fixed earlier. Reads the latest saved payload first (not this
-    // browser's own local `users`, which could be momentarily stale
-    // relative to very recent changes elsewhere) so this doesn't
-    // accidentally overwrite something another session just saved.
-    if (persistentStorage.available()) {
-      try {
-        const res = await persistentStorage.get(DRAFT_KEY, false);
-        const latest = res?.value ? JSON.parse(res.value) : {};
-        const updated = { ...latest, users: [newUser, ...(latest.users || users)] };
-        const ok = await persistentStorage.set(DRAFT_KEY, JSON.stringify(updated), false);
-        if (!ok) console.error("signUpUser: save returned falsy — new account may not have reached the admin's dashboard.");
-      } catch (err) {
-        console.error("signUpUser: failed to save new account to Supabase:", err);
-      }
+  // Shared fix for the whole class of bug this keeps surfacing as: local
+  // setUsers() alone never reaches Supabase, so any change here only ever
+  // existed in this browser until an explicit "Save invitation" — a
+  // refresh in between silently reverts it. updateFn is applied to BOTH
+  // this browser's local list (for immediate UI feedback) and the freshly
+  // re-fetched latest saved data (so this doesn't stomp on a change made
+  // elsewhere since this browser last loaded).
+  const saveUsersDirectly = async (updateFn) => {
+    setUsers(updateFn);
+    if (!persistentStorage.available()) return;
+    try {
+      const res = await persistentStorage.get(DRAFT_KEY, false);
+      const latest = res?.value ? JSON.parse(res.value) : {};
+      const baseUsers = latest.users || users;
+      const updated = { ...latest, users: updateFn(baseUsers) };
+      const ok = await persistentStorage.set(DRAFT_KEY, JSON.stringify(updated), false);
+      if (!ok) console.error("saveUsersDirectly: save returned falsy — change may revert on refresh.");
+    } catch (err) {
+      console.error("saveUsersDirectly: failed to save:", err);
     }
+  };
+
+  const deleteUser = (id) => saveUsersDirectly((list) => list.filter((u) => u.id !== id));
+  const toggleUserStatus = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, status: u.status === "active" ? "inactive" : "active" } : u)));
+  const approveUser = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, status: "active", dashboardAccess: true, canDesign: true } : u)));
+  const toggleDashboardAccess = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, dashboardAccess: !u.dashboardAccess } : u)));
+  const toggleCanDesign = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
+  const updateUserEmail = (id, email) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
+  const signUpUser = (params) => {
+    const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null };
+    saveUsersDirectly((list) => [newUser, ...list]);
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
 
