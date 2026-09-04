@@ -60,6 +60,80 @@ const GATE_ANIMATIONS = {
   sparkleDrift: { name: "Sparkle drift", icon: Star, colors: [GOLD_SOFT, PAPER, GOLD] },
 };
 
+// The 5 starting templates a client picks from before entering the Builder.
+// Each one is a complete, cohesive combination built from the presets and
+// styles that already exist in this app (backgrounds, gate animation, gate
+// icon) — this is a real, working starting point today.
+//
+// Honest limitation: fonts and the core color palette (GOLD, EMERALD, INK,
+// PAPER, etc.) are fixed module-level constants in this file, not yet
+// per-invitation settings — so these 5 templates differ in background,
+// gate style, and icon, not in typography or overall color scheme. To swap
+// in your own 5 specific Canva designs, replace each template's
+// `previewSwatch` with your own image URL, and set `pageBackgrounds` to
+// `{ mode: "photo", preset: "botanical", image: "https://your-image-url",
+// darken: 55 }` per page to use your own photo instead of a gradient preset.
+const INVITATION_TEMPLATES = [
+  {
+    id: "botanical-green",
+    name: "Botanical Green",
+    description: "Deep emerald tones with floating hearts.",
+    previewSwatch: BG_PRESETS.botanical.css,
+    pageBackgroundPreset: "botanical",
+    gateAnimationStyle: "floatingHearts",
+    gateIcon: "heart",
+  },
+  {
+    id: "blush-romance",
+    name: "Blush Romance",
+    description: "Warm rose and gold with falling petals.",
+    previewSwatch: BG_PRESETS.blush.css,
+    pageBackgroundPreset: "blush",
+    gateAnimationStyle: "petals",
+    gateIcon: "heart",
+  },
+  {
+    id: "dusk-elegance",
+    name: "Dusk Elegance",
+    description: "Twilight purples and rose with drifting sparkle.",
+    previewSwatch: BG_PRESETS.dusk.css,
+    pageBackgroundPreset: "dusk",
+    gateAnimationStyle: "sparkleDrift",
+    gateIcon: "star",
+  },
+  {
+    id: "gilded-luxury",
+    name: "Gilded Luxury",
+    description: "Rich gold tones with confetti.",
+    previewSwatch: BG_PRESETS.gilded.css,
+    pageBackgroundPreset: "gilded",
+    gateAnimationStyle: "confetti",
+    gateIcon: "sparkles",
+  },
+  {
+    id: "classic-mix",
+    name: "Classic Mix",
+    description: "A varied palette across pages — a different tone for each page.",
+    previewSwatch: "linear-gradient(135deg, #1f3a2e 0%, #7a4a52 35%, #2b1f3a 65%, #3a2f14 100%)",
+    pageBackgroundPreset: null, // null = keep the app's existing mixed-preset defaultPageBackgrounds as-is
+    gateAnimationStyle: "floatingHearts",
+    gateIcon: "heart",
+  },
+];
+
+/** Applies a template's choices onto a fresh invitation snapshot — background preset (if the template specifies one) and gate style/icon. */
+function applyTemplateToSnapshot(snapshot, template) {
+  if (!template) return snapshot;
+  const pageBackgrounds = template.pageBackgroundPreset
+    ? Object.fromEntries(Object.entries(snapshot.pageBackgrounds).map(([key, bg]) => [key, { ...bg, preset: template.pageBackgroundPreset }]))
+    : snapshot.pageBackgrounds;
+  return {
+    ...snapshot,
+    pageBackgrounds,
+    intro: { ...snapshot.intro, animationStyle: template.gateAnimationStyle, icon: template.gateIcon },
+  };
+}
+
 const ENVELOPE_STYLES = {
   kraftGold: {
     name: "Golden Kraft",
@@ -4773,7 +4847,39 @@ function UsersView({ users, invitationsStore, onDelete, onToggleStatus, onCreate
 /* Guest sign-up & login preview                                           */
 /* ---------------------------------------------------------------------- */
 
-function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs }) {
+function TemplatePicker({ onChoose, onCancel }) {
+  return (
+    <div className="mx-auto max-w-4xl px-5 py-10">
+      <div className="mb-8 text-center">
+        <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Choose a Design</h1>
+        <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Pick a starting look — every detail can still be customized afterward in the Builder.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
+        {INVITATION_TEMPLATES.map((tpl) => (
+          <button
+            key={tpl.id}
+            onClick={() => onChoose(tpl)}
+            className="group overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02]"
+            style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
+          >
+            <div style={{ height: 140, background: tpl.previewSwatch }} />
+            <div className="p-4">
+              <div className="text-[14px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{tpl.name}</div>
+              <div className="mt-1 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{tpl.description}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+      {onCancel && (
+        <div className="mt-8 text-center">
+          <button onClick={onCancel} className="text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) {
   const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [showPw, setShowPw] = useState(false);
@@ -4802,6 +4908,15 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs }) {
   const submitLogin = (e) => {
     e.preventDefault();
     setError("");
+    // THE ACTUAL FIX: without this check, trying to log in before the real
+    // account list has finished loading from Supabase (still just the
+    // initial seed data at that moment) would incorrectly report "wrong
+    // password" for a genuinely correct one — self-correcting only once
+    // the person tried again after the real data had time to arrive.
+    if (!dataLoaded) {
+      setError("Still loading account data — please wait a moment and try again.");
+      return;
+    }
     const match = users.find((u) => u.email.toLowerCase() === form.email.toLowerCase());
     if (!match || match.password !== form.password) {
       setError("Incorrect email or password.");
@@ -5034,6 +5149,14 @@ function DjDashboard({ slug }) {
 /* ordinary camera app opens after scanning a guest's QR code — no        */
 /* special scanner app needed, since the code just encodes this URL.       */
 /* ---------------------------------------------------------------------- */
+
+function AppLoadingScreen() {
+  return (
+    <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>Loading…</p>
+    </div>
+  );
+}
 
 function CheckinPage({ token }) {
   const [checkin, setCheckin] = useState(null); // null=loading, false=invalid, {...}=result
@@ -5461,6 +5584,7 @@ export default function InvitationBuilder() {
   const [siteDomain, setSiteDomain] = useState("einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
   const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
+  const [coreDataLoaded, setCoreDataLoaded] = useState(false);
 
   // Restore a client's logged-in session after a page refresh — without
   // this, actingAsUser always starts at null on every fresh page load
@@ -5620,7 +5744,7 @@ export default function InvitationBuilder() {
   // blob: URLs that only live for the current browser tab, so they can't be restored
   // here — re-upload after loading a draft. Images are saved as data URLs and do restore.
   useEffect(() => {
-    if (!persistentStorage.available()) return; // no storage backend at all in this environment
+    if (!persistentStorage.available()) { setCoreDataLoaded(true); return; } // no storage backend at all in this environment — nothing to wait for
     let cancelled = false;
     (async () => {
       try {
@@ -5678,6 +5802,8 @@ export default function InvitationBuilder() {
         if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
       } catch {
         // No saved draft yet — start fresh with the defaults.
+      } finally {
+        if (!cancelled) setCoreDataLoaded(true);
       }
     })();
     // The Cover page's background is the one thing a guest actually needs
@@ -5970,7 +6096,21 @@ export default function InvitationBuilder() {
       ...list,
     ]);
   };
+  const [pendingNewUser, setPendingNewUser] = useState(null);
+
   const createInvitationFor = (user) => {
+    if (!user.invitationSlug) {
+      // Genuinely new — show the template picker first, rather than
+      // dropping straight into a blank Builder. Re-opening an existing
+      // client (they already have a slug, meaning their invitation is
+      // already configured) skips this entirely and proceeds as before.
+      setPendingNewUser(user);
+      return;
+    }
+    finalizeInvitationCreation(user, null);
+  };
+
+  const finalizeInvitationCreation = (user, template) => {
     let finalUser = user;
     if (!user.invitationSlug) {
       const base = user.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `guest-${user.id.slice(0, 6)}`;
@@ -5990,6 +6130,13 @@ export default function InvitationBuilder() {
       }
       setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, invitationSlug: slug } : u)));
       finalUser = { ...user, invitationSlug: slug };
+    }
+    if (template) {
+      // Pre-seed this new client's slot with the template applied, so
+      // switchActiveInvitation's own lookup (invitationsStore[nextId] ||
+      // freshInvitationSnapshot()) finds the template-applied version
+      // instead of falling back to the plain, un-templated default.
+      setInvitationsStore((store) => ({ ...store, [finalUser.id]: applyTemplateToSnapshot(freshInvitationSnapshot(), template) }));
     }
     switchActiveInvitation(finalUser.id);
     setActingAsUser(finalUser);
@@ -6103,7 +6250,13 @@ export default function InvitationBuilder() {
       setGuestView({ found: true, ownSlug: true, slug: urlSlug, snapshotGuestGroups: guestGroups, groupId, guestNameParam });
       return;
     }
-    // Otherwise, find which client this slug actually belongs to.
+    // Otherwise, find which client this slug actually belongs to. Don't
+    // decide "not found" until the real data has actually finished
+    // loading — otherwise this can run against the initial seed/demo user
+    // list and incorrectly conclude a real, valid slug doesn't exist,
+    // before self-correcting a moment later once coreDataLoaded flips true
+    // and this effect re-runs.
+    if (!coreDataLoaded) return;
     const matchedUser = users.find((u) => u.invitationSlug === urlSlug);
     if (!matchedUser) {
       setGuestView({ found: false });
@@ -6116,7 +6269,7 @@ export default function InvitationBuilder() {
     // get permanently evaluated against the initial seed/demo data instead
     // of the couple's real saved content, since this effect would otherwise
     // only run once, before that async load has had a chance to complete.
-  }, [slug, users, invitationsStore]);
+  }, [slug, users, invitationsStore, coreDataLoaded]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
     ? { ...guestView.snapshot, totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length }
@@ -6197,28 +6350,28 @@ export default function InvitationBuilder() {
   };
 
   if (djDashboardSlug === null) {
-    return null; // still checking the URL
+    return <AppLoadingScreen />; // still checking the URL
   }
   if (djDashboardSlug) {
     return <DjDashboard slug={djDashboardSlug} />;
   }
 
   if (networkingSlug === null) {
-    return null; // still checking the URL
+    return <AppLoadingScreen />; // still checking the URL
   }
   if (networkingSlug) {
     return <NetworkingHub slug={networkingSlug} />;
   }
 
   if (checkinToken === null) {
-    return null; // still checking the URL
+    return <AppLoadingScreen />; // still checking the URL
   }
   if (checkinToken) {
     return <CheckinPage token={checkinToken} />;
   }
 
   if (guestView === null) {
-    return null; // still checking the URL — avoid flashing the homepage/builder first
+    return <AppLoadingScreen />; // still checking the URL — avoid flashing the homepage/builder first
   }
 
   if (guestView && guestView.found === false) {
@@ -6260,7 +6413,7 @@ export default function InvitationBuilder() {
   }
 
   if (isAdminPath === null || !sessionCheckResolved) {
-    return null; // still checking the URL / still trying to restore a saved session — showing login here would be premature and could flash it even for an already-logged-in client
+    return <AppLoadingScreen />; // still checking the URL / still trying to restore a saved session — showing login here would be premature and could flash it even for an already-logged-in client
   }
 
   // The actual fix: the site's default landing (anything that isn't /admin
@@ -6272,7 +6425,21 @@ export default function InvitationBuilder() {
   if (!isAdminPath && !actingAsUser) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
-        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} />
+        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
+      </div>
+    );
+  }
+
+  if (pendingNewUser) {
+    return (
+      <div className="min-h-screen" style={{ background: INK }}>
+        <TemplatePicker
+          onChoose={(template) => {
+            finalizeInvitationCreation(pendingNewUser, template);
+            setPendingNewUser(null);
+          }}
+          onCancel={() => setPendingNewUser(null)}
+        />
       </div>
     );
   }
@@ -6321,7 +6488,7 @@ export default function InvitationBuilder() {
         )}
 
         {showAuthPreview ? (
-          <AuthPreview users={users} onSignUp={signUpUser} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} />
+          <AuthPreview users={users} onSignUp={signUpUser} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
         ) : view === "overview" && actingAsUser ? (
           <EventOverviewView
             user={actingAsUser}
