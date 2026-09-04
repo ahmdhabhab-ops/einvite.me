@@ -693,6 +693,20 @@ async function submitVoiceMessage(slug, { guestGroupId, guestName, rsvpStatus, a
   return rows[0];
 }
 
+async function getVoiceMessages(slug) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/voice_messages?invitation_slug=eq.${encodeURIComponent(slug)}&order=created_at.desc`, { headers: supabaseHeaders });
+    if (!res.ok) {
+      console.error("getVoiceMessages failed:", res.status, await res.text().catch(() => ""));
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("getVoiceMessages threw:", err);
+    return [];
+  }
+}
+
 // ---------------------------------------------------------------------- //
 // QR check-in — when a guest group RSVPs yes, a random token is created
 // and encoded into a QR code as a URL (not raw data). That's what lets
@@ -4252,6 +4266,61 @@ function TableCard({ table, groups, allTables, onUpdateTable, onDeleteTable, onA
   );
 }
 
+function VoiceMessagesPanel({ slug }) {
+  const [messages, setMessages] = useState(null); // null = loading
+  const [filter, setFilter] = useState("all"); // all | yes | no
+
+  const load = async () => {
+    const rows = await getVoiceMessages(slug);
+    setMessages(rows);
+  };
+
+  useEffect(() => { load(); }, [slug]);
+
+  if (messages === null) {
+    return <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading…</p>;
+  }
+
+  const filtered = filter === "all" ? messages : messages.filter((m) => m.rsvp_status === filter);
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex gap-2">
+          <GhostButton active={filter === "all"} onClick={() => setFilter("all")}>All ({messages.length})</GhostButton>
+          <GhostButton active={filter === "yes"} onClick={() => setFilter("yes")}>Attending ({messages.filter((m) => m.rsvp_status === "yes").length})</GhostButton>
+          <GhostButton active={filter === "no"} onClick={() => setFilter("no")}>Not Attending ({messages.filter((m) => m.rsvp_status === "no").length})</GhostButton>
+        </div>
+        <GhostButton onClick={load}>Refresh</GhostButton>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No voice messages yet.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((m) => (
+            <div key={m.id} className="rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{m.guest_name}</span>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase"
+                    style={m.rsvp_status === "yes" ? { background: "rgba(143,191,163,0.18)", color: CHART_COLORS.yes } : { background: "rgba(224,155,155,0.18)", color: "#E29B9B" }}
+                  >
+                    {m.rsvp_status === "yes" ? "Attending" : "Not Attending"}
+                  </span>
+                </div>
+                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{new Date(m.created_at).toLocaleString()}</span>
+              </div>
+              <audio src={m.audio_data} controls style={{ width: "100%", height: 34 }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDeleteTable, onAssignGuest }) {
   const [newTableName, setNewTableName] = useState("");
   const [newTableCapacity, setNewTableCapacity] = useState(8);
@@ -4470,6 +4539,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       <div className="mb-6 flex gap-2">
         <GhostButton active={subTab === "guests"} onClick={() => setSubTab("guests")}>Guest List</GhostButton>
         <GhostButton active={subTab === "seating"} onClick={() => setSubTab("seating")}>Table Seating</GhostButton>
+        <GhostButton active={subTab === "voice"} onClick={() => setSubTab("voice")}>Voice Messages</GhostButton>
       </div>
 
       {integrations && (
@@ -4515,6 +4585,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
           guestGroups={guestGroups} tables={tables}
           onAddTable={addTable} onUpdateTable={updateTable} onDeleteTable={deleteTable} onAssignGuest={assignGuestToTable}
         />
+      ) : subTab === "voice" ? (
+        <VoiceMessagesPanel slug={slug} />
       ) : (
         <>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -6368,7 +6440,7 @@ export default function InvitationBuilder() {
   // toward additionalGuests as an unnamed slot, same as guests added manually.
   const submitGuestRsvp = async ({ names, status, additionalGuests, existingGroupId }) => {
     const cleanNames = (names || []).filter((n) => n && n.trim());
-    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [];
+    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : [{ id: uid(), name: "Guest", status }];
     const existing = existingGroupId ? guestGroups.find((g) => g.id === existingGroupId) : null;
 
     if (existing) {
@@ -6652,7 +6724,7 @@ export default function InvitationBuilder() {
       return await submitGuestRsvp({ names, status, additionalGuests, existingGroupId: guestView.groupId });
     }
     const cleanNames = (names || []).filter((n) => n && n.trim());
-    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [];
+    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : [{ id: uid(), name: "Guest", status }];
 
     // THE ACTUAL FIX: write straight to Supabase, not just to local
     // invitationsStore state. A guest submitting this is on their OWN
