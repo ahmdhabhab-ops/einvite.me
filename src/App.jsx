@@ -2407,11 +2407,11 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
   );
 }
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug }) {
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName }) {
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   const [choice, setChoice] = useState(null);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(prefilledGuestName || "");
   const [guestCount, setGuestCount] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -3151,7 +3151,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -3271,7 +3271,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
@@ -5826,18 +5826,59 @@ export default function InvitationBuilder() {
     reader.readAsDataURL(file);
   };
 
-  const addGuestGroup = (g) => setGuestGroups((list) => [g, ...list]);
-  const updateGuestGroup = (id, patch) => setGuestGroups((list) => list.map((g) => (g.id === id ? { ...g, ...patch, updatedAt: Date.now() } : g)));
-  const deleteGuestGroup = (id) => setGuestGroups((list) => list.filter((g) => g.id !== id));
+  const guestGroupsSaveTimeout = useRef(null);
+  /** Debounced save for guestGroups — waits for a short pause in edits before actually writing to Supabase, so typing in a field doesn't trigger a write per keystroke. */
+  const saveGuestGroupsDebounced = (newList) => {
+    if (guestGroupsSaveTimeout.current) clearTimeout(guestGroupsSaveTimeout.current);
+    guestGroupsSaveTimeout.current = setTimeout(async () => {
+      if (!persistentStorage.available()) return;
+      try {
+        const snapshot = { ...getActiveSnapshot(), guestGroups: newList };
+        const ok = await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
+        if (!ok) console.error(`saveGuestGroupsDebounced: save returned falsy for invitation "${activeInvitationId}".`);
+      } catch (err) {
+        console.error(`saveGuestGroupsDebounced: failed to save for invitation "${activeInvitationId}":`, err);
+      }
+    }, 1200);
+  };
+
+  const addGuestGroup = async (g) => {
+    const newGuestGroups = [g, ...guestGroups];
+    setGuestGroups(newGuestGroups);
+    // THE ACTUAL FIX: persist immediately, don't rely on the owner
+    // remembering to click "Save invitation" afterward. getActiveSnapshot()
+    // isn't used directly here because its guestGroups field wouldn't yet
+    // reflect this update — the setGuestGroups call above hasn't committed
+    // at this point in execution (React state updates aren't synchronous)
+    // — so newGuestGroups is used explicitly instead.
+    if (persistentStorage.available()) {
+      try {
+        const snapshot = { ...getActiveSnapshot(), guestGroups: newGuestGroups };
+        const ok = await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
+        if (!ok) console.error(`addGuestGroup: save returned falsy for invitation "${activeInvitationId}".`);
+      } catch (err) {
+        console.error(`addGuestGroup: failed to save guest to Supabase for invitation "${activeInvitationId}":`, err);
+      }
+    }
+  };
+  const updateGuestGroup = (id, patch) => {
+    const newList = guestGroups.map((g) => (g.id === id ? { ...g, ...patch, updatedAt: Date.now() } : g));
+    setGuestGroups(newList);
+    saveGuestGroupsDebounced(newList);
+  };
+  const deleteGuestGroup = (id) => {
+    const newList = guestGroups.filter((g) => g.id !== id);
+    setGuestGroups(newList);
+    saveGuestGroupsDebounced(newList);
+  };
   const moveGuestGroup = (id, direction) => {
-    setGuestGroups((list) => {
-      const i = list.findIndex((g) => g.id === id);
-      const j = i + direction;
-      if (i < 0 || j < 0 || j >= list.length) return list;
-      const next = [...list];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
+    const i = guestGroups.findIndex((g) => g.id === id);
+    const j = i + direction;
+    if (i < 0 || j < 0 || j >= guestGroups.length) return;
+    const newList = [...guestGroups];
+    [newList[i], newList[j]] = [newList[j], newList[i]];
+    setGuestGroups(newList);
+    saveGuestGroupsDebounced(newList);
   };
 
   const updateRsvpSettings = (patch) => setRsvpSettings((s) => ({ ...s, ...patch }));
@@ -5855,13 +5896,41 @@ export default function InvitationBuilder() {
   // though both land in the same guest list. `names` may contain zero, one, or
   // several people (from the "Who's joining us?" modal); anyone not named counts
   // toward additionalGuests as an unnamed slot, same as guests added manually.
-  const submitGuestRsvp = async ({ names, status, additionalGuests }) => {
+  const submitGuestRsvp = async ({ names, status, additionalGuests, existingGroupId }) => {
     const cleanNames = (names || []).filter((n) => n && n.trim());
+    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [];
+    const existing = existingGroupId ? guestGroups.find((g) => g.id === existingGroupId) : null;
+
+    if (existing) {
+      // THE ACTUAL FIX: update the existing entry (the one already on the
+      // owner's guest list, matched by the id from this guest's specific
+      // link) instead of creating a duplicate — this is what makes their
+      // RSVP count correctly under their own name rather than as a
+      // separate, unlinked entry. Saved immediately (not the debounced
+      // path other edits use) since an RSVP needs prompt, reliable
+      // persistence.
+      const updatedGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
+      const newList = guestGroups.map((g) => (g.id === existing.id ? updatedGroup : g));
+      setGuestGroups(newList);
+      if (persistentStorage.available()) {
+        try {
+          const snapshot = { ...getActiveSnapshot(), guestGroups: newList };
+          await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
+        } catch (err) {
+          console.error(`submitGuestRsvp: failed to save update for existing group "${existing.id}":`, err);
+        }
+      }
+      if (status !== "yes") return null;
+      const extra = additionalGuests || 0;
+      const displayNames = (updatedGroup.members.map((m) => m.name).join(", ") || "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
+      return await createCheckinToken(slug, existing.id, displayNames);
+    }
+
     const groupId = uid();
     addGuestGroup({
       id: groupId,
       lastName: "",
-      members: cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [],
+      members: newMembers,
       additionalGuests: status === "yes" ? additionalGuests || 0 : 0,
       table: "",
       phone: "",
@@ -5870,7 +5939,7 @@ export default function InvitationBuilder() {
       updatedAt: Date.now(),
     });
     if (status !== "yes") return null;
-    const extra = status === "yes" ? additionalGuests || 0 : 0;
+    const extra = additionalGuests || 0;
     const displayNames = (cleanNames.length ? cleanNames.join(", ") : "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
     return await createCheckinToken(slug, groupId, displayNames);
   };
@@ -6056,15 +6125,11 @@ export default function InvitationBuilder() {
   const submitGuestViewRsvp = async ({ names, status, additionalGuests }) => {
     if (!guestView?.found) return null;
     if (guestView.ownSlug) {
-      return await submitGuestRsvp({ names, status, additionalGuests });
+      return await submitGuestRsvp({ names, status, additionalGuests, existingGroupId: guestView.groupId });
     }
     const cleanNames = (names || []).filter((n) => n && n.trim());
-    const newGroup = {
-      id: uid(), lastName: "",
-      members: cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [],
-      additionalGuests: status === "yes" ? additionalGuests || 0 : 0,
-      table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
-    };
+    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : status === "no" ? [{ id: uid(), name: "Guest", status }] : [];
+
     // THE ACTUAL FIX: write straight to Supabase, not just to local
     // invitationsStore state. A guest submitting this is on their OWN
     // device/browser, loading the page fresh via a shared link — their
@@ -6073,30 +6138,51 @@ export default function InvitationBuilder() {
     // Without this, the RSVP only ever existed in the guest's own browser
     // memory and vanished the moment they closed the tab.
     let savedOk = false;
+    let resultGroup = null;
+    let latest = null;
     try {
       const res = await persistentStorage.get(invitationKey(guestView.userId), false);
-      const latest = res?.value ? JSON.parse(res.value) : (guestView.snapshot || freshInvitationSnapshot());
-      const updated = { ...latest, guestGroups: [newGroup, ...(latest.guestGroups || [])] };
-      const saveRes = await persistentStorage.set(invitationKey(guestView.userId), JSON.stringify(updated), false);
+      latest = res?.value ? JSON.parse(res.value) : (guestView.snapshot || freshInvitationSnapshot());
+      const existingGroups = latest.guestGroups || [];
+      // Match against the freshly-fetched latest data, not
+      // guestView.snapshotGuestGroups (loaded once when the page first
+      // opened, possibly stale by now) — this is what makes a guest's
+      // specific link update their own existing entry instead of creating
+      // a duplicate one, correctly counted under their own name.
+      const existing = guestView.groupId ? existingGroups.find((g) => g.id === guestView.groupId) : null;
+
+      if (existing) {
+        resultGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
+        latest = { ...latest, guestGroups: existingGroups.map((g) => (g.id === existing.id ? resultGroup : g)) };
+      } else {
+        resultGroup = { id: uid(), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now() };
+        latest = { ...latest, guestGroups: [resultGroup, ...existingGroups] };
+      }
+
+      const saveRes = await persistentStorage.set(invitationKey(guestView.userId), JSON.stringify(latest), false);
       savedOk = !!saveRes;
       if (!savedOk) console.error("submitGuestViewRsvp: save to Supabase returned falsy — RSVP may not have persisted.");
     } catch (err) {
       console.error("submitGuestViewRsvp: failed to save RSVP to Supabase:", err);
+      resultGroup = resultGroup || { id: uid(), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now() };
     }
+
     // Also update local state so the UI reflects this immediately without
     // waiting on a re-fetch — but this is now a mirror of what's saved,
     // not the only copy of the data.
     setInvitationsStore((store) => {
       const current = store[guestView.userId] || freshInvitationSnapshot();
-      return { ...store, [guestView.userId]: { ...current, guestGroups: [newGroup, ...(current.guestGroups || [])] } };
+      const currentGroups = current.guestGroups || [];
+      const alreadyThere = currentGroups.some((g) => g.id === resultGroup.id);
+      return { ...store, [guestView.userId]: { ...current, guestGroups: alreadyThere ? currentGroups.map((g) => (g.id === resultGroup.id ? resultGroup : g)) : [resultGroup, ...currentGroups] } };
     });
     if (!savedOk) {
       console.error(`RSVP for "${cleanNames.join(", ") || "Guest"}" (slug: ${guestView.slug}) could not be confirmed as saved to the shared database.`);
     }
     if (status !== "yes") return null;
     const extra = additionalGuests || 0;
-    const displayNames = (cleanNames.length ? cleanNames.join(", ") : "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
-    return await createCheckinToken(guestView.slug, newGroup.id, displayNames);
+    const displayNames = (resultGroup.members.map((m) => m.name).join(", ") || "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
+    return await createCheckinToken(guestView.slug, resultGroup.id, displayNames);
   };
 
   if (djDashboardSlug === null) {
@@ -6156,6 +6242,7 @@ export default function InvitationBuilder() {
           fullscreen
           slug={guestView.slug}
           siteDomain={siteDomain}
+          prefilledGuestName={resolvedGuestName}
         />
       </div>
     );
