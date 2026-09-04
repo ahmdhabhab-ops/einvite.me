@@ -162,55 +162,112 @@ function applyEventTypeToSnapshot(snapshot, eventType) {
   };
 }
 
+// Fill in your own Supabase project's values here to make saves go to a real
+// shared cloud database instead of this browser's local storage — that's
+// what actually makes data visible across different devices/guests. Get
+// these from your Supabase project: Settings → API. The anon key is
+// DESIGNED to be public (safe to put directly in client-side code like
+// this) — real protection comes from the RLS policies on the table itself,
+// not from hiding this key. See sql/kv_store.sql for the table this expects.
+// THE ACTUAL FIX for the blank/white screen: this block MUST come before
+// anything that references SUPABASE_URL — TEMPLATE_IMAGE_BASE below does
+// exactly that. Unlike a reference inside a function body (safe, since
+// that only runs when the function is later called), this is top-level
+// code that executes immediately, in file order, when the module loads.
+// Referencing SUPABASE_URL before its own declaration threw a
+// ReferenceError that crashed the entire app before anything could
+// render — which is exactly what a blank white screen looks like.
+const SUPABASE_URL = "https://tahbjwbmigoodfrfjpri.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM";
+const supabaseConfigured = !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
+
+const supabaseHeaders = {
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  "Content-Type": "application/json",
+};
+
+// Public Storage URLs for the real, uploaded designs — bucket must be set
+// to public in Supabase Dashboard -> Storage -> template-images -> bucket
+// settings, or these URLs won't load for guests/clients.
+const TEMPLATE_IMAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/template-images`;
+
 const INVITATION_TEMPLATES = [
   {
-    id: "botanical-green",
-    name: "Botanical Green",
-    description: "Deep emerald tones with floating hearts.",
-    previewSwatch: BG_PRESETS.botanical.css,
-    pageBackgroundPreset: "botanical",
+    id: "design-1",
+    name: "Design 1",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/1.png`,
+    coverBackdropColor: null, // defaults to this app's own dark background (INK) behind any transparent areas — set this to your design's real background color (a hex string) if it isn't dark
+    pageBackgroundPreset: "botanical", // still used for the OTHER 9 pages (RSVP, Timeline, etc.) — give each of those their own coverImage-style override too if you want the whole invitation matching this design
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
-    eventTypes: ["wedding", "birthday", "baptism", "babyShower"], // generic color/gate combo, not tied to a specific occasion — tag more narrowly once real, occasion-specific designs are added
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"], // tag more narrowly once you know which occasion(s) each real design actually suits
   },
   {
-    id: "blush-romance",
-    name: "Blush Romance",
-    description: "Warm rose and gold with falling petals.",
-    previewSwatch: BG_PRESETS.blush.css,
+    id: "design-3",
+    name: "Design 3",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/3.png`,
+    coverBackdropColor: null,
     pageBackgroundPreset: "blush",
     gateAnimationStyle: "petals",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
   {
-    id: "dusk-elegance",
-    name: "Dusk Elegance",
-    description: "Twilight purples and rose with drifting sparkle.",
-    previewSwatch: BG_PRESETS.dusk.css,
+    id: "design-5",
+    name: "Design 5",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/5.png`,
+    coverBackdropColor: null,
     pageBackgroundPreset: "dusk",
     gateAnimationStyle: "sparkleDrift",
     gateIcon: "star",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
   {
-    id: "gilded-luxury",
-    name: "Gilded Luxury",
-    description: "Rich gold tones with confetti.",
-    previewSwatch: BG_PRESETS.gilded.css,
+    id: "design-6",
+    name: "Design 6",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/6.png`,
+    coverBackdropColor: null,
     pageBackgroundPreset: "gilded",
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
   {
-    id: "classic-mix",
-    name: "Classic Mix",
-    description: "A varied palette across pages — a different tone for each page.",
-    previewSwatch: "linear-gradient(135deg, #1f3a2e 0%, #7a4a52 35%, #2b1f3a 65%, #3a2f14 100%)",
-    pageBackgroundPreset: null, // null = keep the app's existing mixed-preset defaultPageBackgrounds as-is
+    id: "design-8",
+    name: "Design 8",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/8.png`,
+    coverBackdropColor: null,
+    pageBackgroundPreset: "botanical",
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+  },
+  {
+    id: "design-11",
+    name: "Design 11",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/11.png`,
+    coverBackdropColor: null,
+    pageBackgroundPreset: "blush",
+    gateAnimationStyle: "petals",
+    gateIcon: "star",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+  },
+  {
+    id: "design-12",
+    name: "Design 12",
+    description: "",
+    coverImage: `${TEMPLATE_IMAGE_BASE}/12.png`,
+    coverBackdropColor: null,
+    pageBackgroundPreset: "dusk",
+    gateAnimationStyle: "confetti",
+    gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
 ];
@@ -345,23 +402,6 @@ const uid = () => Math.random().toString(36).slice(2, 10);
  * shared across different people's devices — that still needs a real
  * backend + database, same as the DJ/Networking projects.
  */
-// Fill in your own Supabase project's values here to make saves go to a real
-// shared cloud database instead of this browser's local storage — that's
-// what actually makes data visible across different devices/guests. Get
-// these from your Supabase project: Settings → API. The anon key is
-// DESIGNED to be public (safe to put directly in client-side code like
-// this) — real protection comes from the RLS policies on the table itself,
-// not from hiding this key. See sql/kv_store.sql for the table this expects.
-const SUPABASE_URL = "https://tahbjwbmigoodfrfjpri.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM";
-const supabaseConfigured = !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
-
-const supabaseHeaders = {
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-  "Content-Type": "application/json",
-};
-
 // Talks to Supabase's auto-generated REST API (PostgREST) directly via
 // fetch() — deliberately not using the @supabase/supabase-js package, since
 // that's not among the libraries available inside this artifact environment.
@@ -5254,7 +5294,11 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
             className="group overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02]"
             style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
           >
-            <div style={{ height: 140, background: tpl.previewSwatch }} />
+            {tpl.coverImage ? (
+              <img src={tpl.coverImage} alt={tpl.name} style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ height: 140, background: tpl.previewSwatch }} />
+            )}
             <div className="p-4">
               <div className="text-[14px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{tpl.name}</div>
               <div className="mt-1 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{tpl.description}</div>
