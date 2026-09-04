@@ -931,22 +931,22 @@ const defaultContent = {
   en: {
     cover: { name1: "Elena", name2: "Marcus", intro: "together with their families, joyfully invite you to celebrate their wedding", tapText: "TAP TO START" },
     family: { greeting: "With hearts full of joy, we invite you to witness the beginning of our forever.", quote: "", side1Title: "Bride's Family", side1Names: "Mr. & Mrs. Rodriguez", side2Title: "Groom's Family", side2Names: "Mr. & Mrs. Chen" },
-    rsvp: { yesLabel: "Joyfully Accepts", noLabel: "Regretfully Declines" },
+    rsvp: { heading: "RSVP", yesLabel: "Joyfully Accepts", noLabel: "Regretfully Declines" },
   },
   ar: {
     cover: { name1: "إيلينا", name2: "ماركوس", intro: "يتشرفان مع عائلتيهما بدعوتكم للاحتفال بزفافهما", tapText: "اضغط للبدء" },
     family: { greeting: "بقلوب مفعمة بالفرح، ندعوكم لمشاركتنا بداية قصتنا الأبدية.", quote: "", side1Title: "عائلة العروس", side1Names: "السيد والسيدة رودريغيز", side2Title: "عائلة العريس", side2Names: "السيد والسيدة تشين" },
-    rsvp: { yesLabel: "بكل سرور سأحضر", noLabel: "نعتذر عن الحضور" },
+    rsvp: { heading: "الحضور", yesLabel: "بكل سرور سأحضر", noLabel: "نعتذر عن الحضور" },
   },
   fr: {
     cover: { name1: "Elena", name2: "Marcus", intro: "avec leurs familles, ont la joie de vous inviter à célébrer leur mariage", tapText: "TOUCHEZ POUR COMMENCER" },
     family: { greeting: "Le cœur rempli de joie, nous vous invitons à célébrer le début de notre éternité.", quote: "", side1Title: "Famille de la mariée", side1Names: "M. et Mme Rodriguez", side2Title: "Famille du marié", side2Names: "M. et Mme Chen" },
-    rsvp: { yesLabel: "Sera présent avec joie", noLabel: "Ne pourra malheureusement pas venir" },
+    rsvp: { heading: "RSVP", yesLabel: "Sera présent avec joie", noLabel: "Ne pourra malheureusement pas venir" },
   },
   es: {
     cover: { name1: "Elena", name2: "Marcus", intro: "junto a sus familias, tienen el placer de invitarles a celebrar su boda", tapText: "TOCA PARA COMENZAR" },
     family: { greeting: "Con el corazón lleno de alegría, les invitamos a celebrar el comienzo de nuestra eternidad.", quote: "", side1Title: "Familia de la novia", side1Names: "Sr. y Sra. Rodríguez", side2Title: "Familia del novio", side2Names: "Sr. y Sra. Chen" },
-    rsvp: { yesLabel: "Asistirá con alegría", noLabel: "Lamenta no poder asistir" },
+    rsvp: { heading: "Confirmación", yesLabel: "Asistirá con alegría", noLabel: "Lamenta no poder asistir" },
   },
 };
 
@@ -2228,9 +2228,12 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 /* Draggable text block (Canva-style)                                      */
 /* ---------------------------------------------------------------------- */
 
-function DraggableBlock({ id, pos, editMode, onMove, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent }) {
+function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
+  const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
+  const [isEditingText, setIsEditingText] = useState(false);
+  const textRef = useRef(null);
 
   const computeFromPoint = (clientX, clientY) => {
     const parent = ref.current?.parentElement;
@@ -2254,7 +2257,7 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
 
   // Mouse / stylus via Pointer Events.
   const handleDown = (e) => {
-    if (!editMode || e.pointerType === "touch") return;
+    if (!editMode || e.pointerType === "touch" || isEditingText) return;
     e.stopPropagation();
     onSelect?.();
     draggingRef.current = true;
@@ -2268,6 +2271,36 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
   const handleUp = (e) => {
     if (e.pointerType === "touch") return;
     draggingRef.current = false;
+    e.target.releasePointerCapture?.(e.pointerId);
+  };
+
+  // Resize handle — drags from the block's own center, so distance from
+  // center to the pointer maps directly to a scale factor. Only active
+  // when onScale is actually provided (opt-in per usage), so every
+  // existing DraggableBlock without it behaves exactly as before.
+  const handleResizeDown = (e) => {
+    if (!editMode || !onScale) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const startDist = Math.hypot(e.clientX - centerX, e.clientY - centerY);
+    resizingRef.current = { centerX, centerY, startDist, startScale: pos.scale || 1 };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+  const handleResizeMove = (e) => {
+    const r = resizingRef.current;
+    if (!r) return;
+    const dist = Math.hypot(e.clientX - r.centerX, e.clientY - r.centerY);
+    const ratio = dist / Math.max(r.startDist, 1);
+    const newScale = Math.min(2.5, Math.max(0.5, r.startScale * ratio)); // clamp so a block can't be resized into being invisible or absurdly huge
+    onScale(newScale);
+  };
+  const handleResizeUp = (e) => {
+    resizingRef.current = null;
     e.target.releasePointerCapture?.(e.pointerId);
   };
 
@@ -2285,6 +2318,7 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
     const el = ref.current;
     if (!el || !editMode) return;
     const onStart = (e) => {
+      if (isEditingText) return;
       e.stopPropagation();
       onSelectRef.current?.();
       draggingRef.current = true;
@@ -2308,13 +2342,39 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
-  }, [editMode]);
+  }, [editMode, isEditingText]);
+
+  // Inline text editing — double-click/tap while selected enters edit mode.
+  // Only active when onTextEdit is provided (opt-in), since not every block
+  // wraps plain editable text (the RSVP buttons or a timeline list, for
+  // example, aren't a single string to edit this way).
+  const startEditingText = () => {
+    if (!editMode || !onTextEdit) return;
+    setIsEditingText(true);
+  };
+  useEffect(() => {
+    if (isEditingText && textRef.current) {
+      textRef.current.focus();
+      // Place the cursor at the end rather than selecting/resetting to the start.
+      const range = document.createRange();
+      range.selectNodeContents(textRef.current);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }, [isEditingText]);
+  const finishEditingText = () => {
+    setIsEditingText(false);
+    if (textRef.current) onTextEdit(textRef.current.textContent || "");
+  };
 
   // Clamped here (not just during dragging) so an already-saved position from
   // before this safe zone existed is corrected automatically the moment it's
   // displayed — this is what actually fixes old saved data, not just future
   // drags. 88 keeps any block clear of the swipe-up hint's zone at the bottom.
   const safeY = Math.min(pos.y, 88);
+  const scale = pos.scale || 1;
 
   return (
     <div
@@ -2322,6 +2382,7 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
       onPointerDown={handleDown}
       onPointerMove={handleMove}
       onPointerUp={handleUp}
+      onDoubleClick={startEditingText}
       className="absolute"
       style={{
         left: `${pos.x}%`,
@@ -2331,22 +2392,51 @@ function DraggableBlock({ id, pos, editMode, onMove, label, light, children, sel
         maxHeight: maxHeightPercent ? `${maxHeightPercent}%` : undefined,
         boxSizing: "border-box",
         maxWidth: noMaxWidth ? "none" : "88%",
-        cursor: editMode ? "grab" : "default",
+        cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
         touchAction: editMode ? "none" : "auto",
         outline: editMode ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
-        userSelect: editMode ? "none" : "auto",
+        userSelect: editMode && !isEditingText ? "none" : "auto",
         zIndex: editMode ? (selected ? 31 : 30) : 1,
       }}
     >
       {editMode && (
         <div className="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
-          <Move size={8} /> {label}
+          <Move size={8} /> {label}{onTextEdit ? " · double-tap to edit text" : ""}
         </div>
       )}
-      {children}
+      <div style={{ transform: scale !== 1 ? `scale(${scale})` : undefined, transformOrigin: "center" }}>
+        {isEditingText ? (
+          <div
+            ref={textRef}
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={finishEditingText}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); finishEditingText(); } if (e.key === "Escape") { e.preventDefault(); setIsEditingText(false); } }}
+            style={{ outline: "none" }}
+          >
+            {editableText}
+          </div>
+        ) : (
+          children
+        )}
+      </div>
+      {editMode && selected && onScale && (
+        <div
+          onPointerDown={handleResizeDown}
+          onPointerMove={handleResizeMove}
+          onPointerUp={handleResizeUp}
+          className="absolute flex items-center justify-center rounded-full"
+          style={{
+            bottom: -8, right: -8, width: 18, height: 18,
+            background: GOLD, border: `2px solid ${INK}`,
+            cursor: "nwse-resize", touchAction: "none", zIndex: 32,
+          }}
+          title="Drag to resize"
+        />
+      )}
     </div>
   );
 }
@@ -2812,7 +2902,7 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
   );
 }
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName }) {
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, onUpdateContent }) {
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   const [choice, setChoice] = useState(null);
@@ -2928,14 +3018,20 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock
+            id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)}
+            onScale={(scale) => onMoveBlock("heading", { scale })}
+            editableText={content.heading || "RSVP"}
+            onTextEdit={(text) => onUpdateContent({ heading: text })}
+            label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}
+          >
             {style === "stacked" ? (
               <p className="text-center" style={{ fontFamily: hs.fontFamily || fontScript, fontSize: hs.fontSize ? `${hs.fontSize}px` : 28, color: hs.color || (light ? PAPER : EMERALD) }}>
-                Be Our Guest
+                {content.heading || "RSVP"}
               </p>
             ) : (
               <div className="text-center">
-                <div className="font-semibold" style={{ fontFamily: hs.fontFamily || fontDisplay, fontSize: hs.fontSize ? `${hs.fontSize}px` : 22, color: hs.color || (light ? PAPER : EMERALD) }}>RSVP</div>
+                <div className="font-semibold" style={{ fontFamily: hs.fontFamily || fontDisplay, fontSize: hs.fontSize ? `${hs.fontSize}px` : 22, color: hs.color || (light ? PAPER : EMERALD) }}>{content.heading || "RSVP"}</div>
                 <div className="mx-auto my-1.5 h-px w-10" style={{ background: light ? GOLD_SOFT : GOLD }} />
                 <p className="italic" style={{ fontFamily: fontDisplay, fontSize: 12, color: light ? "rgba(244,237,228,0.85)" : ROSE }}>{t.rsvpHeading}</p>
               </div>
@@ -3569,7 +3665,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -3689,7 +3785,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
