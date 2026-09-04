@@ -6090,11 +6090,27 @@ export default function InvitationBuilder() {
   const toggleCanDesign = (id) =>
     setUsers((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
   const updateUserEmail = (id, email) => setUsers((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
-  const signUpUser = ({ name, email, phone, password }) => {
-    setUsers((list) => [
-      { id: uid(), name, email, phone, password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null },
-      ...list,
-    ]);
+  const signUpUser = async ({ name, email, phone, password }) => {
+    const newUser = { id: uid(), name, email, phone, password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null };
+    setUsers((list) => [newUser, ...list]);
+    // THE ACTUAL FIX: a new signup happens on the CLIENT'S OWN browser —
+    // their local state was never seen by the admin's dashboard on a
+    // completely separate device, same bug class as the RSVP and guest-list
+    // issues fixed earlier. Reads the latest saved payload first (not this
+    // browser's own local `users`, which could be momentarily stale
+    // relative to very recent changes elsewhere) so this doesn't
+    // accidentally overwrite something another session just saved.
+    if (persistentStorage.available()) {
+      try {
+        const res = await persistentStorage.get(DRAFT_KEY, false);
+        const latest = res?.value ? JSON.parse(res.value) : {};
+        const updated = { ...latest, users: [newUser, ...(latest.users || users)] };
+        const ok = await persistentStorage.set(DRAFT_KEY, JSON.stringify(updated), false);
+        if (!ok) console.error("signUpUser: save returned falsy — new account may not have reached the admin's dashboard.");
+      } catch (err) {
+        console.error("signUpUser: failed to save new account to Supabase:", err);
+      }
+    }
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
 
