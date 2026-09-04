@@ -124,9 +124,20 @@ const INVITATION_TEMPLATES = [
 /** Applies a template's choices onto a fresh invitation snapshot — background preset (if the template specifies one) and gate style/icon. */
 function applyTemplateToSnapshot(snapshot, template) {
   if (!template) return snapshot;
-  const pageBackgrounds = template.pageBackgroundPreset
+  let pageBackgrounds = template.pageBackgroundPreset
     ? Object.fromEntries(Object.entries(snapshot.pageBackgrounds).map(([key, bg]) => [key, { ...bg, preset: template.pageBackgroundPreset }]))
     : snapshot.pageBackgrounds;
+  // A real custom design image (e.g. a Canva export) for the Cover page,
+  // as opposed to just picking one of the built-in gradient presets.
+  // darken defaults to 0 here — the usual dark gradient overlay is meant
+  // for photo backgrounds, not a designed graphic with its own transparent
+  // areas and colors already chosen deliberately.
+  if (template.coverImage) {
+    pageBackgrounds = {
+      ...pageBackgrounds,
+      cover: { mode: "photo", preset: pageBackgrounds.cover.preset, image: template.coverImage, backdropColor: template.coverBackdropColor || null, darken: template.coverDarken ?? 0 },
+    };
+  }
   return {
     ...snapshot,
     pageBackgrounds,
@@ -2300,7 +2311,13 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
 
 function StoryPage({ bg, children }) {
   const isPhoto = bg.mode === "photo";
-  const background = isPhoto ? (bg.image ? `url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
+  // backdropColor sits BEHIND the image in the CSS background shorthand —
+  // this is what actually fixes a transparent PNG (like a Canva export
+  // with no background) showing as blank/white: without an explicit
+  // color here, transparent areas show whatever's behind this element,
+  // which is nothing by default. Defaults to INK (this app's own dark
+  // background) if the page hasn't set one.
+  const background = isPhoto ? (bg.image ? `${bg.backdropColor || INK} url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
   // "darken" (0-100) sets the strength of the bottom stop; top/mid scale with it
   // at the same ratios as the original fixed overlay, so 55 looks identical to before.
   const amount = (bg.darken ?? 55) / 100;
