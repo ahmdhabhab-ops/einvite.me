@@ -5460,26 +5460,39 @@ export default function InvitationBuilder() {
   const [users, setUsers] = useState(seedUsers);
   const [siteDomain, setSiteDomain] = useState("einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
-  const restoredSessionRef = useRef(false);
+  const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
 
   // Restore a client's logged-in session after a page refresh — without
   // this, actingAsUser always starts at null on every fresh page load
   // (React state doesn't survive a refresh on its own), which silently
-  // dropped a logged-in client back into the owner/admin experience every
-  // single time they refreshed. Runs once real data has actually arrived
-  // (not the initial seed list) — the ref guarantees it only fires once,
-  // so it doesn't fight with someone deliberately switching invitations
-  // afterward.
+  // dropped a logged-in client back into the login screen every single
+  // time they refreshed. Runs once real data has actually arrived (not
+  // the initial seed list). Uses real state (not just a ref) specifically
+  // so the login-screen guard elsewhere can WAIT for this to resolve
+  // before deciding what to show — otherwise that guard could fire based
+  // on a still-null actingAsUser before this async check (which needs the
+  // real user list to finish loading from Supabase first) had any chance
+  // to complete, flashing the login screen on every refresh even for an
+  // already-logged-in client.
   useEffect(() => {
-    if (restoredSessionRef.current) return;
+    if (sessionCheckResolved) return;
     const savedId = window.localStorage.getItem("einvite:acting-as-user-id");
-    if (!savedId) { restoredSessionRef.current = true; return; }
+    if (!savedId) { setSessionCheckResolved(true); return; }
     const match = users.find((u) => u.id === savedId);
     if (!match) return; // real user list may not have loaded yet — try again once it does, rather than giving up after checking only the initial seed data
-    restoredSessionRef.current = true;
+    setSessionCheckResolved(true);
     switchActiveInvitation(match.id);
     setActingAsUser(match);
-  }, [users]);
+  }, [users, sessionCheckResolved]);
+
+  useEffect(() => {
+    // Safety net: if the real user list never arrives at all (a Supabase
+    // outage, for example), the effect above would otherwise wait forever
+    // and leave the app stuck on a blank screen. Fall back to showing
+    // login after a few seconds rather than hanging indefinitely.
+    const timeout = setTimeout(() => setSessionCheckResolved(true), 6000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   const [showAuthPreview, setShowAuthPreview] = useState(false);
 
@@ -6148,8 +6161,8 @@ export default function InvitationBuilder() {
     );
   }
 
-  if (isAdminPath === null) {
-    return null; // still checking the URL
+  if (isAdminPath === null || !sessionCheckResolved) {
+    return null; // still checking the URL / still trying to restore a saved session — showing login here would be premature and could flash it even for an already-logged-in client
   }
 
   // The actual fix: the site's default landing (anything that isn't /admin
