@@ -6,7 +6,7 @@ import {
   Settings, BarChart3, Copy, Link2, ImagePlus, Search, CheckCircle2, XCircle, Move, Mail, Film,
   ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
-  ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle,
+  ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -92,6 +92,76 @@ const GATE_ANIMATIONS = {
 // itself — they render as separate, draggable text blocks on top of it,
 // via the same layout system already used everywhere else in this app
 // (layouts.cover.names / layouts.cover.intro). Nothing new needed there.
+// Event types for the new Step Zero — chosen before the template picker.
+// Honest limitation: content overrides below are written for English only.
+// The other 3 languages (ar/fr/es) keep the wedding-oriented wording
+// unless/until real translations are written for each event type — same
+// shape of extension as English, just more text to translate carefully
+// (worth getting a native speaker to review, especially for something
+// like Baptism wording).
+//
+// Also honest: the underlying PAGE STRUCTURE (Timeline, Family, RSVP,
+// etc.) stays the same regardless of event type — this changes the
+// starting TEXT to fit the occasion, not the page types themselves. A
+// Baptism's religious content or a Baby Shower's registry emphasis being
+// genuinely different sections would need a larger redesign than this.
+const EVENT_TYPES = [
+  {
+    id: "wedding",
+    name: "Wedding",
+    icon: Heart,
+    contentOverrides: null, // the app's existing defaults are already wedding-oriented — nothing to override
+  },
+  {
+    id: "birthday",
+    name: "Birthday",
+    icon: PartyPopper,
+    contentOverrides: {
+      cover: { name1: "Sarah", name2: "", intro: "joyfully invites you to celebrate her birthday", tapText: "TAP TO START" },
+      family: { greeting: "Come celebrate another wonderful year — your presence would make the day even sweeter.", side1Title: "Hosted by", side1Names: "The Smith Family", side2Title: "", side2Names: "" },
+      rsvp: { yesLabel: "Yes, I'll be there!", noLabel: "Sorry, can't make it" },
+    },
+  },
+  {
+    id: "baptism",
+    name: "Baptism",
+    icon: Church,
+    contentOverrides: {
+      cover: { name1: "Baby Noor", name2: "", intro: "You are lovingly invited to witness her baptism and blessing", tapText: "TAP TO START" },
+      family: { greeting: "With grateful hearts, we invite you to celebrate this sacred milestone with us.", side1Title: "Godparents", side1Names: "", side2Title: "Parents", side2Names: "" },
+      rsvp: { yesLabel: "Joyfully Accepts", noLabel: "Regretfully Declines" },
+    },
+  },
+  {
+    id: "babyShower",
+    name: "Baby Shower",
+    icon: Gift,
+    contentOverrides: {
+      cover: { name1: "Sarah", name2: "", intro: "is expecting! Join us for a baby shower to celebrate", tapText: "TAP TO START" },
+      family: { greeting: "Come shower the mom-to-be with love as we celebrate the newest addition to the family.", side1Title: "Hosted by", side1Names: "", side2Title: "", side2Names: "" },
+      rsvp: { yesLabel: "I'll be there!", noLabel: "Can't make it" },
+    },
+  },
+];
+
+/** Applies an event type's content overrides onto a fresh snapshot — English only, see the honest note above EVENT_TYPES. */
+function applyEventTypeToSnapshot(snapshot, eventType) {
+  if (!eventType?.contentOverrides) return snapshot;
+  const en = snapshot.content.en;
+  return {
+    ...snapshot,
+    content: {
+      ...snapshot.content,
+      en: {
+        ...en,
+        cover: { ...en.cover, ...eventType.contentOverrides.cover },
+        family: { ...en.family, ...eventType.contentOverrides.family },
+        rsvp: { ...en.rsvp, ...eventType.contentOverrides.rsvp },
+      },
+    },
+  };
+}
+
 const INVITATION_TEMPLATES = [
   {
     id: "botanical-green",
@@ -101,6 +171,7 @@ const INVITATION_TEMPLATES = [
     pageBackgroundPreset: "botanical",
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"], // generic color/gate combo, not tied to a specific occasion — tag more narrowly once real, occasion-specific designs are added
   },
   {
     id: "blush-romance",
@@ -110,6 +181,7 @@ const INVITATION_TEMPLATES = [
     pageBackgroundPreset: "blush",
     gateAnimationStyle: "petals",
     gateIcon: "heart",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
   {
     id: "dusk-elegance",
@@ -119,6 +191,7 @@ const INVITATION_TEMPLATES = [
     pageBackgroundPreset: "dusk",
     gateAnimationStyle: "sparkleDrift",
     gateIcon: "star",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
   {
     id: "gilded-luxury",
@@ -128,6 +201,7 @@ const INVITATION_TEMPLATES = [
     pageBackgroundPreset: "gilded",
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
   {
     id: "classic-mix",
@@ -137,6 +211,7 @@ const INVITATION_TEMPLATES = [
     pageBackgroundPreset: null, // null = keep the app's existing mixed-preset defaultPageBackgrounds as-is
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
+    eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
 ];
 
@@ -594,6 +669,28 @@ async function getNetworkingGuestById(guestId) {
   } catch {
     return null;
   }
+}
+
+async function submitVoiceMessage(slug, { guestGroupId, guestName, rsvpStatus, audioData, mimeType, durationSeconds }) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/voice_messages`, {
+    method: "POST",
+    headers: { ...supabaseHeaders, Prefer: "return=representation" },
+    body: JSON.stringify({
+      invitation_slug: slug,
+      guest_group_id: guestGroupId || null,
+      guest_name: (guestName || "Guest").trim().slice(0, 100),
+      rsvp_status: rsvpStatus,
+      audio_data: audioData,
+      mime_type: mimeType || "audio/webm",
+      duration_seconds: durationSeconds || null,
+    }),
+  });
+  if (!res.ok) {
+    console.error("submitVoiceMessage failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't send your voice message — please try again.");
+  }
+  const rows = await res.json();
+  return rows[0];
 }
 
 // ---------------------------------------------------------------------- //
@@ -2359,7 +2456,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
           <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
             <div className="text-center">
               <div style={{ fontFamily: namesStyle.fontFamily || fontScript, fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.1 }}>
-                {content.name1 || "—"} <span style={{ color: light ? GOLD_SOFT : ROSE }}>&amp;</span> {content.name2 || "—"}
+                {content.name1 || "—"}{content.name2 ? (<> <span style={{ color: light ? GOLD_SOFT : ROSE }}>&amp;</span> {content.name2}</>) : null}
               </div>
             </div>
           </DraggableBlock>
@@ -2517,6 +2614,150 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
   );
 }
 
+function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDone, onSkip, light }) {
+  const [status, setStatus] = useState("idle"); // idle | recording | recorded | uploading | sent | error
+  const [seconds, setSeconds] = useState(0);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [error, setError] = useState("");
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const audioBlobRef = useRef(null);
+  const MAX_SECONDS = 90; // keeps recordings small — same size-conscious reasoning as the other media limits already in this app
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  const stopRecording = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") mediaRecorderRef.current.stop();
+  };
+
+  const startRecording = async () => {
+    setError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        audioBlobRef.current = blob;
+        setAudioUrl(URL.createObjectURL(blob));
+        setStatus("recorded");
+        stream.getTracks().forEach((t) => t.stop()); // release the mic once we're done with it
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setSeconds(0);
+      setStatus("recording");
+      timerRef.current = setInterval(() => {
+        setSeconds((s) => {
+          if (s + 1 >= MAX_SECONDS) { stopRecording(); return MAX_SECONDS; }
+          return s + 1;
+        });
+      }, 1000);
+    } catch {
+      setError("Couldn't access your microphone — please allow microphone access and try again.");
+    }
+  };
+
+  const reRecord = () => {
+    setAudioUrl(null);
+    audioBlobRef.current = null;
+    setStatus("idle");
+    setSeconds(0);
+    setError("");
+  };
+
+  const send = () => {
+    if (!audioBlobRef.current) return;
+    setStatus("uploading");
+    setError("");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await submitVoiceMessage(slug, { guestGroupId, guestName, rsvpStatus, audioData: reader.result, mimeType: audioBlobRef.current.type, durationSeconds: seconds });
+        setStatus("sent");
+        setTimeout(() => onDone(), 1200);
+      } catch (err) {
+        setError(err.message);
+        setStatus("recorded");
+      }
+    };
+    reader.onerror = () => { setError("Couldn't process the recording — please try again."); setStatus("recorded"); };
+    reader.readAsDataURL(audioBlobRef.current);
+  };
+
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const heading = rsvpStatus === "yes" ? "Leave a Message" : "We'll Miss You";
+  const subtitle = rsvpStatus === "yes"
+    ? "Record a short congratulations or well-wishes — they'll love hearing your voice."
+    : "Record a quick note so they know you're thinking of them.";
+  const accentColor = light ? GOLD_SOFT : EMERALD;
+
+  return (
+    <div className="text-center" style={{ width: 220 }}>
+      <Mic size={22} color={accentColor} style={{ margin: "0 auto 6px" }} />
+      <p style={{ color: light ? PAPER : EMERALD, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY }}>{heading}</p>
+      <p className="mt-1 text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
+
+      <div className="mt-4">
+        {status === "idle" && (
+          <button
+            onClick={startRecording}
+            className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11px] font-bold uppercase"
+            style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.08em", fontFamily: FONT_BODY }}
+          >
+            <Mic size={13} /> Record
+          </button>
+        )}
+
+        {status === "recording" && (
+          <>
+            <p className="text-[11px]" style={{ color: accentColor, fontFamily: FONT_BODY, animation: "musicPulse 1.6s ease-in-out infinite" }}>
+              ● {fmtTime(seconds)} / {fmtTime(MAX_SECONDS)}
+            </p>
+            <button
+              onClick={stopRecording}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11px] font-bold uppercase"
+              style={{ background: "#C05B5B", color: PAPER, letterSpacing: "0.08em", fontFamily: FONT_BODY }}
+            >
+              Stop
+            </button>
+          </>
+        )}
+
+        {(status === "recorded" || status === "uploading" || status === "sent") && audioUrl && (
+          <div>
+            <audio src={audioUrl} controls style={{ width: "100%", height: 32 }} />
+            {status === "recorded" && (
+              <div className="mt-3 flex justify-center gap-2">
+                <button onClick={reRecord} className="rounded-full px-3.5 py-2 text-[10.5px] font-semibold" style={{ background: "rgba(120,120,120,0.2)", color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}>
+                  Record Again
+                </button>
+                <button onClick={send} className="rounded-full px-3.5 py-2 text-[10.5px] font-bold uppercase" style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.06em", fontFamily: FONT_BODY }}>
+                  Send
+                </button>
+              </div>
+            )}
+            {status === "uploading" && <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Sending…</p>}
+            {status === "sent" && <p className="mt-2 text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Sent ✓</p>}
+          </div>
+        )}
+
+        {error && <p className="mt-2 text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+
+        {status !== "uploading" && status !== "sent" && (
+          <button onClick={onSkip} className="mt-3 block w-full text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Skip
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName }) {
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
@@ -2526,6 +2767,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
+  const [voiceMessageStage, setVoiceMessageStage] = useState("recording"); // recording | done — shown after a submitted RSVP, before the final thank-you
 
   const [showModal, setShowModal] = useState(false);
   const [modalGuestCount, setModalGuestCount] = useState(1);
@@ -2649,7 +2891,19 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           <DraggableBlock id="buttons" pos={bs} editMode={editMode} onMove={(p) => onMoveBlock("buttons", p)} label="RSVP form" light={light} selected={selectedBlock === "buttons"} onSelect={() => onSelectBlock("buttons")}>
             <div style={{ width: 230 }}>
               {submitted ? (
-                thankYou(light)
+                voiceMessageStage === "recording" ? (
+                  <VoiceMessageRecorder
+                    rsvpStatus={choice}
+                    guestName={name.trim() || "Guest"}
+                    slug={slug}
+                    guestGroupId={null}
+                    light={light}
+                    onDone={() => setVoiceMessageStage("done")}
+                    onSkip={() => setVoiceMessageStage("done")}
+                  />
+                ) : (
+                  thankYou(light)
+                )
               ) : style === "stacked" ? (
                 <>
                   <div className="flex flex-col gap-2">
@@ -4882,7 +5136,38 @@ function UsersView({ users, invitationsStore, onDelete, onToggleStatus, onCreate
 /* Guest sign-up & login preview                                           */
 /* ---------------------------------------------------------------------- */
 
-function TemplatePicker({ onChoose, onCancel }) {
+function EventTypePicker({ onChoose, onCancel }) {
+  return (
+    <div className="mx-auto max-w-3xl px-5 py-10">
+      <div className="mb-8 text-center">
+        <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>What are you celebrating?</h1>
+        <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>This sets up the right starting wording for your invitation.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {EVENT_TYPES.map((et) => (
+          <button
+            key={et.id}
+            onClick={() => onChoose(et)}
+            className="flex flex-col items-center gap-2.5 rounded-2xl py-7 transition-transform hover:scale-[1.03]"
+            style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
+          >
+            <et.icon size={26} color={GOLD_SOFT} />
+            <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{et.name}</span>
+          </button>
+        ))}
+      </div>
+      {onCancel && (
+        <div className="mt-8 text-center">
+          <button onClick={onCancel} className="text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
+  const matching = eventTypeId ? INVITATION_TEMPLATES.filter((tpl) => tpl.eventTypes?.includes(eventTypeId)) : INVITATION_TEMPLATES;
+  const templates = matching.length ? matching : INVITATION_TEMPLATES; // fallback — never leave the picker empty if no template happens to be tagged for this event type
   return (
     <div className="mx-auto max-w-4xl px-5 py-10">
       <div className="mb-8 text-center">
@@ -4890,7 +5175,7 @@ function TemplatePicker({ onChoose, onCancel }) {
         <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Pick a starting look — every detail can still be customized afterward in the Builder.</p>
       </div>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
-        {INVITATION_TEMPLATES.map((tpl) => (
+        {templates.map((tpl) => (
           <button
             key={tpl.id}
             onClick={() => onChoose(tpl)}
@@ -6162,16 +6447,17 @@ export default function InvitationBuilder() {
     saveUsersDirectly((list) => [newUser, ...list]);
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
+  const [chosenEventType, setChosenEventType] = useState(null);
 
   // Admin-side: opens/sets up a client's invitation directly, no template
   // step — the admin isn't the one who should be picking a client's
   // design for them. Used for "New invite" on an already-active user, or
   // any other admin action that needs to get into a client's portal.
   const createInvitationFor = (user) => {
-    finalizeInvitationCreation(user, null, "overview");
+    finalizeInvitationCreation(user, null, null, "overview");
   };
 
-  const finalizeInvitationCreation = (user, template, destinationView) => {
+  const finalizeInvitationCreation = (user, template, eventType, destinationView) => {
     let finalUser = user;
     if (!user.invitationSlug) {
       const base = user.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `guest-${user.id.slice(0, 6)}`;
@@ -6192,12 +6478,14 @@ export default function InvitationBuilder() {
       setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, invitationSlug: slug } : u)));
       finalUser = { ...user, invitationSlug: slug };
     }
-    if (template) {
-      // Pre-seed this new client's slot with the template applied, so
+    if (template || eventType) {
+      // Pre-seed this new client's slot with the event type's content and
+      // the template's visual style both applied, so
       // switchActiveInvitation's own lookup (invitationsStore[nextId] ||
-      // freshInvitationSnapshot()) finds the template-applied version
-      // instead of falling back to the plain, un-templated default.
-      setInvitationsStore((store) => ({ ...store, [finalUser.id]: applyTemplateToSnapshot(freshInvitationSnapshot(), template) }));
+      // freshInvitationSnapshot()) finds the fully-set-up version instead
+      // of falling back to the plain, un-templated wedding default.
+      const seeded = applyTemplateToSnapshot(applyEventTypeToSnapshot(freshInvitationSnapshot(), eventType), template);
+      setInvitationsStore((store) => ({ ...store, [finalUser.id]: seeded }));
     }
     switchActiveInvitation(finalUser.id);
     setActingAsUser(finalUser);
@@ -6490,15 +6778,28 @@ export default function InvitationBuilder() {
 
   // The actual fix: the site's default landing (anything that isn't /admin
   // and isn't one of the other special paths already handled above) now
-  if (pendingNewUser) {
+  if (pendingNewUser && !chosenEventType) {
+    return (
+      <div className="min-h-screen" style={{ background: INK }}>
+        <EventTypePicker
+          onChoose={(eventType) => setChosenEventType(eventType)}
+          onCancel={() => setPendingNewUser(null)}
+        />
+      </div>
+    );
+  }
+
+  if (pendingNewUser && chosenEventType) {
     return (
       <div className="min-h-screen" style={{ background: INK }}>
         <TemplatePicker
+          eventTypeId={chosenEventType.id}
           onChoose={(template) => {
-            finalizeInvitationCreation(pendingNewUser, template, "builder");
+            finalizeInvitationCreation(pendingNewUser, template, chosenEventType, "builder");
             setPendingNewUser(null);
+            setChosenEventType(null);
           }}
-          onCancel={() => setPendingNewUser(null)}
+          onCancel={() => setChosenEventType(null)}
         />
       </div>
     );
