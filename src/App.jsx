@@ -68,11 +68,30 @@ const GATE_ANIMATIONS = {
 // Honest limitation: fonts and the core color palette (GOLD, EMERALD, INK,
 // PAPER, etc.) are fixed module-level constants in this file, not yet
 // per-invitation settings — so these 5 templates differ in background,
-// gate style, and icon, not in typography or overall color scheme. To swap
-// in your own 5 specific Canva designs, replace each template's
-// `previewSwatch` with your own image URL, and set `pageBackgrounds` to
-// `{ mode: "photo", preset: "botanical", image: "https://your-image-url",
-// darken: 55 }` per page to use your own photo instead of a gradient preset.
+// gate style, and icon, not in typography or overall color scheme.
+//
+// TO USE YOUR OWN REAL CANVA DESIGN for a template's Cover page: add
+// `coverImage` (the real, public image URL — see the Supabase Storage
+// steps discussed earlier) and, since a transparent PNG export needs a
+// solid color behind it, `coverBackdropColor` (a hex string matching your
+// design's own background color). Example:
+//
+//   {
+//     id: "my-real-design",
+//     name: "Garden Romance",
+//     description: "Hand-painted florals on ivory.",
+//     previewSwatch: "#FBF6EE", // shown in the picker grid before the real image loads
+//     coverImage: "https://your-project.supabase.co/storage/v1/object/public/template-images/garden-romance-cover.png",
+//     coverBackdropColor: "#FBF6EE", // matches your design's own background — fills any transparent areas
+//     pageBackgroundPreset: "blush", // still used for the OTHER 9 pages (RSVP, Timeline, etc.) unless you also give each of those their own image
+//     gateAnimationStyle: "petals",
+//     gateIcon: "heart",
+//   },
+//
+// The couple's names and other dynamic text are never part of the image
+// itself — they render as separate, draggable text blocks on top of it,
+// via the same layout system already used everywhere else in this app
+// (layouts.cover.names / layouts.cover.intro). Nothing new needed there.
 const INVITATION_TEMPLATES = [
   {
     id: "botanical-green",
