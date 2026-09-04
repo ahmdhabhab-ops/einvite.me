@@ -5657,6 +5657,17 @@ export default function InvitationBuilder() {
               }
             });
             setInvitationsStore(restoredStore);
+            // THE ACTUAL FIX: guestGroups can now be updated directly (via
+            // addGuestGroup, updateGuestGroup, an RSVP submission, etc.)
+            // straight to the active invitation's own per-client key,
+            // without going through a "Save invitation" click that
+            // refreshes the main draft payload's own copy of guestGroups.
+            // Without this, the main payload's stale copy (set two lines
+            // above from d.guestGroups) would win on every reload,
+            // silently reverting anything saved directly since the last
+            // explicit save.
+            const activeSnapshot = restoredStore[d.activeInvitationId];
+            if (activeSnapshot?.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
           }
         }
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
