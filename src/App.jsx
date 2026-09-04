@@ -6002,13 +6002,21 @@ export default function InvitationBuilder() {
   }, [users, sessionCheckResolved]);
 
   useEffect(() => {
-    // Safety net: if the real user list never arrives at all (a Supabase
-    // outage, for example), the effect above would otherwise wait forever
-    // and leave the app stuck on a blank screen. Fall back to showing
-    // login after a few seconds rather than hanging indefinitely.
-    const timeout = setTimeout(() => setSessionCheckResolved(true), 6000);
+    // THE ACTUAL FIX for "every refresh logs me out": this used to be an
+    // independent fixed 6-second timer, completely disconnected from
+    // whether the real data load had actually finished. If that load ever
+    // took longer than 6 seconds (very plausible now, given how much data
+    // this project has accumulated since that number was first chosen),
+    // this fired prematurely, permanently gave up on restoring the
+    // session, and an actually-still-logged-in client got shown the login
+    // screen instead. Now this only ever fires a short grace period AFTER
+    // coreDataLoaded has genuinely become true — so it can never give up
+    // before the real load attempt has actually settled, no matter how
+    // long that takes.
+    if (!coreDataLoaded) return;
+    const timeout = setTimeout(() => setSessionCheckResolved(true), 1500);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [coreDataLoaded]);
 
   useEffect(() => {
     // THE ACTUAL FIX for "stuck on Still loading account data forever":
@@ -6019,7 +6027,9 @@ export default function InvitationBuilder() {
     // example), that finally block never runs at all, and coreDataLoaded
     // stays false forever. Without this, login would be permanently
     // stuck showing "still loading" with no way out, exactly as reported.
-    const timeout = setTimeout(() => setCoreDataLoaded(true), 6000);
+    // This one genuinely does need to be a fixed, independent timer —
+    // it's the one thing that has no other signal to wait on.
+    const timeout = setTimeout(() => setCoreDataLoaded(true), 12000);
     return () => clearTimeout(timeout);
   }, []);
 
@@ -6965,7 +6975,7 @@ export default function InvitationBuilder() {
               </span>
             </div>
             <GhostButton onClick={exitActingAs}>
-              <LogOut size={12} /> Exit to Admin Dashboard
+              <LogOut size={12} /> {isAdminPath ? "Exit to Admin Dashboard" : "Log Out"}
             </GhostButton>
           </div>
         )}
