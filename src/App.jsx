@@ -7,7 +7,7 @@ import {
   ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Cross, Moon, BookOpen, Flower2,
+  Cross, Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -46,12 +46,13 @@ const TIMELINE_ICONS = {
   party: { icon: PartyPopper }, heart: { icon: Heart }, sparkles: { icon: Sparkles },
 };
 
-// Optional decorative icon next to each side's title on the Family page.
-// Lucide doesn't provide a combined crescent-and-star or Star-of-David
-// icon, so each entry is named for exactly what it depicts (a cross, a
-// crescent moon, an open book, a star) rather than claiming a specific
-// religious symbol it wouldn't precisely represent.
-const FAMILY_SIDE_ICONS = {
+// Decorative icons available as a standalone block on ANY page, or next to
+// each side's title on the Family page. Lucide doesn't provide a combined
+// crescent-and-star or Star-of-David icon, so each entry is named for
+// exactly what it depicts (a cross, a crescent moon, an open book, a star)
+// rather than claiming a specific religious symbol it wouldn't precisely
+// represent.
+const DECORATIVE_ICONS = {
   cross: { name: "Cross", icon: Cross },
   church: { name: "Church", icon: Church },
   crescentMoon: { name: "Crescent moon", icon: Moon },
@@ -60,6 +61,10 @@ const FAMILY_SIDE_ICONS = {
   flower: { name: "Flower", icon: Flower2 },
   heart: { name: "Heart", icon: Heart },
   sparkles: { name: "Sparkles", icon: Sparkles },
+  gem: { name: "Gem", icon: Gem },
+  crown: { name: "Crown", icon: Crown },
+  bell: { name: "Bell", icon: Bell },
+  sun: { name: "Sun", icon: Sun },
 };
 
 const GATE_ICONS = { heart: Heart, mail: Mail, sparkles: Sparkles, star: Star };
@@ -1884,7 +1889,7 @@ function FamilyIconPicker({ value, onChange }) {
       >
         <X size={13} />
       </button>
-      {Object.entries(FAMILY_SIDE_ICONS).map(([key, { name, icon: Icon }]) => (
+      {Object.entries(DECORATIVE_ICONS).map(([key, { name, icon: Icon }]) => (
         <button
           key={key}
           onClick={() => onChange(key)}
@@ -2540,7 +2545,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
           onPointerUp={handleResizeUp}
           className="absolute flex items-center justify-center rounded-full"
           style={{
-            bottom: -8, right: -8, width: 18, height: 18,
+            bottom: -16, right: -16, width: 22, height: 22,
             background: GOLD, border: `2px solid ${INK}`,
             cursor: "nwse-resize", touchAction: "none", zIndex: 32,
           }}
@@ -2605,6 +2610,22 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
           <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
           <button onClick={() => onMove({ width: 100, x: 50 })} title="Fill the full screen width" className="px-1 text-[9.5px] font-bold uppercase" style={{ color: GOLD_SOFT }}>Fill</button>
         </>
+      ) : block.type === "icon" ? (
+        <>
+          <button onClick={() => bump("iconSize", -4, 16, 96, 32)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
+          <span className="text-[10px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{block.iconSize || 32}px</span>
+          <button onClick={() => bump("iconSize", 4, 16, 96, 32)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>+</button>
+          <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
+          {["#F4EDE4", "#C9A44C", "#B76E6E", "#24463D", "#93A69B"].map((c) => (
+            <button
+              key={c}
+              onClick={() => onMove({ color: c })}
+              className="h-4 w-4 rounded-full"
+              style={{ background: c, border: block.color === c ? `1.5px solid ${GOLD}` : "1px solid rgba(255,255,255,0.4)" }}
+              title={c}
+            />
+          ))}
+        </>
       ) : (
         <>
           <button onClick={() => bump("fontSize", -2, 8, 72, 16)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
@@ -2636,6 +2657,15 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         ) : (
           img
         )}
+      </DraggableBlock>
+    );
+  }
+  if (block.type === "icon") {
+    const Icon = DECORATIVE_ICONS[block.icon]?.icon || Sparkles;
+    return (
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth>
+        {toolbar}
+        <Icon size={block.iconSize || 32} color={block.color || (light ? PAPER : EMERALD)} />
       </DraggableBlock>
     );
   }
@@ -2746,7 +2776,7 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
           <DraggableBlock id="titles" pos={ts} editMode={editMode} onMove={(p) => onMoveBlock("titles", p)} onScale={(scale) => onMoveBlock("titles", { scale })} label="Side titles" light={light} selected={selectedBlock === "titles"} onSelect={() => onSelectBlock("titles")}>
             <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
               {[{ title: content.side1Title, icon: content.side1Icon }, { title: content.side2Title, icon: content.side2Icon }].map((side, i) => {
-                const SideIcon = FAMILY_SIDE_ICONS[side.icon]?.icon;
+                const SideIcon = DECORATIVE_ICONS[side.icon]?.icon;
                 return (
                   <div key={i} className="flex flex-col items-center gap-1 text-center">
                     {SideIcon && <SideIcon size={14} style={{ color: ts.color || (light ? GOLD_SOFT : ROSE) }} />}
@@ -6275,6 +6305,7 @@ export default function InvitationBuilder() {
   const [customBlocks, setCustomBlocks] = useState(emptyCustomBlocks);
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
@@ -6662,6 +6693,12 @@ export default function InvitationBuilder() {
       reader.onload = () => addBlock(reader.result);
       reader.readAsDataURL(file);
     }
+  };
+  const addCustomIcon = (iconKey) => {
+    const stepKey = steps[activeIndex].key;
+    const newBlock = { id: uid(), type: "icon", icon: iconKey, x: 50, y: 50, iconSize: 32, color: null };
+    setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+    setSelectedBlockId(`custom:${newBlock.id}`);
   };
   const updateCustomBlock = (stepKey, id, patch) =>
     setCustomBlocks((c) => ({ ...c, [stepKey]: c[stepKey].map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
@@ -7338,6 +7375,26 @@ export default function InvitationBuilder() {
                 <div className="flex flex-wrap items-center gap-2">
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
+                  {layoutEditMode && (
+                    <div className="relative">
+                      <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Add icon</GhostButton>
+                      {iconPickerOpen && (
+                        <div className="absolute left-0 top-full z-50 mt-1 grid grid-cols-4 gap-1 rounded-lg p-2" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, width: 168 }}>
+                          {Object.entries(DECORATIVE_ICONS).map(([key, { name, icon: Icon }]) => (
+                            <button
+                              key={key}
+                              onClick={() => { addCustomIcon(key); setIconPickerOpen(false); }}
+                              title={name}
+                              className="flex h-8 w-8 items-center justify-center rounded-md"
+                              style={{ color: MUTED, border: `1px solid rgba(147,166,155,0.25)` }}
+                            >
+                              <Icon size={15} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {layoutEditMode && <GhostButton onClick={resetLayout}>Reset layout</GhostButton>}
                   <GhostButton active={layoutEditMode} onClick={toggleLayoutEditMode}>
                     <Move size={13} /> {layoutEditMode ? "Done positioning" : "Position text"}
