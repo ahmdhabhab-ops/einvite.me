@@ -1259,15 +1259,16 @@ function FieldLabel({ children }) {
   );
 }
 
-function TextInput({ value, onChange, placeholder, type = "text" }) {
+function TextInput({ value, onChange, placeholder, type = "text", disabled = false }) {
   return (
     <input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      disabled={disabled}
       className="w-full rounded-lg px-3 py-2.5 text-sm outline-none transition-colors"
-      style={{ background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY }}
+      style={{ background: INK_3, color: disabled ? MUTED : IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY, opacity: disabled ? 0.6 : 1 }}
       onFocus={(e) => (e.target.style.border = `1px solid ${GOLD}`)}
       onBlur={(e) => (e.target.style.border = `1px solid ${INK_3}`)}
     />
@@ -1794,6 +1795,33 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
         <div>
           <FieldLabel>Partner two</FieldLabel>
           <TextInput value={c.name2} onChange={(v) => updateContent({ name2: v })} placeholder="Marcus" />
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Icon behind names (optional)</FieldLabel>
+        <FamilyIconPicker
+          value={c.coverHeartIcon === undefined ? "heart" : c.coverHeartIcon}
+          onChange={(v) => updateContent({ coverHeartIcon: v })}
+        />
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Symbol between names</FieldLabel>
+        <div className="flex items-center gap-2">
+          <TextInput
+            value={c.coverAmpersand === null ? "" : (c.coverAmpersand ?? "&")}
+            onChange={(v) => updateContent({ coverAmpersand: v })}
+            placeholder="&"
+            disabled={c.coverAmpersand === null}
+          />
+          <button
+            onClick={() => updateContent({ coverAmpersand: c.coverAmpersand === null ? "&" : null })}
+            className="shrink-0 rounded-md px-2.5 py-1.5 text-[11px]"
+            style={{ border: `1px solid rgba(147,166,155,0.35)`, color: c.coverAmpersand === null ? GOLD_SOFT : MUTED, fontFamily: FONT_BODY }}
+          >
+            {c.coverAmpersand === null ? "Show it" : "Hide it"}
+          </button>
         </div>
       </div>
 
@@ -2504,6 +2532,16 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
   const [isEditingText, setIsEditingText] = useState(false);
   const textRef = useRef(null);
+  // Canva-style alignment guides — which axis (if any) the block is
+  // currently snapped to center on, plus the frame's own screen position
+  // so the guide line itself can be drawn at the right spot with `position:
+  // fixed` (percentage-based positioning can't span outside this block's
+  // own box, but the guide line needs to run the full height/width of the
+  // frame, not just this one block).
+  const [centerSnap, setCenterSnap] = useState({ x: false, y: false });
+  const [frameRect, setFrameRect] = useState(null);
+
+  const SNAP_THRESHOLD = 2.5; // percent — how close to dead-center before it snaps and shows the guide
 
   const computeFromPoint = (clientX, clientY) => {
     const parent = ref.current?.parentElement;
@@ -2522,6 +2560,14 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
       x = Math.min(92, Math.max(8, x));
     }
     y = Math.min(88, Math.max(6, y));
+
+    const snapX = Math.abs(x - 50) < SNAP_THRESHOLD;
+    const snapY = Math.abs(y - 50) < SNAP_THRESHOLD;
+    if (snapX) x = 50;
+    if (snapY) y = 50;
+    setCenterSnap({ x: snapX, y: snapY });
+    setFrameRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+
     return { x, y };
   };
 
@@ -2540,6 +2586,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
   };
   const handleUp = (e) => {
     if (e.pointerType === "touch") return;
+    setCenterSnap({ x: false, y: false }); // guides only show WHILE actively dragging, not once released
     draggingRef.current = false;
     e.target.releasePointerCapture?.(e.pointerId);
   };
@@ -2601,7 +2648,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
       const next = computeFromPoint(t.clientX, t.clientY);
       if (next) onMoveRef.current(next);
     };
-    const onEnd = () => { draggingRef.current = false; };
+    const onEnd = () => { draggingRef.current = false; setCenterSnap({ x: false, y: false }); };
     el.addEventListener("touchstart", onStart, { passive: false });
     el.addEventListener("touchmove", onMoveTouch, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: false });
@@ -2705,6 +2752,34 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
             cursor: "nwse-resize", touchAction: "none", zIndex: 32,
           }}
           title="Drag to resize"
+        />
+      )}
+      {frameRect && centerSnap.x && (
+        <div
+          className="pointer-events-none fixed"
+          style={{
+            left: frameRect.left + frameRect.width / 2 - 0.5,
+            top: frameRect.top,
+            width: 1,
+            height: frameRect.height,
+            background: GOLD,
+            boxShadow: `0 0 4px ${GOLD}`,
+            zIndex: 200,
+          }}
+        />
+      )}
+      {frameRect && centerSnap.y && (
+        <div
+          className="pointer-events-none fixed"
+          style={{
+            left: frameRect.left,
+            top: frameRect.top + frameRect.height / 2 - 0.5,
+            width: frameRect.width,
+            height: 1,
+            background: GOLD,
+            boxShadow: `0 0 4px ${GOLD}`,
+            zIndex: 200,
+          }}
         />
       )}
     </div>
@@ -2892,30 +2967,43 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
   const formattedDate = rsvpSchedule?.date
     ? new Date(`${rsvpSchedule.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })
     : "";
+  // Both default to their original always-on behavior (a heart, the "&"
+  // symbol) so nothing changes for an invitation that hasn't touched these
+  // new settings — content.coverHeartIcon === undefined still shows the
+  // heart; only an explicit null (picked via the new "None" option) hides it.
+  const HeartIconComp = content.coverHeartIcon === null ? null : (DECORATIVE_ICONS[content.coverHeartIcon]?.icon || Heart);
+  const ampersandText = content.coverAmpersand === null ? null : (content.coverAmpersand || "&");
   return (
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
           <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
             <div className="relative text-center">
-              {/* Large heart with a soft glow behind the names, as requested —
-                  CSS drop-shadow layered twice (tight + wide) gives a genuine
+              {/* Large icon with a soft glow behind the names — optional,
+                  and choosable (not forced to a heart specifically). CSS
+                  drop-shadow layered twice (tight + wide) gives a genuine
                   glow rather than a flat, hard-edged shadow. */}
-              <Heart
-                size={110}
-                fill={light ? "rgba(244,237,228,0.14)" : "rgba(183,110,110,0.14)"}
-                color={light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"}
-                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-                style={{ filter: `drop-shadow(0 0 14px ${light ? "rgba(244,237,228,0.55)" : "rgba(183,110,110,0.55)"}) drop-shadow(0 0 34px ${light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"})`, zIndex: 0 }}
-              />
+              {HeartIconComp && (
+                <HeartIconComp
+                  size={110}
+                  fill={light ? "rgba(244,237,228,0.14)" : "rgba(183,110,110,0.14)"}
+                  color={light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"}
+                  className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                  style={{ filter: `drop-shadow(0 0 14px ${light ? "rgba(244,237,228,0.55)" : "rgba(183,110,110,0.55)"}) drop-shadow(0 0 34px ${light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"})`, zIndex: 0 }}
+                />
+              )}
               <div className="relative" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, lineHeight: 1.1, zIndex: 1 }}>
                 <span style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
                   {content.name1 || "—"}
                 </span>
                 {content.name2 ? (
                   <>
-                    {" "}
-                    <span style={{ fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>&amp;</span>
+                    {ampersandText && (
+                      <>
+                        {" "}
+                        <span style={{ fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>{ampersandText}</span>
+                      </>
+                    )}
                     {" "}
                     <span style={{ fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
                       {content.name2}
