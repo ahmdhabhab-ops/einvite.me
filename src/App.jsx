@@ -690,6 +690,67 @@ async function getStreamUrl(paymentReference) {
 }
 
 // ---------------------------------------------------------------------- //
+// Package purchases — a client can build/edit their invitation completely
+// freely; this is what actually unlocks it for real, live use (publishing
+// the real guest link, and any features their package tier includes).
+// Same proven payment pattern as the livestream feature above: a pending
+// session, a redirect to Whish, a server-side webhook confirms it, and the
+// app polls to find out once that's happened.
+// ---------------------------------------------------------------------- //
+
+// What each package tier actually includes — the single place to edit if
+// pricing or feature inclusion changes. `pageKeys` lists which of this
+// app's page types this tier unlocks for real, live/published use; a page
+// not listed here still works fine while just building/previewing, but
+// won't be reachable by actual guests until the client's tier includes it
+// (see isFeatureUnlocked below).
+const PACKAGE_TIERS = {
+  basic: {
+    name: "Basic",
+    price: 15,
+    tagline: "Everything you need for a beautiful, working invitation.",
+    pageKeys: ["cover", "family", "timeline", "locations", "countdown", "rsvp", "registry"],
+  },
+  pro: {
+    name: "Pro",
+    price: 35,
+    tagline: "Basic, plus ways for guests to interact with each other and the night's music.",
+    pageKeys: ["cover", "family", "timeline", "locations", "countdown", "rsvp", "registry", "djRequests", "networking"],
+  },
+  premium: {
+    name: "Premium",
+    price: 60,
+    tagline: "Everything — live streaming for those who can't attend, door check-in, and voice messages from guests.",
+    pageKeys: ["cover", "family", "timeline", "locations", "countdown", "rsvp", "registry", "djRequests", "networking", "livestream"],
+  },
+};
+
+async function createPackagePaymentSession(userId, invitationSlug, packageTier) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/create-package-payment-session`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ userId, invitationSlug, packageTier }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't start payment — please try again.");
+  return data; // { paymentReference, paymentUrl }
+}
+
+async function getPackageStatus(paymentReference) {
+  try {
+    const res = await fetch(`${EDGE_FUNCTIONS_URL}/get-package-status`, {
+      method: "POST",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ paymentReference }),
+    });
+    if (!res.ok) return null;
+    return await res.json(); // { status, packageTier }
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------- //
 // Guest Networking — built directly into this app now, backed by the same
 // Supabase project, instead of a separate external backend project. Same
 // graceful-degradation pattern as everything else here: safe empty/no-op
@@ -697,7 +758,7 @@ async function getStreamUrl(paymentReference) {
 // console.error when a call actually fails.
 // ---------------------------------------------------------------------- //
 
-async function registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn }) {
+async function registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn, photoUrl }) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests`, {
     method: "POST",
     headers: { ...supabaseHeaders, Prefer: "return=representation" },
@@ -709,6 +770,8 @@ async function registerNetworkingGuest(slug, { name, field, interests, linkedin,
       linkedin: (linkedin || "").trim().slice(0, 200) || null,
       instagram: (instagram || "").trim().slice(0, 200) || null,
       opted_in: optedIn !== false,
+      photo_url: photoUrl || null,
+      approved: false, // requires the couple's explicit approval (see approveNetworkingGuest) before this guest appears to anyone else in the directory
     }),
   });
   if (!res.ok) {
@@ -719,10 +782,62 @@ async function registerNetworkingGuest(slug, { name, field, interests, linkedin,
   return rows[0];
 }
 
+// Approves a guest's networking registration — only after this does the
+// guest actually appear in getNetworkingDirectory for others to see and
+// connect with.
+async function approveNetworkingGuest(guestId) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests?id=eq.${encodeURIComponent(guestId)}`, {
+      method: "PATCH",
+      headers: { ...supabaseHeaders, Prefer: "return=representation" },
+      body: JSON.stringify({ approved: true }),
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+// Every registered guest for this invitation, regardless of approval status
+// — for the couple's own dashboard view, so they can see who's pending and
+// approve them. Ordinary guests never see this list; getNetworkingDirectory
+// (below) is what they see, and it only ever returns approved guests.
+async function getAllNetworkingGuestsForCouple(slug) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/networking_guests?invitation_slug=eq.${encodeURIComponent(slug)}&order=created_at.desc`,
+      { headers: supabaseHeaders }
+    );
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+// Read-only view of every connection made between guests, with both
+// guests' names joined in — for the couple's dashboard. The couple never
+// moderates these (accept/decline stays strictly between the two guests
+// involved); this is purely so they can see who's connecting at their event.
+async function getNetworkingConnectionsForCouple(slug) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/networking_connections?invitation_slug=eq.${encodeURIComponent(slug)}&select=*,from_guest:from_guest_id(name),to_guest:to_guest_id(name)&order=created_at.desc`,
+      { headers: supabaseHeaders }
+    );
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
 async function getNetworkingDirectory(slug, excludeGuestId) {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/networking_guests?invitation_slug=eq.${encodeURIComponent(slug)}&opted_in=eq.true&id=neq.${encodeURIComponent(excludeGuestId)}&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/networking_guests?invitation_slug=eq.${encodeURIComponent(slug)}&opted_in=eq.true&approved=eq.true&id=neq.${encodeURIComponent(excludeGuestId)}&order=created_at.desc`,
       { headers: supabaseHeaders }
     );
     if (!res.ok) {
@@ -4933,6 +5048,202 @@ function VoiceMessagesPanel({ slug }) {
   );
 }
 
+// Dashboard panel for the couple: approve/pending status for every guest
+// who registered for Guest Networking (only approved guests are visible to
+// each other — see getNetworkingDirectory), plus a read-only view of
+// connections already made between guests. The couple never moderates
+// connections themselves — accept/decline for those stays strictly between
+// the two guests involved; this view is purely informational.
+// Shown when a client tries to publish their invitation (or reach a
+// feature their current package doesn't include) without having paid for
+// a package tier yet — or wants to upgrade to a higher one. Building and
+// editing the invitation itself is never gated by this; only making it
+// real/live for guests is.
+function PublishPaywallModal({ userId, invitationSlug, currentPackageTier, onClose, onConfirmed }) {
+  const [selectedTier, setSelectedTier] = useState(currentPackageTier || "basic");
+  const [paying, setPaying] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [error, setError] = useState("");
+
+  const startPayment = async () => {
+    setPaying(true);
+    setError("");
+    try {
+      const { paymentReference, paymentUrl } = await createPackagePaymentSession(userId, invitationSlug, selectedTier);
+      window.open(paymentUrl, "_blank");
+      setPolling(true);
+      // Polls every 3s for up to 10 minutes — matches how long a client
+      // might reasonably take to complete payment in the other tab before
+      // giving up and coming back to try again.
+      const start = Date.now();
+      const poll = async () => {
+        if (Date.now() - start > 10 * 60 * 1000) { setPolling(false); setError("Payment session expired — please try again."); return; }
+        const result = await getPackageStatus(paymentReference);
+        if (result?.status === "paid") {
+          setPolling(false);
+          onConfirmed(result.packageTier);
+          return;
+        }
+        setTimeout(poll, 3000);
+      };
+      poll();
+    } catch (err) {
+      setError(err.message);
+      setPaying(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
+      <div className="w-full max-w-2xl rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, maxHeight: "90vh", overflowY: "auto" }}>
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Publish Your Invitation</h2>
+          {!polling && <button onClick={onClose} style={{ color: MUTED }}><X size={18} /></button>}
+        </div>
+        <p className="mb-5 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          You can keep building and editing for free, any time. Pick a package below to make your real guest link live.
+        </p>
+
+        {polling ? (
+          <div className="py-8 text-center">
+            <p className="text-[13px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>Waiting for payment to complete in the other tab…</p>
+            <p className="mt-2 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>This updates automatically once payment is confirmed — no need to refresh.</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {Object.entries(PACKAGE_TIERS).map(([key, tier]) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedTier(key)}
+                  className="rounded-xl p-4 text-left"
+                  style={{ background: selectedTier === key ? "rgba(201,164,76,0.1)" : INK_3, border: `2px solid ${selectedTier === key ? GOLD : "transparent"}` }}
+                >
+                  <div className="text-[13px] font-bold uppercase" style={{ color: selectedTier === key ? GOLD_SOFT : IVORY, fontFamily: FONT_BODY, letterSpacing: "0.05em" }}>{tier.name}</div>
+                  <div className="mt-1 text-2xl font-bold" style={{ color: IVORY, fontFamily: FONT_BODY }}>${tier.price}</div>
+                  <p className="mt-2 text-[11.5px] leading-relaxed" style={{ color: MUTED, fontFamily: FONT_BODY }}>{tier.tagline}</p>
+                  {currentPackageTier === key && <div className="mt-2 text-[10.5px] font-semibold" style={{ color: CHART_COLORS.yes }}>Your current package</div>}
+                </button>
+              ))}
+            </div>
+            {error && <p className="mt-4 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+            <button
+              onClick={startPayment}
+              disabled={paying || selectedTier === currentPackageTier}
+              className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
+              style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: (paying || selectedTier === currentPackageTier) ? 0.5 : 1 }}
+            >
+              {paying ? "Opening payment…" : selectedTier === currentPackageTier ? "Already your package" : `Pay $${PACKAGE_TIERS[selectedTier].price} for ${PACKAGE_TIERS[selectedTier].name}`}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NetworkingApprovalPanel({ slug }) {
+  const [guests, setGuests] = useState(null); // null = loading
+  const [connections, setConnections] = useState(null);
+  const [tab, setTab] = useState("guests"); // guests | connections
+  const [approvingId, setApprovingId] = useState(null);
+
+  const load = async () => {
+    const [g, c] = await Promise.all([getAllNetworkingGuestsForCouple(slug), getNetworkingConnectionsForCouple(slug)]);
+    setGuests(g);
+    setConnections(c);
+  };
+
+  useEffect(() => { load(); }, [slug]);
+
+  const approve = async (guestId) => {
+    setApprovingId(guestId);
+    await approveNetworkingGuest(guestId);
+    await load();
+    setApprovingId(null);
+  };
+
+  if (guests === null || connections === null) {
+    return <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading…</p>;
+  }
+
+  const pendingCount = guests.filter((g) => !g.approved).length;
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex gap-2">
+          <GhostButton active={tab === "guests"} onClick={() => setTab("guests")}>Guests ({guests.length}){pendingCount > 0 ? ` · ${pendingCount} pending` : ""}</GhostButton>
+          <GhostButton active={tab === "connections"} onClick={() => setTab("connections")}>Connections ({connections.length})</GhostButton>
+        </div>
+        <GhostButton onClick={load}>Refresh</GhostButton>
+      </div>
+
+      {tab === "guests" && (
+        guests.length === 0 ? (
+          <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No one has registered for Guest Networking yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {guests.map((g) => (
+              <div key={g.id} className="flex items-center justify-between rounded-xl p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: g.photo_url ? `url(${g.photo_url}) center/cover` : INK_3 }}>
+                    {!g.photo_url && <Users size={14} style={{ color: MUTED }} />}
+                  </div>
+                  <div>
+                    <div className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{g.name}</div>
+                    {g.field && <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{g.field}</div>}
+                  </div>
+                </div>
+                {g.approved ? (
+                  <span className="rounded-full px-2.5 py-1 text-[9.5px] font-bold uppercase" style={{ background: "rgba(143,191,163,0.18)", color: CHART_COLORS.yes }}>Approved</span>
+                ) : (
+                  <button
+                    onClick={() => approve(g.id)}
+                    disabled={approvingId === g.id}
+                    className="rounded-full px-3 py-1.5 text-[11px] font-semibold"
+                    style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, opacity: approvingId === g.id ? 0.6 : 1 }}
+                  >
+                    {approvingId === g.id ? "Approving…" : "Approve"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === "connections" && (
+        connections.length === 0 ? (
+          <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No connections made yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {connections.map((c) => (
+              <div key={c.id} className="flex items-center justify-between rounded-xl p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+                <div className="text-[13px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+                  <span className="font-semibold">{c.from_guest?.name || "—"}</span>
+                  <span style={{ color: MUTED }}> → </span>
+                  <span className="font-semibold">{c.to_guest?.name || "—"}</span>
+                </div>
+                <span
+                  className="rounded-full px-2.5 py-1 text-[9.5px] font-bold uppercase"
+                  style={
+                    c.status === "accepted" ? { background: "rgba(143,191,163,0.18)", color: CHART_COLORS.yes }
+                    : c.status === "declined" ? { background: "rgba(224,155,155,0.18)", color: "#E29B9B" }
+                    : { background: "rgba(201,164,76,0.18)", color: GOLD_SOFT }
+                  }
+                >
+                  {c.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDeleteTable, onAssignGuest }) {
   const [newTableName, setNewTableName] = useState("");
   const [newTableCapacity, setNewTableCapacity] = useState(8);
@@ -5152,6 +5463,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         <GhostButton active={subTab === "guests"} onClick={() => setSubTab("guests")}>Guest List</GhostButton>
         <GhostButton active={subTab === "seating"} onClick={() => setSubTab("seating")}>Table Seating</GhostButton>
         <GhostButton active={subTab === "voice"} onClick={() => setSubTab("voice")}>Voice Messages</GhostButton>
+        <GhostButton active={subTab === "networking"} onClick={() => setSubTab("networking")}>Guest Networking</GhostButton>
       </div>
 
       {integrations && (
@@ -5199,6 +5511,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         />
       ) : subTab === "voice" ? (
         <VoiceMessagesPanel slug={slug} />
+      ) : subTab === "networking" ? (
+        <NetworkingApprovalPanel slug={slug} />
       ) : (
         <>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -6351,15 +6665,32 @@ function NetworkingRegisterForm({ slug, onRegistered }) {
   const [interests, setInterests] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const onUploadPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    setError("");
+    try {
+      const url = await uploadImageToStorage(file, "networking-photos");
+      setPhotoUrl(url);
+    } catch (err) {
+      setError(err.message || "Couldn't upload the photo — please try again.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const submit = async () => {
     if (!name.trim()) { setError("Please enter your name."); return; }
     setSubmitting(true);
     setError("");
     try {
-      const guest = await registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn: true });
+      const guest = await registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn: true, photoUrl });
       onRegistered(guest);
     } catch (err) {
       setError(err.message);
@@ -6377,6 +6708,13 @@ function NetworkingRegisterForm({ slug, onRegistered }) {
           <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Meet the Other Guests</h1>
           <p className="mt-1.5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Tell us a bit about yourself to find people worth meeting.</p>
         </div>
+        <label className="mb-3 flex cursor-pointer items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ border: photoUrl ? `2px solid ${GOLD}` : `2px dashed rgba(147,166,155,0.5)`, background: photoUrl ? `url(${photoUrl}) center/cover` : "transparent" }}>
+            {!photoUrl && <ImagePlus size={16} style={{ color: MUTED }} />}
+          </div>
+          <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUploadPhoto} disabled={photoUploading} />
+          <span className="text-[12px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{photoUploading ? "Uploading…" : photoUrl ? "Change photo" : "Add a photo (optional)"}</span>
+        </label>
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={inputStyle} />
         <input value={field} onChange={(e) => setField(e.target.value)} placeholder="What do you do? (optional)" style={inputStyle} />
         <input value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="Interests, comma-separated (e.g. hiking, wine, travel)" style={inputStyle} />
@@ -6390,6 +6728,9 @@ function NetworkingRegisterForm({ slug, onRegistered }) {
         >
           {submitting ? "Joining…" : "Join Guest Networking"}
         </button>
+        <p className="mt-3 text-center text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          The couple reviews new profiles before they're visible to other guests — you'll show up shortly after joining.
+        </p>
       </div>
     </div>
   );
@@ -6434,13 +6775,18 @@ function NetworkingDiscoverList({ slug, me }) {
         const status = connectionStatusWith(g.id);
         return (
           <div key={g.id} className="flex items-center justify-between gap-3 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="truncate text-[14px] font-semibold">{g.name}</div>
-                {g.score > 0 && <span className="flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ background: "rgba(201,164,76,0.18)", color: GOLD_SOFT }}>Good match</span>}
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: g.photo_url ? `url(${g.photo_url}) center/cover` : INK_3 }}>
+                {!g.photo_url && <Users size={15} style={{ color: MUTED }} />}
               </div>
-              {g.field && <div className="truncate text-[12px]" style={{ color: MUTED }}>{g.field}</div>}
-              {g.interests && <div className="truncate text-[11px]" style={{ color: GOLD_SOFT, marginTop: 2 }}>{g.interests}</div>}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="truncate text-[14px] font-semibold">{g.name}</div>
+                  {g.score > 0 && <span className="flex-shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ background: "rgba(201,164,76,0.18)", color: GOLD_SOFT }}>Good match</span>}
+                </div>
+                {g.field && <div className="truncate text-[12px]" style={{ color: MUTED }}>{g.field}</div>}
+                {g.interests && <div className="truncate text-[11px]" style={{ color: GOLD_SOFT, marginTop: 2 }}>{g.interests}</div>}
+              </div>
             </div>
             <div className="flex-shrink-0">
               {status === "accepted" ? (
@@ -6665,6 +7011,7 @@ export default function InvitationBuilder() {
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
@@ -7246,7 +7593,7 @@ export default function InvitationBuilder() {
   const toggleCanDesign = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
   const updateUserEmail = (id, email) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
   const signUpUser = (params) => {
-    const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null };
+    const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
     saveUsersDirectly((list) => [newUser, ...list]);
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
@@ -7314,6 +7661,15 @@ export default function InvitationBuilder() {
     setIntro(result.intro);
     if (result.layouts) setLayouts(result.layouts);
     setShowTemplateSwitcher(false);
+  };
+
+  // Persists a confirmed package purchase onto the active client's own
+  // user record — this is what actually unlocks their invitation for real
+  // use, not just local component state that could revert on refresh.
+  const onPackageConfirmed = (newTier) => {
+    if (!activeUserRecord) return;
+    saveUsersDirectly((list) => list.map((u) => (u.id === activeUserRecord.id ? { ...u, packageTier: newTier } : u)));
+    setShowPublishModal(false);
   };
 
   // Client-side: this is where the CLIENT THEMSELVES lands after logging
@@ -7475,7 +7831,7 @@ export default function InvitationBuilder() {
       return;
     }
     const snapshot = invitationsStore[matchedUser.id] || freshInvitationSnapshot();
-    setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam });
+    setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam, packageTier: matchedUser.packageTier || null });
     // Re-run once the real saved data finishes loading (it loads
     // asynchronously in a separate effect) — without this, a guest link can
     // get permanently evaluated against the initial seed/demo data instead
@@ -7488,7 +7844,18 @@ export default function InvitationBuilder() {
     : null;
   const guestData = guestView && guestView.found ? (guestView.ownSlug ? data : guestSnapshotData) : null;
   const guestSteps = guestView && guestView.found
-    ? (guestView.ownSlug ? steps : (guestView.snapshot.pageOrder || ALL_STEPS.map((s) => s.key)).map((k) => ALL_STEPS.find((s) => s.key === k)).filter(Boolean).filter((s) => (guestView.snapshot.enabledSteps || {})[s.key]))
+    ? (guestView.ownSlug
+        ? steps
+        : (guestView.snapshot.pageOrder || ALL_STEPS.map((s) => s.key))
+            .map((k) => ALL_STEPS.find((s) => s.key === k))
+            .filter(Boolean)
+            .filter((s) => (guestView.snapshot.enabledSteps || {})[s.key])
+            // THE ACTUAL GATE: a page not included in the client's purchased
+            // package tier is never reachable by a real guest, regardless of
+            // enabledSteps — building/editing every page stays unrestricted
+            // for the client themselves; this only affects what an actual
+            // guest's link can navigate to.
+            .filter((s) => guestView.packageTier ? (PACKAGE_TIERS[guestView.packageTier]?.pageKeys || []).includes(s.key) : s.key === "cover"))
     : null;
   const guestEnabledLanguages = guestView && guestView.found
     ? (guestView.ownSlug ? enabledLanguages : (guestView.snapshot.enabledLanguages || ["en"]))
@@ -7766,8 +8133,15 @@ export default function InvitationBuilder() {
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} />
-              <div className="mb-4 flex justify-end">
+              <div className="mb-4 flex items-center justify-between gap-2">
                 <GhostButton onClick={() => setShowTemplateSwitcher(true)}><ImagePlus size={13} /> Browse Templates</GhostButton>
+                <button
+                  onClick={() => setShowPublishModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-bold uppercase"
+                  style={{ background: activeUserRecord?.packageTier ? "rgba(143,191,163,0.18)" : GOLD, color: activeUserRecord?.packageTier ? CHART_COLORS.yes : INK, fontFamily: FONT_BODY, letterSpacing: "0.04em" }}
+                >
+                  {activeUserRecord?.packageTier ? `${PACKAGE_TIERS[activeUserRecord.packageTier]?.name || activeUserRecord.packageTier} — Published` : "Publish"}
+                </button>
               </div>
               <StepRail steps={steps} activeIndex={safeIndex} visited={visited} onSelect={selectStep} />
 
@@ -7997,6 +8371,16 @@ export default function InvitationBuilder() {
               onCancel={() => setShowTemplateSwitcher(false)}
             />
           </div>
+        )}
+
+        {showPublishModal && activeUserRecord && (
+          <PublishPaywallModal
+            userId={activeUserRecord.id}
+            invitationSlug={slug}
+            currentPackageTier={activeUserRecord.packageTier}
+            onClose={() => setShowPublishModal(false)}
+            onConfirmed={onPackageConfirmed}
+          />
         )}
       </div>
     </div>
