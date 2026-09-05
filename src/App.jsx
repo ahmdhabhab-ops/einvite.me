@@ -236,6 +236,23 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/1.png`,
     coverBackdropColor: null, // defaults to this app's own dark background (INK) behind any transparent areas — set this to your design's real background color (a hex string) if it isn't dark
     pageBackgroundPreset: "botanical", // still used for the OTHER 9 pages (RSVP, Timeline, etc.) — give each of those their own coverImage-style override too if you want the whole invitation matching this design
+    // Matches the client's OWN typed name text to whatever decorative font
+    // the Canva design itself used for its sample name — since that sample
+    // name is just pixels baked into the flat image, it can never be
+    // edited directly; this is what makes a real client's own name LOOK
+    // like it belongs in the design, even though it's a separate, fully
+    // editable text layer rendered on top of the image.
+    coverName1Font: "'IBM Plex Sans Condensed', sans-serif",
+    // TeX Gyre Termes isn't a Google Font and no license/files were on
+    // hand for it — PT Serif substituted as the closest free, similar
+    // classic serif. Swap this value if a real license is obtained later.
+    coverAmpersandFont: "'PT Serif', serif",
+    // Brittany is a paid script font (no license/files on hand) — Alex
+    // Brush substituted as the closest free, similarly flowing script.
+    // Swap this value if a real license is obtained later.
+    coverName2Font: "'Alex Brush', cursive",
+    coverIntroFont: "'Moontime', cursive",
+    coverDateFont: "'Lora', serif",
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"], // tag more narrowly once you know which occasion(s) each real design actually suits
@@ -247,6 +264,8 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/3.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "blush",
+    coverNameFont: null,
+    coverNameColor: null,
     gateAnimationStyle: "petals",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
@@ -258,6 +277,8 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/5.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "dusk",
+    coverNameFont: null,
+    coverNameColor: null,
     gateAnimationStyle: "sparkleDrift",
     gateIcon: "star",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
@@ -269,6 +290,8 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/6.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "gilded",
+    coverNameFont: null,
+    coverNameColor: null,
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
@@ -280,6 +303,8 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/8.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "botanical",
+    coverNameFont: null,
+    coverNameColor: null,
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
@@ -291,6 +316,8 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/11.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "blush",
+    coverNameFont: null,
+    coverNameColor: null,
     gateAnimationStyle: "petals",
     gateIcon: "star",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
@@ -302,13 +329,15 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/12.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "dusk",
+    coverNameFont: null,
+    coverNameColor: null,
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
   },
 ];
 
-/** Applies a template's choices onto a fresh invitation snapshot — background preset (if the template specifies one) and gate style/icon. */
+/** Applies a template's choices onto a fresh invitation snapshot — background preset (if the template specifies one), gate style/icon, and (when specified) a matching font/color for the Cover page's own dynamic name text, so it visually matches whatever decorative font the Canva design itself used for its baked-in sample name. */
 function applyTemplateToSnapshot(snapshot, template) {
   if (!template) return snapshot;
   let pageBackgrounds = template.pageBackgroundPreset
@@ -325,9 +354,52 @@ function applyTemplateToSnapshot(snapshot, template) {
       cover: { mode: "photo", preset: pageBackgrounds.cover.preset, image: template.coverImage, backdropColor: template.coverBackdropColor || null, darken: template.coverDarken ?? 0 },
     };
   }
+  // Only touches layouts.cover when the snapshot actually has one AND the
+  // template specifies at least one of these overrides — leaves position,
+  // size, and any field not explicitly set by this template untouched.
+  let layouts = snapshot.layouts;
+  if (layouts?.cover) {
+    const hasNameOverrides = template.coverNameFont || template.coverNameColor
+      || template.coverName1Font || template.coverAmpersandFont || template.coverName2Font;
+    const hasIntroOverride = template.coverIntroFont || template.coverIntroColor;
+    const hasDateOverride = template.coverDateFont || template.coverDateColor;
+    if (hasNameOverrides || hasIntroOverride || hasDateOverride) {
+      layouts = {
+        ...layouts,
+        cover: {
+          ...layouts.cover,
+          ...(hasNameOverrides && layouts.cover.names ? {
+            names: {
+              ...layouts.cover.names,
+              ...(template.coverNameFont ? { fontFamily: template.coverNameFont } : {}),
+              ...(template.coverNameColor ? { color: template.coverNameColor } : {}),
+              ...(template.coverName1Font ? { name1FontFamily: template.coverName1Font } : {}),
+              ...(template.coverAmpersandFont ? { ampersandFontFamily: template.coverAmpersandFont } : {}),
+              ...(template.coverName2Font ? { name2FontFamily: template.coverName2Font } : {}),
+            },
+          } : {}),
+          ...(hasIntroOverride && layouts.cover.intro ? {
+            intro: {
+              ...layouts.cover.intro,
+              ...(template.coverIntroFont ? { fontFamily: template.coverIntroFont } : {}),
+              ...(template.coverIntroColor ? { color: template.coverIntroColor } : {}),
+            },
+          } : {}),
+          ...(hasDateOverride && layouts.cover.date ? {
+            date: {
+              ...layouts.cover.date,
+              ...(template.coverDateFont ? { fontFamily: template.coverDateFont } : {}),
+              ...(template.coverDateColor ? { color: template.coverDateColor } : {}),
+            },
+          } : {}),
+        },
+      };
+    }
+  }
   return {
     ...snapshot,
     pageBackgrounds,
+    ...(layouts ? { layouts } : {}),
     intro: { ...snapshot.intro, animationStyle: template.gateAnimationStyle, icon: template.gateIcon },
   };
 }
@@ -390,6 +462,11 @@ const FONT_OPTIONS = [
   { key: "body", label: "Inter", value: "'Inter', sans-serif" },
   { key: "montserrat", label: "Montserrat", value: "'Montserrat', sans-serif" },
   { key: "arabic", label: "Cairo (Arabic)", value: "'Cairo', sans-serif" },
+  { key: "ibmplexcondensed", label: "IBM Plex Sans Condensed", value: "'IBM Plex Sans Condensed', sans-serif" },
+  { key: "ptserif", label: "PT Serif (free substitute for TeX Gyre Termes — no license on file for the original)", value: "'PT Serif', serif" },
+  { key: "alexbrush", label: "Alex Brush (free substitute for Brittany — no license on file for the original)", value: "'Alex Brush', cursive" },
+  { key: "moontime", label: "Moontime", value: "'Moontime', cursive" },
+  { key: "lora", label: "Lora", value: "'Lora', serif" },
 ];
 const fontValue = (key) => FONT_OPTIONS.find((f) => f.key === key)?.value || null;
 
@@ -834,6 +911,25 @@ async function markCheckedIn(token) {
   }
 }
 
+// Undoes a check-in — for a guest who scanned their own QR code out of
+// curiosity before actually arriving at the event, marking them checked in
+// prematurely; whoever's actually at the door needs a way to clear that
+// false mark so the real, on-arrival scan isn't blocked by it.
+async function resetCheckin(token) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?token=eq.${encodeURIComponent(token)}`, {
+      method: "PATCH",
+      headers: { ...supabaseHeaders, Prefer: "return=representation" },
+      body: JSON.stringify({ checked_in_at: null }),
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Uses a free, no-API-key QR generation service — this app has no QR-encoding library available, so this renders the code as a plain <img>. */
 function qrCodeImageUrl(data, size = 220) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
@@ -1050,7 +1146,7 @@ const defaultPageBackgrounds = {
 };
 
 const DEFAULT_LAYOUTS = {
-  cover: { names: { x: 50, y: 62 }, intro: { x: 50, y: 76 } },
+  cover: { names: { x: 50, y: 62 }, intro: { x: 50, y: 76 }, date: { x: 50, y: 88 } },
   family: { greeting: { x: 50, y: 34 }, quote: { x: 50, y: 52 }, titles: { x: 50, y: 68 }, names: { x: 50, y: 78 } },
   timeline: { heading: { x: 50, y: 13 }, list: { x: 50, y: 58 } },
   locations: { heading: { x: 50, y: 11 }, list: { x: 50, y: 55 } },
@@ -2789,25 +2885,58 @@ function StoryPage({ bg, children }) {
   );
 }
 
-function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSchedule }) {
   const namesStyle = layout.names;
   const introStyle = layout.intro;
+  const dateStyle = layout.date || { x: 50, y: 88 };
+  const formattedDate = rsvpSchedule?.date
+    ? new Date(`${rsvpSchedule.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    : "";
   return (
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
-          <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
-            <div className="text-center">
-              <div style={{ fontFamily: namesStyle.fontFamily || fontScript, fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.1 }}>
-                {content.name1 || "—"}{content.name2 ? (<> <span style={{ color: light ? GOLD_SOFT : ROSE }}>&amp;</span> {content.name2}</>) : null}
+          <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
+            <div className="relative text-center">
+              {/* Large heart with a soft glow behind the names, as requested —
+                  CSS drop-shadow layered twice (tight + wide) gives a genuine
+                  glow rather than a flat, hard-edged shadow. */}
+              <Heart
+                size={110}
+                fill={light ? "rgba(244,237,228,0.14)" : "rgba(183,110,110,0.14)"}
+                color={light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"}
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{ filter: `drop-shadow(0 0 14px ${light ? "rgba(244,237,228,0.55)" : "rgba(183,110,110,0.55)"}) drop-shadow(0 0 34px ${light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"})`, zIndex: 0 }}
+              />
+              <div className="relative" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, lineHeight: 1.1, zIndex: 1 }}>
+                <span style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
+                  {content.name1 || "—"}
+                </span>
+                {content.name2 ? (
+                  <>
+                    {" "}
+                    <span style={{ fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>&amp;</span>
+                    {" "}
+                    <span style={{ fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
+                      {content.name2}
+                    </span>
+                  </>
+                ) : null}
               </div>
             </div>
           </DraggableBlock>
-          <DraggableBlock id="intro" pos={introStyle} editMode={editMode} onMove={(p) => onMoveBlock("intro", p)} label="Intro" light={light} selected={selectedBlock === "intro"} onSelect={() => onSelectBlock("intro")}>
+          <DraggableBlock id="intro" pos={introStyle} editMode={editMode} onMove={(p) => onMoveBlock("intro", p)} onScale={(scale) => onMoveBlock("intro", { scale })} label="Intro" light={light} selected={selectedBlock === "intro"} onSelect={() => onSelectBlock("intro")}>
             <p className="text-center italic leading-relaxed" style={{ color: introStyle.color || (light ? "rgba(244,237,228,0.85)" : EMERALD), fontFamily: introStyle.fontFamily || fontDisplay, fontSize: introStyle.fontSize ? `${introStyle.fontSize}px` : 12.5 }}>
               {content.intro}
             </p>
           </DraggableBlock>
+          {(formattedDate || editMode) && (
+            <DraggableBlock id="date" pos={dateStyle} editMode={editMode} onMove={(p) => onMoveBlock("date", p)} onScale={(scale) => onMoveBlock("date", { scale })} label="Date" light={light} selected={selectedBlock === "date"} onSelect={() => onSelectBlock("date")}>
+              <p className="text-center" style={{ color: dateStyle.color || (light ? GOLD_SOFT : ROSE), fontFamily: dateStyle.fontFamily || FONT_BODY, fontSize: dateStyle.fontSize ? `${dateStyle.fontSize}px` : 12 }}>
+                {formattedDate || "Set your date in RSVP settings"}
+              </p>
+            </DraggableBlock>
+          )}
         </div>
       )}
     </StoryPage>
@@ -5956,27 +6085,29 @@ function AppLoadingScreen() {
 
 function CheckinPage({ token }) {
   const [checkin, setCheckin] = useState(null); // null=loading, false=invalid, {...}=result
-  const [justMarked, setJustMarked] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      const existing = await getCheckinByToken(token);
-      if (!existing) { setCheckin(false); return; }
-      if (existing.checked_in_at) {
-        setCheckin(existing);
-        return;
-      }
-      const marked = await markCheckedIn(token);
-      if (marked) {
-        setCheckin(marked);
-        setJustMarked(true);
-      } else {
-        // Someone else scanned it between our read and write — re-fetch so
-        // this screen shows the real, current state rather than a stale one.
-        setCheckin((await getCheckinByToken(token)) || existing);
-      }
-    })();
-  }, [token]);
+  const load = async () => setCheckin((await getCheckinByToken(token)) ?? false);
+
+  useEffect(() => { load(); }, [token]);
+
+  const doCheckIn = async () => {
+    setBusy(true);
+    const marked = await markCheckedIn(token);
+    // marked is null specifically when it was already checked in by the
+    // time this ran (e.g. two people tapped Check In within the same
+    // moment) — re-fetch either way so the screen always reflects the
+    // real, current state rather than assuming success.
+    await load();
+    setBusy(false);
+  };
+
+  const doUndo = async () => {
+    setBusy(true);
+    await resetCheckin(token);
+    await load();
+    setBusy(false);
+  };
 
   if (checkin === null) {
     return (
@@ -5998,24 +6129,37 @@ function CheckinPage({ token }) {
     );
   }
 
-  const alreadyCheckedIn = !justMarked && checkin.checked_in_at;
-
   return (
     <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div style={{ textAlign: "center", maxWidth: 320 }}>
-        {alreadyCheckedIn ? (
+        {checkin.checked_in_at ? (
           <>
             <AlertTriangle size={44} color="#E0B84C" style={{ margin: "0 auto 14px" }} />
             <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Already Checked In</h1>
             <p className="mt-2 text-lg" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{checkin.guest_names}</p>
             <p className="mt-2 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Checked in at {new Date(checkin.checked_in_at).toLocaleString()}</p>
+            <button
+              onClick={doUndo}
+              disabled={busy}
+              className="mt-5 text-[11.5px] underline"
+              style={{ color: MUTED, fontFamily: FONT_BODY }}
+            >
+              This wasn't a real check-in (scanned early by mistake) — undo it
+            </button>
           </>
         ) : (
           <>
             <CheckCircle2 size={48} color="#8FBFA3" style={{ margin: "0 auto 14px" }} />
-            <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Checked In</h1>
-            <p className="mt-2 text-lg" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{checkin.guest_names}</p>
-            <p className="mt-2 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Welcome — enjoy the celebration!</p>
+            <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>{checkin.guest_names}</h1>
+            <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Not checked in yet. Tap below only once this guest has actually arrived.</p>
+            <button
+              onClick={doCheckIn}
+              disabled={busy}
+              className="mt-5 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold"
+              style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }}
+            >
+              {busy ? "Checking in…" : "Check In Now"}
+            </button>
           </>
         )}
       </div>
@@ -7009,9 +7153,10 @@ export default function InvitationBuilder() {
   // untouched by switching designs this way.
   const switchToTemplate = (template) => {
     userChangedBackgroundsRef.current = true;
-    const result = applyTemplateToSnapshot({ pageBackgrounds, intro }, template);
+    const result = applyTemplateToSnapshot({ pageBackgrounds, intro, layouts }, template);
     setPageBackgrounds(result.pageBackgrounds);
     setIntro(result.intro);
+    if (result.layouts) setLayouts(result.layouts);
     setShowTemplateSwitcher(false);
   };
 
@@ -7371,7 +7516,7 @@ export default function InvitationBuilder() {
   return (
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
         @keyframes slideUpIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDownIn { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
