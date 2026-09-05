@@ -4085,7 +4085,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -4185,6 +4185,23 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         <p className="mt-1.5 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
           Couldn't copy automatically — tap the link above to select it, then copy manually.
         </p>
+      )}
+      {!slugMatchesCoupleNames && (
+        <div className="mt-2 rounded-lg px-3 py-2.5" style={{ background: "rgba(226,155,155,0.08)", border: `1px solid rgba(226,155,155,0.25)` }}>
+          <p className="text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+            This link doesn't match the couple's current names. It would become <span style={{ color: GOLD_SOFT }}>https://{siteDomain}/e/{nameBasedSlugPreview}</span> instead.
+          </p>
+          <p className="mt-1 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+            Updating breaks any link already sent to guests — only do this before sending invitations out.
+          </p>
+          <button
+            onClick={() => { if (window.confirm("Update the link now? Any copy already sent to guests will stop working.")) onRegenerateSlug(); }}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium"
+            style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }}
+          >
+            <Link2 size={12} /> Update link to match couple's names
+          </button>
+        </div>
       )}
 
       <div className="mt-3">
@@ -6722,24 +6739,27 @@ export default function InvitationBuilder() {
     finalizeInvitationCreation(user, null, null, "overview");
   };
 
+  // Shared by finalizeInvitationCreation (first-time creation) and
+  // regenerateSlugFromCoupleNames (manual, explicit update later) — same
+  // collision-avoidance logic in one place, since two different slugs
+  // colliding silently makes one client's link resolve to another
+  // client's data.
+  const generateUniqueSlug = (base, excludeUserId) => {
+    const cleanBase = base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+    const existingSlugs = new Set(users.filter((u) => u.id !== excludeUserId).map((u) => u.invitationSlug).filter(Boolean));
+    let candidate = cleanBase;
+    let suffix = 2;
+    while (existingSlugs.has(candidate)) {
+      candidate = `${cleanBase}-${suffix}`;
+      suffix++;
+    }
+    return candidate;
+  };
+
   const finalizeInvitationCreation = (user, template, eventType, destinationView) => {
     let finalUser = user;
     if (!user.invitationSlug) {
-      const base = user.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || `guest-${user.id.slice(0, 6)}`;
-      // THE ACTUAL FIX: the previous version used `base` directly with no
-      // check at all — two clients with the same name (or both left blank
-      // during testing, which happens constantly) silently got the exact
-      // same slug. Since every guest link and data lookup resolves BY
-      // slug, a colliding slug can make a brand-new client's link resolve
-      // to a completely different, earlier client — which looks exactly
-      // like "the new invitation shows the previous one's data."
-      const existingSlugs = new Set(users.map((u) => u.invitationSlug).filter(Boolean));
-      let slug = base;
-      let suffix = 2;
-      while (existingSlugs.has(slug)) {
-        slug = `${base}-${suffix}`;
-        suffix++;
-      }
+      const slug = generateUniqueSlug(user.name || `guest-${user.id.slice(0, 6)}`, user.id);
       setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, invitationSlug: slug } : u)));
       finalUser = { ...user, invitationSlug: slug };
     }
@@ -6831,6 +6851,24 @@ export default function InvitationBuilder() {
   const activeUserRecord = users.find((u) => u.id === activeInvitationId);
   const slug = activeUserRecord?.invitationSlug
     || `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+
+  // What the slug WOULD be if generated fresh from the couple's current
+  // cover-page names — compared against the real, saved slug purely to
+  // decide whether to show the "update link to match names" option in
+  // Settings. This value itself is never used as the actual slug anywhere.
+  const nameBasedSlugPreview = `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+  const slugMatchesCoupleNames = !activeUserRecord || activeUserRecord.invitationSlug === nameBasedSlugPreview;
+
+  // Explicit, one-time action — never automatic — since an automatic
+  // change here would silently break a link already sent to guests. Only
+  // regenerates the REAL invitationSlug record itself (so it's stable
+  // and permanent from this point on, exactly like a freshly created
+  // one), not the per-render display-only value above.
+  const regenerateSlugFromCoupleNames = () => {
+    if (!activeUserRecord) return;
+    const newSlug = generateUniqueSlug(`${content.en.cover.name1}-${content.en.cover.name2}`, activeUserRecord.id);
+    setUsers((list) => list.map((u) => (u.id === activeUserRecord.id ? { ...u, invitationSlug: newSlug } : u)));
+  };
 
   // ------------------------------------------------------------------ //
   // Guest-link detection — runs once on load. If the URL is /e/:slug,
@@ -7340,7 +7378,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
