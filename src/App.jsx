@@ -7,6 +7,7 @@ import {
   ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
+  Cross, Moon, BookOpen, Flower2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -43,6 +44,22 @@ const BG_PRESETS = {
 const TIMELINE_ICONS = {
   church: { icon: Church }, wine: { icon: Wine }, utensils: { icon: UtensilsCrossed },
   party: { icon: PartyPopper }, heart: { icon: Heart }, sparkles: { icon: Sparkles },
+};
+
+// Optional decorative icon next to each side's title on the Family page.
+// Lucide doesn't provide a combined crescent-and-star or Star-of-David
+// icon, so each entry is named for exactly what it depicts (a cross, a
+// crescent moon, an open book, a star) rather than claiming a specific
+// religious symbol it wouldn't precisely represent.
+const FAMILY_SIDE_ICONS = {
+  cross: { name: "Cross", icon: Cross },
+  church: { name: "Church", icon: Church },
+  crescentMoon: { name: "Crescent moon", icon: Moon },
+  openBook: { name: "Open book", icon: BookOpen },
+  star: { name: "Star", icon: Star },
+  flower: { name: "Flower", icon: Flower2 },
+  heart: { name: "Heart", icon: Heart },
+  sparkles: { name: "Sparkles", icon: Sparkles },
 };
 
 const GATE_ICONS = { heart: Heart, mail: Mail, sparkles: Sparkles, star: Star };
@@ -963,22 +980,22 @@ const PREVIEW_T = {
 const defaultContent = {
   en: {
     cover: { name1: "Elena", name2: "Marcus", intro: "together with their families, joyfully invite you to celebrate their wedding", tapText: "TAP TO START" },
-    family: { greeting: "With hearts full of joy, we invite you to witness the beginning of our forever.", quote: "", side1Title: "Bride's Family", side1Names: "Mr. & Mrs. Rodriguez", side2Title: "Groom's Family", side2Names: "Mr. & Mrs. Chen" },
+    family: { greeting: "With hearts full of joy, we invite you to witness the beginning of our forever.", quote: "", side1Title: "Bride's Family", side1Names: "Mr. & Mrs. Rodriguez", side2Title: "Groom's Family", side2Names: "Mr. & Mrs. Chen", side1Icon: null, side2Icon: null },
     rsvp: { heading: "RSVP", yesLabel: "Joyfully Accepts", noLabel: "Regretfully Declines" },
   },
   ar: {
     cover: { name1: "إيلينا", name2: "ماركوس", intro: "يتشرفان مع عائلتيهما بدعوتكم للاحتفال بزفافهما", tapText: "اضغط للبدء" },
-    family: { greeting: "بقلوب مفعمة بالفرح، ندعوكم لمشاركتنا بداية قصتنا الأبدية.", quote: "", side1Title: "عائلة العروس", side1Names: "السيد والسيدة رودريغيز", side2Title: "عائلة العريس", side2Names: "السيد والسيدة تشين" },
+    family: { greeting: "بقلوب مفعمة بالفرح، ندعوكم لمشاركتنا بداية قصتنا الأبدية.", quote: "", side1Title: "عائلة العروس", side1Names: "السيد والسيدة رودريغيز", side2Title: "عائلة العريس", side2Names: "السيد والسيدة تشين", side1Icon: null, side2Icon: null },
     rsvp: { heading: "الحضور", yesLabel: "بكل سرور سأحضر", noLabel: "نعتذر عن الحضور" },
   },
   fr: {
     cover: { name1: "Elena", name2: "Marcus", intro: "avec leurs familles, ont la joie de vous inviter à célébrer leur mariage", tapText: "TOUCHEZ POUR COMMENCER" },
-    family: { greeting: "Le cœur rempli de joie, nous vous invitons à célébrer le début de notre éternité.", quote: "", side1Title: "Famille de la mariée", side1Names: "M. et Mme Rodriguez", side2Title: "Famille du marié", side2Names: "M. et Mme Chen" },
+    family: { greeting: "Le cœur rempli de joie, nous vous invitons à célébrer le début de notre éternité.", quote: "", side1Title: "Famille de la mariée", side1Names: "M. et Mme Rodriguez", side2Title: "Famille du marié", side2Names: "M. et Mme Chen", side1Icon: null, side2Icon: null },
     rsvp: { heading: "RSVP", yesLabel: "Sera présent avec joie", noLabel: "Ne pourra malheureusement pas venir" },
   },
   es: {
     cover: { name1: "Elena", name2: "Marcus", intro: "junto a sus familias, tienen el placer de invitarles a celebrar su boda", tapText: "TOCA PARA COMENZAR" },
-    family: { greeting: "Con el corazón lleno de alegría, les invitamos a celebrar el comienzo de nuestra eternidad.", quote: "", side1Title: "Familia de la novia", side1Names: "Sr. y Sra. Rodríguez", side2Title: "Familia del novio", side2Names: "Sr. y Sra. Chen" },
+    family: { greeting: "Con el corazón lleno de alegría, les invitamos a celebrar el comienzo de nuestra eternidad.", quote: "", side1Title: "Familia de la novia", side1Names: "Sr. y Sra. Rodríguez", side2Title: "Familia del novio", side2Names: "Sr. y Sra. Chen", side1Icon: null, side2Icon: null },
     rsvp: { heading: "Confirmación", yesLabel: "Asistirá con alegría", noLabel: "Lamenta no poder asistir" },
   },
 };
@@ -1015,7 +1032,7 @@ const defaultPageBackgrounds = {
 
 const DEFAULT_LAYOUTS = {
   cover: { names: { x: 50, y: 62 }, intro: { x: 50, y: 76 } },
-  family: { greeting: { x: 50, y: 34 }, quote: { x: 50, y: 52 }, names: { x: 50, y: 76 } },
+  family: { greeting: { x: 50, y: 34 }, quote: { x: 50, y: 52 }, titles: { x: 50, y: 68 }, names: { x: 50, y: 78 } },
   timeline: { heading: { x: 50, y: 13 }, list: { x: 50, y: 58 } },
   locations: { heading: { x: 50, y: 11 }, list: { x: 50, y: 55 } },
   countdown: { heading: { x: 50, y: 30 }, countdown: { x: 50, y: 58 } },
@@ -1804,6 +1821,10 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
           <FieldLabel>Side one title</FieldLabel>
           <TextInput value={c.side1Title} onChange={(v) => updateContent({ side1Title: v })} />
           <div className="mt-3">
+            <FieldLabel>Icon (optional)</FieldLabel>
+            <FamilyIconPicker value={c.side1Icon} onChange={(v) => updateContent({ side1Icon: v })} />
+          </div>
+          <div className="mt-3">
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side1Names} onChange={(v) => updateContent({ side1Names: v })} />
           </div>
@@ -1812,12 +1833,42 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
           <FieldLabel>Side two title</FieldLabel>
           <TextInput value={c.side2Title} onChange={(v) => updateContent({ side2Title: v })} />
           <div className="mt-3">
+            <FieldLabel>Icon (optional)</FieldLabel>
+            <FamilyIconPicker value={c.side2Icon} onChange={(v) => updateContent({ side2Icon: v })} />
+          </div>
+          <div className="mt-3">
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side2Names} onChange={(v) => updateContent({ side2Names: v })} />
           </div>
         </div>
       </div>
       <BackgroundPicker bg={bg} onChange={setBg} />
+    </div>
+  );
+}
+
+function FamilyIconPicker({ value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        onClick={() => onChange(null)}
+        title="None"
+        className="flex h-8 w-8 items-center justify-center rounded-md text-[10px]"
+        style={{ border: `1.5px solid ${!value ? GOLD : "rgba(147,166,155,0.35)"}`, color: !value ? GOLD_SOFT : MUTED, fontFamily: FONT_BODY }}
+      >
+        <X size={13} />
+      </button>
+      {Object.entries(FAMILY_SIDE_ICONS).map(([key, { name, icon: Icon }]) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          title={name}
+          className="flex h-8 w-8 items-center justify-center rounded-md"
+          style={{ border: `1.5px solid ${value === key ? GOLD : "rgba(147,166,155,0.35)"}`, color: value === key ? GOLD_SOFT : MUTED }}
+        >
+          <Icon size={14} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -2649,7 +2700,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
 }
 
 function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
-  const gs = layout.greeting, qs = layout.quote, ns = layout.names;
+  const gs = layout.greeting, qs = layout.quote, ts = layout.titles, ns = layout.names;
   return (
     <StoryPage bg={bg}>
       {(light) => (
@@ -2666,12 +2717,24 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
               </p>
             </DraggableBlock>
           )}
-          <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
+          <DraggableBlock id="titles" pos={ts} editMode={editMode} onMove={(p) => onMoveBlock("titles", p)} onScale={(scale) => onMoveBlock("titles", { scale })} label="Side titles" light={light} selected={selectedBlock === "titles"} onSelect={() => onSelectBlock("titles")}>
             <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
-              {[{ title: content.side1Title, names: content.side1Names }, { title: content.side2Title, names: content.side2Names }].map((side, i) => (
+              {[{ title: content.side1Title, icon: content.side1Icon }, { title: content.side2Title, icon: content.side2Icon }].map((side, i) => {
+                const SideIcon = FAMILY_SIDE_ICONS[side.icon]?.icon;
+                return (
+                  <div key={i} className="flex flex-col items-center gap-1 text-center">
+                    {SideIcon && <SideIcon size={14} style={{ color: ts.color || (light ? GOLD_SOFT : ROSE) }} />}
+                    <div className="text-[9.5px] font-semibold uppercase" style={{ color: ts.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.1em", fontFamily: ts.fontFamily || FONT_BODY, fontSize: ts.fontSize ? `${ts.fontSize}px` : undefined }}>{side.title}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </DraggableBlock>
+          <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
+            <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
+              {[content.side1Names, content.side2Names].map((names, i) => (
                 <div key={i} className="text-center">
-                  <div className="text-[9.5px] font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>{side.title}</div>
-                  <div className="mt-1" style={{ color: ns.color || (light ? PAPER : EMERALD), fontFamily: ns.fontFamily || fontDisplay, fontSize: ns.fontSize ? `${ns.fontSize}px` : 13 }}>{side.names}</div>
+                  <div style={{ color: ns.color || (light ? PAPER : EMERALD), fontFamily: ns.fontFamily || fontDisplay, fontSize: ns.fontSize ? `${ns.fontSize}px` : 13 }}>{names}</div>
                 </div>
               ))}
             </div>
@@ -3756,6 +3819,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const fontDisplay = lang === "ar" ? FONT_AR : FONT_DISPLAY;
   const fontScript = lang === "ar" ? FONT_AR : FONT_SCRIPT;
   const stepKey = steps[activeIndex].key;
+  // Whether the CURRENT active page needs light text (dark/photo background)
+  // or dark text (light/paper background) — same "photo mode = light text"
+  // convention every other page element in this app already uses. Drives
+  // both the bottom scrim and the swipe-hint/action-icon colors below.
+  const currentPageIsLight = data.pageBackgrounds[stepKey]?.mode === "photo";
 
   const goDir = (d) => {
     if (layoutEditMode) return;
@@ -3999,12 +4067,29 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
         </div>
 
-        {/* A subtle bottom scrim guarantees the swipe-up hint and action icons
-            stay legible no matter what invitation content sits behind them —
-            this works regardless of saved text positions or screen size,
-            rather than depending on content never drifting into this zone. */}
+        {/* A subtle scrim guarantees the swipe-up hint and action icons stay
+            legible no matter what invitation content sits behind them — this
+            works regardless of saved text positions or screen size, rather
+            than depending on content never drifting into this zone.
+            THE ACTUAL FIX: this used to be a single, always-dark gradient,
+            which looked like an out-of-place dark smudge on light "paper"
+            pages (whose own text is dark, not light, so a dark scrim never
+            matched what it was sitting on). It and the swipe-hint/action-icon
+            colors below now both key off the CURRENT page's own light/dark
+            styling — same "photo mode = light text" convention every other
+            page element already uses — so a light page gets a light scrim
+            behind dark text, and a dark/photo page keeps the original dark
+            scrim behind light text. */}
         {started && !layoutEditMode && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10" style={{ height: 110, background: "linear-gradient(180deg, rgba(10,12,10,0) 0%, rgba(10,12,10,0.45) 55%, rgba(10,12,10,0.6) 100%)" }} />
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+            style={{
+              height: 110,
+              background: currentPageIsLight
+                ? "linear-gradient(180deg, rgba(10,12,10,0) 0%, rgba(10,12,10,0.45) 55%, rgba(10,12,10,0.6) 100%)"
+                : "linear-gradient(180deg, rgba(251,241,231,0) 0%, rgba(251,241,231,0.55) 55%, rgba(251,241,231,0.75) 100%)",
+            }}
+          />
         )}
 
         {/* Swipe-up hint and bottom-right action icons live OUTSIDE the scaled
@@ -4025,8 +4110,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           <>
             {activeIndex < steps.length - 1 && (
               <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
-                <ChevronsUp size={20} color={PAPER} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" }} />
-                <span className="text-[10px] font-semibold uppercase" style={{ color: PAPER, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
+                <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
+                <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
                   {t.swipeUp}
                 </span>
               </button>
@@ -4039,9 +4124,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   key={action.key}
                   onClick={action.onClick}
                   className="flex h-8 w-8 items-center justify-center rounded-full"
-                  style={{ background: "rgba(10,12,10,0.5)", backdropFilter: "blur(4px)", opacity: action.dim ? 0.5 : 1 }}
+                  style={{ background: currentPageIsLight ? "rgba(10,12,10,0.5)" : "rgba(251,241,231,0.7)", backdropFilter: "blur(4px)", opacity: action.dim ? 0.5 : 1 }}
                 >
-                  <action.icon size={14} color={PAPER} style={{ animation: action.pulse ? "musicPulse 1.6s ease-in-out infinite" : "none" }} />
+                  <action.icon size={14} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: action.pulse ? "musicPulse 1.6s ease-in-out infinite" : "none" }} />
                 </button>
               ))}
             </div>
@@ -4194,8 +4279,11 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           <p className="mt-1 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
             Updating breaks any link already sent to guests — only do this before sending invitations out.
           </p>
+          <p className="mt-1 text-[10.5px] font-semibold" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+            Make sure the couple's names on the Cover page are saved first — this button only updates the link itself, not the names it's based on.
+          </p>
           <button
-            onClick={() => { if (window.confirm("Update the link now? Any copy already sent to guests will stop working.")) onRegenerateSlug(); }}
+            onClick={() => { if (window.confirm("Have you already saved the couple's names on the Cover page? This button only updates the LINK — it does not save the names themselves.\n\nUpdating the link now will also break any copy already sent to guests.\n\nContinue?")) onRegenerateSlug(); }}
             className="mt-2 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium"
             style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }}
           >
