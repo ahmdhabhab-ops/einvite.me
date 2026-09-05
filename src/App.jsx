@@ -6819,7 +6819,18 @@ export default function InvitationBuilder() {
 
   const autoTitle = `${content.en.cover.name1} & ${content.en.cover.name2} — Wedding Invitation`;
   const autoDescription = content.en.cover.intro;
-  const slug = `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+  // The REAL, permanent slug guest links actually route against (matched in
+  // the guest-detection effect below via u.invitationSlug === urlSlug) — set
+  // once, at invitation-creation time, and never recomputed after. Using
+  // anything else here (like deriving a slug fresh from the current cover
+  // page names) is what previously caused the link shown in Settings to
+  // silently drift away from the actual working guest link the moment
+  // someone typed in the couple's real names after signing up under a
+  // different one. Falls back to a fresh, name-derived slug only for the
+  // owner's own demo slot, which has no invitationSlug record of its own.
+  const activeUserRecord = users.find((u) => u.id === activeInvitationId);
+  const slug = activeUserRecord?.invitationSlug
+    || `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
 
   // ------------------------------------------------------------------ //
   // Guest-link detection — runs once on load. If the URL is /e/:slug,
