@@ -60,10 +60,14 @@ function escapeHtml(str) {
 async function getKvValue(key) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: supabaseHeaders });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`og-middleware: getKvValue("${key}") failed with status ${res.status}:`, await res.text().catch(() => ""));
+      return null;
+    }
     const rows = await res.json();
     return rows[0]?.value ? JSON.parse(rows[0].value) : null;
-  } catch {
+  } catch (err) {
+    console.error(`og-middleware: getKvValue("${key}") threw:`, err);
     return null;
   }
 }
@@ -83,7 +87,10 @@ export default async function middleware(req) {
     // slug belongs to (users list lives in the main draft payload), then
     // fetch that specific client's own saved snapshot for their real og data.
     const draft = await getKvValue("einvite:draft-core");
+    console.log(`og-middleware: draft found=${!!draft}, users count=${draft?.users?.length ?? "N/A"}`);
+
     const matchedUser = (draft?.users || []).find((u) => u.invitationSlug === slug);
+    console.log(`og-middleware: looking for slug="${slug}", matchedUser found=${!!matchedUser}${matchedUser ? `, userId=${matchedUser.id}` : ""}`);
 
     let ogImage = null;
     let ogTitle = "You're Invited";
@@ -91,6 +98,7 @@ export default async function middleware(req) {
 
     if (matchedUser) {
       const snapshot = await getKvValue(`einvite:invitation-${matchedUser.id}`);
+      console.log(`og-middleware: snapshot found=${!!snapshot}, has og=${!!snapshot?.og}, og.image present=${!!snapshot?.og?.image}`);
       if (snapshot?.og) {
         ogImage = snapshot.og.image || null;
         ogTitle = snapshot.og.title || ogTitle;
