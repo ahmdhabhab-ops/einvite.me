@@ -7,7 +7,7 @@ import {
   ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Cross, Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -46,6 +46,20 @@ const TIMELINE_ICONS = {
   party: { icon: PartyPopper }, heart: { icon: Heart }, sparkles: { icon: Sparkles },
 };
 
+// Lucide's own "Cross" icon is a symmetric medical/first-aid cross (equal
+// arms, like a plus sign) — not a Latin/religious cross, which has a long
+// vertical bar and a shorter horizontal bar set in the upper third, not
+// centered. Drawn here directly rather than relying on lucide's version,
+// which visibly doesn't match what a religious cross actually looks like.
+function LatinCrossIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" style={style}>
+      <line x1="12" y1="2" x2="12" y2="22" />
+      <line x1="5" y1="8" x2="19" y2="8" />
+    </svg>
+  );
+}
+
 // Decorative icons available as a standalone block on ANY page, or next to
 // each side's title on the Family page. Lucide doesn't provide a combined
 // crescent-and-star or Star-of-David icon, so each entry is named for
@@ -53,7 +67,7 @@ const TIMELINE_ICONS = {
 // rather than claiming a specific religious symbol it wouldn't precisely
 // represent.
 const DECORATIVE_ICONS = {
-  cross: { name: "Cross", icon: Cross },
+  cross: { name: "Cross", icon: LatinCrossIcon },
   church: { name: "Church", icon: Church },
   crescentMoon: { name: "Crescent moon", icon: Moon },
   openBook: { name: "Open book", icon: BookOpen },
@@ -1852,6 +1866,10 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
           <FieldLabel>Side one title</FieldLabel>
           <TextInput value={c.side1Title} onChange={(v) => updateContent({ side1Title: v })} />
           <div className="mt-3">
+            <FieldLabel>Title color (optional)</FieldLabel>
+            <SwatchColorPicker value={c.side1TitleColor} onChange={(v) => updateContent({ side1TitleColor: v })} />
+          </div>
+          <div className="mt-3">
             <FieldLabel>Icon (optional)</FieldLabel>
             <FamilyIconPicker value={c.side1Icon} onChange={(v) => updateContent({ side1Icon: v })} />
           </div>
@@ -1859,10 +1877,18 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side1Names} onChange={(v) => updateContent({ side1Names: v })} />
           </div>
+          <div className="mt-3">
+            <FieldLabel>Names color (optional)</FieldLabel>
+            <SwatchColorPicker value={c.side1NamesColor} onChange={(v) => updateContent({ side1NamesColor: v })} />
+          </div>
         </div>
         <div>
           <FieldLabel>Side two title</FieldLabel>
           <TextInput value={c.side2Title} onChange={(v) => updateContent({ side2Title: v })} />
+          <div className="mt-3">
+            <FieldLabel>Title color (optional)</FieldLabel>
+            <SwatchColorPicker value={c.side2TitleColor} onChange={(v) => updateContent({ side2TitleColor: v })} />
+          </div>
           <div className="mt-3">
             <FieldLabel>Icon (optional)</FieldLabel>
             <FamilyIconPicker value={c.side2Icon} onChange={(v) => updateContent({ side2Icon: v })} />
@@ -1871,9 +1897,42 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side2Names} onChange={(v) => updateContent({ side2Names: v })} />
           </div>
+          <div className="mt-3">
+            <FieldLabel>Names color (optional)</FieldLabel>
+            <SwatchColorPicker value={c.side2NamesColor} onChange={(v) => updateContent({ side2NamesColor: v })} />
+          </div>
         </div>
       </div>
       <BackgroundPicker bg={bg} onChange={setBg} />
+    </div>
+  );
+}
+
+// A tiny swatch picker for a single optional color override — used where a
+// full style panel would be overkill (per-side title/name colors that
+// share a position with their counterpart, so styling them independently
+// through the canvas selection isn't possible).
+function SwatchColorPicker({ value, onChange }) {
+  const swatches = ["#F4EDE4", "#C9A44C", "#B76E6E", "#24463D", "#93A69B", "#FBF1E7"];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        onClick={() => onChange(null)}
+        title="Use default"
+        className="flex h-7 w-7 items-center justify-center rounded-full"
+        style={{ border: `1.5px solid ${!value ? GOLD : "rgba(147,166,155,0.35)"}`, color: !value ? GOLD_SOFT : MUTED }}
+      >
+        <X size={11} />
+      </button>
+      {swatches.map((c) => (
+        <button
+          key={c}
+          onClick={() => onChange(c)}
+          title={c}
+          className="h-7 w-7 rounded-full"
+          style={{ background: c, border: value === c ? `2px solid ${GOLD}` : "1px solid rgba(255,255,255,0.4)" }}
+        />
+      ))}
     </div>
   );
 }
@@ -2775,12 +2834,13 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
           )}
           <DraggableBlock id="titles" pos={ts} editMode={editMode} onMove={(p) => onMoveBlock("titles", p)} onScale={(scale) => onMoveBlock("titles", { scale })} label="Side titles" light={light} selected={selectedBlock === "titles"} onSelect={() => onSelectBlock("titles")}>
             <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
-              {[{ title: content.side1Title, icon: content.side1Icon }, { title: content.side2Title, icon: content.side2Icon }].map((side, i) => {
+              {[{ title: content.side1Title, icon: content.side1Icon, color: content.side1TitleColor }, { title: content.side2Title, icon: content.side2Icon, color: content.side2TitleColor }].map((side, i) => {
                 const SideIcon = DECORATIVE_ICONS[side.icon]?.icon;
+                const sideColor = side.color || ts.color || (light ? GOLD_SOFT : ROSE);
                 return (
                   <div key={i} className="flex flex-col items-center gap-1 text-center">
-                    {SideIcon && <SideIcon size={14} style={{ color: ts.color || (light ? GOLD_SOFT : ROSE) }} />}
-                    <div className="text-[9.5px] font-semibold uppercase" style={{ color: ts.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.1em", fontFamily: ts.fontFamily || FONT_BODY, fontSize: ts.fontSize ? `${ts.fontSize}px` : undefined }}>{side.title}</div>
+                    {SideIcon && <SideIcon size={14} style={{ color: sideColor }} />}
+                    <div className="text-[9.5px] font-semibold uppercase" style={{ color: sideColor, letterSpacing: "0.1em", fontFamily: ts.fontFamily || FONT_BODY, fontSize: ts.fontSize ? `${ts.fontSize}px` : undefined }}>{side.title}</div>
                   </div>
                 );
               })}
@@ -2788,9 +2848,9 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
           </DraggableBlock>
           <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
             <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
-              {[content.side1Names, content.side2Names].map((names, i) => (
+              {[{ names: content.side1Names, color: content.side1NamesColor }, { names: content.side2Names, color: content.side2NamesColor }].map((side, i) => (
                 <div key={i} className="text-center">
-                  <div style={{ color: ns.color || (light ? PAPER : EMERALD), fontFamily: ns.fontFamily || fontDisplay, fontSize: ns.fontSize ? `${ns.fontSize}px` : 13 }}>{names}</div>
+                  <div style={{ color: side.color || ns.color || (light ? PAPER : EMERALD), fontFamily: ns.fontFamily || fontDisplay, fontSize: ns.fontSize ? `${ns.fontSize}px` : 13 }}>{side.names}</div>
                 </div>
               ))}
             </div>
@@ -6306,6 +6366,7 @@ export default function InvitationBuilder() {
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
@@ -6930,6 +6991,20 @@ export default function InvitationBuilder() {
     setView(destinationView);
   };
 
+  // Lets a client re-pick a template AT ANY TIME after they've already
+  // started their invitation — not just once at first signup. Reuses
+  // applyTemplateToSnapshot directly on the current live state rather than
+  // a stored snapshot, since that function only ever touches pageBackgrounds
+  // and intro (visual style) and never content — so any names, dates, or
+  // other text the client has already typed in is left completely
+  // untouched by switching designs this way.
+  const switchToTemplate = (template) => {
+    const result = applyTemplateToSnapshot({ pageBackgrounds, intro }, template);
+    setPageBackgrounds(result.pageBackgrounds);
+    setIntro(result.intro);
+    setShowTemplateSwitcher(false);
+  };
+
   // Client-side: this is where the CLIENT THEMSELVES lands after logging
   // in on their own device — this is what actually connects the template
   // picker to the right person. Gated on invitationSlug as a stand-in for
@@ -7368,6 +7443,9 @@ export default function InvitationBuilder() {
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} />
+              <div className="mb-4 flex justify-end">
+                <GhostButton onClick={() => setShowTemplateSwitcher(true)}><ImagePlus size={13} /> Browse Templates</GhostButton>
+              </div>
               <StepRail steps={steps} activeIndex={activeIndex} visited={visited} onSelect={selectStep} />
 
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -7587,6 +7665,15 @@ export default function InvitationBuilder() {
           />
         )}
           </>
+        )}
+
+        {showTemplateSwitcher && (
+          <div className="fixed inset-0 z-[100] overflow-y-auto" style={{ background: INK }}>
+            <TemplatePicker
+              onChoose={switchToTemplate}
+              onCancel={() => setShowTemplateSwitcher(false)}
+            />
+          </div>
         )}
       </div>
     </div>
