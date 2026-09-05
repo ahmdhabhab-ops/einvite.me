@@ -6083,6 +6083,39 @@ function AppLoadingScreen() {
   );
 }
 
+// A small, floating language switcher shown to GUESTS viewing an
+// invitation — previously the displayed language was fixed to whatever
+// the couple set as default, with no way for a guest to pick a different
+// one of the invitation's own enabled languages themselves.
+function GuestLanguageSwitcher({ current, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="fixed right-3 top-3 z-[60]">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-8 items-center gap-1 rounded-full px-3 text-[11px] font-semibold"
+        style={{ background: "rgba(10,12,10,0.55)", color: "#F4EDE4", backdropFilter: "blur(4px)", fontFamily: FONT_BODY }}
+      >
+        {LANG_META[current]?.short || current.toUpperCase()}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-9 overflow-hidden rounded-lg" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.3)", minWidth: 130 }}>
+          {options.map((code) => (
+            <button
+              key={code}
+              onClick={() => { onChange(code); setOpen(false); }}
+              className="block w-full px-3 py-2 text-left text-[12px]"
+              style={{ color: current === code ? GOLD_SOFT : IVORY, background: current === code ? "rgba(201,164,76,0.12)" : "transparent", fontFamily: FONT_BODY }}
+            >
+              {LANG_META[code]?.label || code}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CheckinPage({ token }) {
   const [checkin, setCheckin] = useState(null); // null=loading, false=invalid, {...}=result
   const [busy, setBusy] = useState(false);
@@ -6475,6 +6508,30 @@ function NetworkingMessageThread({ slug, me, connection, onBack }) {
 }
 
 export default function InvitationBuilder() {
+  // Loads the shared decorative/script fonts used throughout every page
+  // type — cover, family, RSVP, etc. — via a real <link rel="stylesheet">
+  // tag injected once, here, at the very top of the component, before any
+  // of the conditional early returns below (guest view, auth screen,
+  // loading states). A useEffect placed here always runs on mount
+  // regardless of which return path this component eventually takes,
+  // which a <style>@import block sitting inside only ONE of those return
+  // paths never did — that's what previously left the guest-facing
+  // invitation and the login screen with none of these fonts loaded at
+  // all. A real <link> tag is also strictly faster than @import: the
+  // browser can start fetching it immediately in parallel with everything
+  // else, rather than having to first fetch and parse the CSS that
+  // contains the @import before it even discovers there's a font
+  // stylesheet to fetch.
+  useEffect(() => {
+    const id = "einvite-google-fonts";
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&display=swap";
+    document.head.appendChild(link);
+  }, []);
+
   const [view, setView] = useState("builder");
   const [content, setContent] = useState(defaultContent);
   const [timeline, setTimeline] = useState(defaultTimeline);
@@ -6672,6 +6729,17 @@ export default function InvitationBuilder() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [visited, setVisited] = useState(new Set([0]));
 
+  // THE ACTUAL FIX for "hide the last page while viewing it -> white
+  // screen": the effect just below corrects activeIndex, but only AFTER a
+  // render has already completed — on the very render where steps just
+  // shrank (right after toggling a page's visibility), several places
+  // read steps[activeIndex] directly and crash immediately, before this
+  // effect gets a chance to run. safeIndex is clamped right here, at the
+  // same time steps itself is known, so every read below (and every place
+  // this gets passed down as a prop) is safe on that very first render —
+  // not just eventually, after the effect corrects the underlying state.
+  const safeIndex = Math.min(activeIndex, Math.max(0, steps.length - 1));
+
   useEffect(() => {
     if (activeIndex > steps.length - 1) setActiveIndex(Math.max(0, steps.length - 1));
   }, [steps.length, activeIndex]);
@@ -6708,7 +6776,7 @@ export default function InvitationBuilder() {
     setLayouts((l) => ({ ...l, [stepKey]: { ...l[stepKey], [blockId]: { ...l[stepKey][blockId], ...patch } } }));
 
   const resetLayout = () => {
-    const key = steps[activeIndex].key;
+    const key = steps[safeIndex].key;
     setLayouts((l) => ({ ...l, [key]: { ...DEFAULT_LAYOUTS[key] } }));
     setCustomBlocks((c) => ({ ...c, [key]: [] }));
     setSelectedBlockId(null);
@@ -6884,7 +6952,7 @@ export default function InvitationBuilder() {
   };
 
   const addCustomText = () => {
-    const stepKey = steps[activeIndex].key;
+    const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "text", text: "New text", x: 50, y: 50, fontFamily: null, color: null, fontSize: 16 };
     setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
     setSelectedBlockId(`custom:${newBlock.id}`);
@@ -6892,7 +6960,7 @@ export default function InvitationBuilder() {
   const addCustomImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const stepKey = steps[activeIndex].key;
+    const stepKey = steps[safeIndex].key;
     const addBlock = (url) => {
       const existingImages = customBlocks[stepKey].filter((b) => b.type === "image").length;
       const offset = (existingImages % 4) * 8; // small staggered offset so new images don't land exactly on top of existing ones
@@ -6909,7 +6977,7 @@ export default function InvitationBuilder() {
     }
   };
   const addCustomIcon = (iconKey) => {
-    const stepKey = steps[activeIndex].key;
+    const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "icon", icon: iconKey, x: 50, y: 50, iconSize: 32, color: null };
     setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
     setSelectedBlockId(`custom:${newBlock.id}`);
@@ -7215,7 +7283,7 @@ export default function InvitationBuilder() {
 
   const totalAttending = flattenMembers(guestGroups).filter((m) => m.status === "yes").length;
   const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks, rsvpSettings, totalAttending, integrations };
-  const stepKey = steps[activeIndex].key;
+  const stepKey = steps[safeIndex].key;
   const c = content[activeLang];
 
   const autoTitle = `${content.en.cover.name1} & ${content.en.cover.name2} — Wedding Invitation`;
@@ -7261,6 +7329,7 @@ export default function InvitationBuilder() {
   // ------------------------------------------------------------------ //
 
   const [guestView, setGuestView] = useState(null); // null = checking, false = not a guest link, { ... } = resolved
+  const [guestLangOverride, setGuestLangOverride] = useState(null); // null = use the invitation's own default language; set once a guest explicitly picks one via the new language switcher
   const [guestActiveIndex, setGuestActiveIndex] = useState(0);
   const [guestStarted, setGuestStarted] = useState(false);
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
@@ -7333,7 +7402,12 @@ export default function InvitationBuilder() {
   const guestSteps = guestView && guestView.found
     ? (guestView.ownSlug ? steps : (guestView.snapshot.pageOrder || ALL_STEPS.map((s) => s.key)).map((k) => ALL_STEPS.find((s) => s.key === k)).filter(Boolean).filter((s) => (guestView.snapshot.enabledSteps || {})[s.key]))
     : null;
-  const guestLang = guestView && guestView.found ? (guestView.ownSlug ? activeLang : (guestView.snapshot.defaultLang || "en")) : "en";
+  const guestEnabledLanguages = guestView && guestView.found
+    ? (guestView.ownSlug ? enabledLanguages : (guestView.snapshot.enabledLanguages || ["en"]))
+    : ["en"];
+  const guestLang = guestLangOverride && guestEnabledLanguages.includes(guestLangOverride)
+    ? guestLangOverride
+    : (guestView && guestView.found ? (guestView.ownSlug ? activeLang : (guestView.snapshot.defaultLang || "en")) : "en");
   const matchedGroup = guestView && guestView.found ? guestView.snapshotGuestGroups.find((g) => g.id === guestView.groupId) : null;
   const resolvedGuestName = matchedGroup?.members?.find((m) => m.status === "yes")?.name || matchedGroup?.members?.[0]?.name || guestView?.guestNameParam || null;
 
@@ -7442,7 +7516,14 @@ export default function InvitationBuilder() {
 
   if (guestView && guestView.found) {
     return (
-      <div>
+      <div className="relative">
+        {guestEnabledLanguages.length > 1 && (
+          <GuestLanguageSwitcher
+            current={guestLang}
+            options={guestEnabledLanguages}
+            onChange={setGuestLangOverride}
+          />
+        )}
         <PhonePreview
           data={guestData}
           steps={guestSteps}
@@ -7516,7 +7597,6 @@ export default function InvitationBuilder() {
   return (
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
         @keyframes slideUpIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDownIn { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
@@ -7601,10 +7681,10 @@ export default function InvitationBuilder() {
               <div className="mb-4 flex justify-end">
                 <GhostButton onClick={() => setShowTemplateSwitcher(true)}><ImagePlus size={13} /> Browse Templates</GhostButton>
               </div>
-              <StepRail steps={steps} activeIndex={activeIndex} visited={visited} onSelect={selectStep} />
+              <StepRail steps={steps} activeIndex={safeIndex} visited={visited} onSelect={selectStep} />
 
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{steps[activeIndex].label}</h2>
+                <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{steps[safeIndex].label}</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
@@ -7769,7 +7849,7 @@ export default function InvitationBuilder() {
             </div>
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
-              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} />
+              <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} />
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
