@@ -6336,6 +6336,15 @@ export default function InvitationBuilder() {
   const [timeline, setTimeline] = useState(defaultTimeline);
   const [locations, setLocations] = useState(defaultLocations);
   const [pageBackgrounds, setPageBackgrounds] = useState(defaultPageBackgrounds);
+  // THE ACTUAL FIX for "pick a template, it reverts back": the initial page
+  // load fetches each of the 10 pages' backgrounds one at a time, from
+  // Supabase, sequentially — if the user picks a template (or edits a
+  // background manually) before all 10 have finished, whichever ones were
+  // still in flight would land AFTER the new choice and silently overwrite
+  // it with the old, previously-saved value. This ref tracks whether the
+  // user has made a manual change since mount; the load effect's own
+  // callbacks check it and skip applying their (now-stale) result once true.
+  const userChangedBackgroundsRef = useRef(false);
   const [music, setMusic] = useState({ enabled: true, url: null, name: "", icon: "speaker" });
   const [rsvpSchedule, setRsvpSchedule] = useState({ date: "2027-06-12", time: "16:00" });
   const [registry, setRegistry] = useState(defaultRegistry);
@@ -6546,7 +6555,7 @@ export default function InvitationBuilder() {
   const updateContentSection = (stepKey, patch) =>
     setContent((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: { ...c[activeLang][stepKey], ...patch } } }));
 
-  const setBgFor = (stepKey) => (bg) => setPageBackgrounds((p) => ({ ...p, [stepKey]: bg }));
+  const setBgFor = (stepKey) => (bg) => { userChangedBackgroundsRef.current = true; setPageBackgrounds((p) => ({ ...p, [stepKey]: bg })); };
 
   const moveBlock = (stepKey, blockId, pos) =>
     setLayouts((l) => ({ ...l, [stepKey]: { ...l[stepKey], [blockId]: { ...l[stepKey][blockId], ...pos } } }));
@@ -6636,7 +6645,7 @@ export default function InvitationBuilder() {
     const loadBg = (key) => (async () => {
       try {
         const res = await persistentStorage.get(bgKey(key), false);
-        if (cancelled || !res?.value) return;
+        if (cancelled || userChangedBackgroundsRef.current || !res?.value) return;
         const bg = JSON.parse(res.value);
         setPageBackgrounds((p) => ({ ...p, [key]: bg }));
       } catch {}
@@ -6999,6 +7008,7 @@ export default function InvitationBuilder() {
   // other text the client has already typed in is left completely
   // untouched by switching designs this way.
   const switchToTemplate = (template) => {
+    userChangedBackgroundsRef.current = true;
     const result = applyTemplateToSnapshot({ pageBackgrounds, intro }, template);
     setPageBackgrounds(result.pageBackgrounds);
     setIntro(result.intro);
