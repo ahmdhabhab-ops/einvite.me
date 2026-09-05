@@ -6867,7 +6867,7 @@ export default function InvitationBuilder() {
   const regenerateSlugFromCoupleNames = () => {
     if (!activeUserRecord) return;
     const newSlug = generateUniqueSlug(`${content.en.cover.name1}-${content.en.cover.name2}`, activeUserRecord.id);
-    setUsers((list) => list.map((u) => (u.id === activeUserRecord.id ? { ...u, invitationSlug: newSlug } : u)));
+    saveUsersDirectly((list) => list.map((u) => (u.id === activeUserRecord.id ? { ...u, invitationSlug: newSlug } : u)));
   };
 
   // ------------------------------------------------------------------ //
