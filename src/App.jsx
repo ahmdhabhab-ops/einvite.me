@@ -1043,6 +1043,32 @@ const DEFAULT_LAYOUTS = {
   livestream: { heading: { x: 50, y: 32 }, button: { x: 50, y: 58 } },
 };
 
+/**
+ * Fills in any per-block layout key missing from previously-saved data with
+ * its DEFAULT_LAYOUTS value — a saved block's own x/y/color/etc always wins
+ * where it exists. THE ACTUAL BUG THIS FIXES: saved layouts were being
+ * loaded via a plain object replace (or, at one load site, a merge that
+ * only went one level deep — per PAGE key, not per BLOCK key within a
+ * page). Older saved data naturally predates any block added after it was
+ * saved (e.g. the Family page's "titles" block), so that key was simply
+ * missing from `layouts.family` after loading — and DraggableBlock reads
+ * `pos.y` directly with no fallback, so a missing block crashes the whole
+ * page (blank/white screen) instead of degrading gracefully. Call this on
+ * every load path that sets layouts from saved data, not just one of them.
+ */
+function mergeLayoutsWithDefaults(savedLayouts) {
+  const merged = {};
+  for (const pageKey of Object.keys(DEFAULT_LAYOUTS)) {
+    merged[pageKey] = { ...DEFAULT_LAYOUTS[pageKey], ...(savedLayouts?.[pageKey] || {}) };
+  }
+  // Preserve any page key saved data has that defaults don't (forward
+  // compatibility with a newer save loaded by an older code version).
+  for (const pageKey of Object.keys(savedLayouts || {})) {
+    if (!merged[pageKey]) merged[pageKey] = savedLayouts[pageKey];
+  }
+  return merged;
+}
+
 const seedGuestGroups = () => {
   const now = Date.now();
   const day = 86400000;
@@ -6365,7 +6391,7 @@ export default function InvitationBuilder() {
     setContent(snap.content); setTimeline(snap.timeline); setLocations(snap.locations);
     setPageBackgrounds(snap.pageBackgrounds); setMusic(snap.music); setRsvpSchedule(snap.rsvpSchedule);
     setRegistry(snap.registry); setEnabledSteps(snap.enabledSteps); setPageOrder(snap.pageOrder);
-    setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(snap.layouts); setCustomBlocks(snap.customBlocks);
+    setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(snap.customBlocks);
     setOg(snap.og); setGuestGroups(snap.guestGroups); setTables(snap.tables || []); setRsvpSettings(snap.rsvpSettings);
     setIntegrations(snap.integrations); setIntro(snap.intro);
     setActiveIndex(0); setVisited(new Set([0])); setStarted(false); setSelectedBlockId(null); setLayoutEditMode(false);
@@ -6468,7 +6494,7 @@ export default function InvitationBuilder() {
         if (d.rsvpSchedule) setRsvpSchedule(d.rsvpSchedule);
         if (d.defaultLang) setDefaultLang(d.defaultLang);
         if (d.enabledLanguages) setEnabledLanguages(d.enabledLanguages);
-        if (d.layouts) setLayouts((l) => ({ ...DEFAULT_LAYOUTS, ...l, ...d.layouts }));
+        if (d.layouts) setLayouts(mergeLayoutsWithDefaults(d.layouts));
         if (d.guestGroups) setGuestGroups(d.guestGroups);
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
