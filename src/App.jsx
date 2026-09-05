@@ -904,6 +904,39 @@ function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
   });
 }
 
+/**
+ * Uploads a file to Supabase Storage's public bucket and returns its real,
+ * fetchable https:// URL — as opposed to readImageCompressed above, which
+ * returns an embedded base64 data URI. This distinction matters
+ * specifically for the OG image: WhatsApp/Facebook's crawler independently
+ * fetches and caches whatever URL is in og:image, and is documented to
+ * expect a real URL it can request on its own — not a value already
+ * embedded inline in the HTML it received. A data URI most likely doesn't
+ * satisfy that, which is the actual reason the OG image wasn't showing up
+ * in link previews even though it displayed correctly inside this app's
+ * own UI (where a data URI works completely normally).
+ *
+ * Requires a PUBLIC bucket named "og-images" in Supabase Storage — same
+ * setup as the "template-images" bucket used for template designs
+ * (Dashboard -> Storage -> create bucket -> toggle Public).
+ */
+async function uploadImageToStorage(file, bucket = "og-images") {
+  const compressedDataUrl = await readImageCompressed(file, 1200, 0.82);
+  const blob = await (await fetch(compressedDataUrl)).blob(); // convert the compressed data URI back into a real Blob Storage can actually store
+  const ext = blob.type === "image/png" ? "png" : "jpg";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": blob.type },
+    body: blob,
+  });
+  if (!res.ok) {
+    console.error("uploadImageToStorage failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't upload the image — please try again.");
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Languages                                                                */
 /* ---------------------------------------------------------------------- */
@@ -4054,16 +4087,20 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
 
 function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
+  const [ogUploading, setOgUploading] = useState(false);
+  const [ogUploadError, setOgUploadError] = useState("");
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setOgUploading(true);
+    setOgUploadError("");
     try {
-      const dataUrl = await readImageCompressed(file, 1200, 0.82);
-      setOg((o) => ({ ...o, image: dataUrl }));
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => setOg((o) => ({ ...o, image: reader.result }));
-      reader.readAsDataURL(file);
+      const url = await uploadImageToStorage(file);
+      setOg((o) => ({ ...o, image: url }));
+    } catch (err) {
+      setOgUploadError(err.message || "Couldn't upload the image — please try again.");
+    } finally {
+      setOgUploading(false);
     }
   };
   const link = `https://${siteDomain}/e/${slug}`;
@@ -4109,11 +4146,12 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         <div className="flex h-20 w-32 items-center justify-center overflow-hidden rounded-lg" style={{ border: og.image ? `2px solid ${GOLD}` : `2px dashed rgba(147,166,155,0.5)`, background: og.image ? `url(${og.image}) center/cover` : "transparent" }}>
           {!og.image && <Upload size={18} style={{ color: MUTED }} />}
         </div>
-        <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUpload} />
+        <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUpload} disabled={ogUploading} />
         <div className="flex flex-col items-start gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }}>
-            <ImagePlus size={13} /> {og.image ? "Replace image" : "Upload image"}
+            <ImagePlus size={13} /> {ogUploading ? "Uploading…" : og.image ? "Replace image" : "Upload image"}
           </span>
+          {ogUploadError && <span className="text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{ogUploadError}</span>}
           {og.image && (
             <button onClick={(e) => { e.preventDefault(); setOg((o) => ({ ...o, image: null })); }} className="text-left text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
               Remove image
@@ -4990,16 +5028,20 @@ function EventOverviewView({
   const yes = allMembers.filter((m) => m.status === "yes").length;
   const no = allMembers.filter((m) => m.status === "no").length;
 
+  const [ogUploading, setOgUploading] = useState(false);
+  const [ogUploadError, setOgUploadError] = useState("");
   const onUploadPhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setOgUploading(true);
+    setOgUploadError("");
     try {
-      const dataUrl = await readImageCompressed(file, 1200, 0.82);
-      setOg((o) => ({ ...o, image: dataUrl }));
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => setOg((o) => ({ ...o, image: reader.result }));
-      reader.readAsDataURL(file);
+      const url = await uploadImageToStorage(file);
+      setOg((o) => ({ ...o, image: url }));
+    } catch (err) {
+      setOgUploadError(err.message || "Couldn't upload the image — please try again.");
+    } finally {
+      setOgUploading(false);
     }
   };
 
@@ -5086,12 +5128,13 @@ function EventOverviewView({
         <div className="mt-4 flex items-center gap-3">
           <label className="flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-lg" style={{ border: og.image ? `2px solid ${GOLD}` : `2px dashed rgba(147,166,155,0.5)`, background: og.image ? `url(${og.image}) center/cover` : INK_3 }}>
             {!og.image && <ImagePlus size={16} style={{ color: MUTED }} />}
-            <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUploadPhoto} />
+            <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUploadPhoto} disabled={ogUploading} />
           </label>
           <GhostUploadButton accept="image/*" onChange={onUploadPhoto}>
-            <ImagePlus size={13} /> Upload photo
+            <ImagePlus size={13} /> {ogUploading ? "Uploading…" : "Upload photo"}
           </GhostUploadButton>
         </div>
+        {ogUploadError && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{ogUploadError}</p>}
         <div className="mt-3">
           <FieldLabel>Share description</FieldLabel>
           <TextArea value={og.description} onChange={(v) => setOg((o) => ({ ...o, description: v }))} rows={2} placeholder="A short line guests see when the link is shared" />
@@ -6989,6 +7032,7 @@ export default function InvitationBuilder() {
           slug={guestView.slug}
           siteDomain={siteDomain}
           prefilledGuestName={resolvedGuestName}
+          onUpdateRsvpContent={() => {}}
         />
       </div>
     );
@@ -7272,7 +7316,7 @@ export default function InvitationBuilder() {
             </div>
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
-              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} />
+              <PhonePreview data={data} steps={steps} activeIndex={activeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} />
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
