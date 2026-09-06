@@ -2994,11 +2994,19 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8 }}
       />
     );
+    // Without this, a link typed as "instagram.com/xxx" (no protocol) gets
+    // treated by the browser as a relative path off the CURRENT invitation
+    // URL instead of an external site — which looks exactly like "tapping
+    // the image does nothing", since it silently navigates to a broken
+    // internal path rather than the intended external link.
+    const normalizedLinkUrl = block.linkUrl && !/^([a-z][a-z0-9+.-]*:)/i.test(block.linkUrl.trim())
+      ? `https://${block.linkUrl.trim()}`
+      : block.linkUrl?.trim();
     return (
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT}>
         {toolbar}
-        {!editMode && block.linkUrl ? (
-          <a href={block.linkUrl} target="_blank" rel="noreferrer">{img}</a>
+        {!editMode && normalizedLinkUrl ? (
+          <a href={normalizedLinkUrl} target="_blank" rel="noreferrer">{img}</a>
         ) : (
           img
         )}
@@ -7047,6 +7055,7 @@ export default function InvitationBuilder() {
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
+  const [templateSwitching, setTemplateSwitching] = useState(false); // drives the fade overlay during a template switch
   const [swipeDirection, setSwipeDirection] = useState("vertical"); // "vertical" (swipe up) or "horizontal" (swipe left)
   const [transitionStyle, setTransitionStyle] = useState("slide"); // "slide" (current quick fade) or "stack" (slower, card-emerging-from-a-stack feel)
   const [showPublishModal, setShowPublishModal] = useState(false);
@@ -7713,11 +7722,19 @@ export default function InvitationBuilder() {
   // untouched by switching designs this way.
   const switchToTemplate = (template) => {
     userChangedBackgroundsRef.current = true;
-    const result = applyTemplateToSnapshot({ pageBackgrounds, intro, layouts }, template);
-    setPageBackgrounds(result.pageBackgrounds);
-    setIntro(result.intro);
-    if (result.layouts) setLayouts(result.layouts);
     setShowTemplateSwitcher(false);
+    setTemplateSwitching(true); // fade-out begins
+    setTimeout(() => {
+      const result = applyTemplateToSnapshot({ pageBackgrounds, intro, layouts }, template);
+      setPageBackgrounds(result.pageBackgrounds);
+      setIntro(result.intro);
+      if (result.layouts) setLayouts(result.layouts);
+      // Applied while still fully hidden behind the fade overlay — this is
+      // what actually makes the change look smooth rather than an instant
+      // jump: the visual swap itself always happens off-screen, behind
+      // opaque cover, regardless of how fast React re-renders it.
+      setTimeout(() => setTemplateSwitching(false), 30); // fade back in on the next frame, revealing the new template
+    }, 260); // fade-out duration — matches the CSS transition below
   };
 
   // Persists a confirmed package purchase onto the active client's own
@@ -8370,7 +8387,17 @@ export default function InvitationBuilder() {
             </div>
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
-              <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
+              <div className="relative">
+                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
+                {/* Fades to hide the instant background/style swap behind an
+                    opaque cover, then fades back in — this is what makes
+                    switching templates look like a smooth, medium-speed
+                    transition rather than the previous instant jump. */}
+                <div
+                  className="pointer-events-none absolute inset-0 rounded-[32px]"
+                  style={{ background: INK, opacity: templateSwitching ? 1 : 0, transition: "opacity 0.26s ease" }}
+                />
+              </div>
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
