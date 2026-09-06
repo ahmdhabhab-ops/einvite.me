@@ -7234,7 +7234,6 @@ export default function InvitationBuilder() {
   const introBgKey = (lang) => `einvite:introbg-${lang}`;
   const OG_IMAGE_KEY = "einvite:og-image";
   const invitationKey = (id) => `einvite:invitation-${id}`;
-  const CUSTOM_BLOCKS_KEY = "einvite:custom-blocks";
   const MUSIC_AUDIO_KEY = "einvite:music-audio";
 
   const selectStep = (i) => { setActiveIndex(i); setVisited((v) => new Set(v).add(i)); setStarted(true); setSelectedBlockId(null); };
@@ -7301,17 +7300,44 @@ export default function InvitationBuilder() {
               }
             });
             setInvitationsStore(restoredStore);
-            // THE ACTUAL FIX: guestGroups can now be updated directly (via
-            // addGuestGroup, updateGuestGroup, an RSVP submission, etc.)
-            // straight to the active invitation's own per-client key,
-            // without going through a "Save invitation" click that
-            // refreshes the main draft payload's own copy of guestGroups.
-            // Without this, the main payload's stale copy (set two lines
-            // above from d.guestGroups) would win on every reload,
-            // silently reverting anything saved directly since the last
-            // explicit save.
+            // THE ACTUAL FIX: the main draft payload's own copies of content,
+            // customBlocks, pageBackgrounds, layouts, etc. (set from d.xxx
+            // above) reflect whatever was active at the moment of the LAST
+            // "Save invitation" click — not necessarily the currently active
+            // client, since the owner may have switched to a different
+            // client's invitation, made edits there (custom images added,
+            // text changed, a background swapped), and reloaded or
+            // refreshed before clicking Save again. Each client's own data
+            // IS already saved correctly, immediately, to its own per-client
+            // key (via switchActiveInvitation, addGuestGroup, an RSVP
+            // submission, etc.) — so re-applying it here, AFTER the stale
+            // main-payload values above, is what makes the active client's
+            // real, current data win instead of silently reverting to
+            // whichever client happened to be active at the last save.
             const activeSnapshot = restoredStore[d.activeInvitationId];
-            if (activeSnapshot?.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
+            if (activeSnapshot) {
+              if (activeSnapshot.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
+              if (activeSnapshot.customBlocks) setCustomBlocks(activeSnapshot.customBlocks);
+              if (activeSnapshot.content) setContent(activeSnapshot.content);
+              if (activeSnapshot.pageBackgrounds) setPageBackgrounds(activeSnapshot.pageBackgrounds);
+              if (activeSnapshot.layouts) setLayouts(mergeLayoutsWithDefaults(activeSnapshot.layouts));
+              if (activeSnapshot.timeline) setTimeline(activeSnapshot.timeline);
+              if (activeSnapshot.locations) setLocations(activeSnapshot.locations);
+              if (activeSnapshot.registry) setRegistry(activeSnapshot.registry);
+              if (activeSnapshot.tables) setTables(activeSnapshot.tables);
+              if (activeSnapshot.rsvpSettings) setRsvpSettings(activeSnapshot.rsvpSettings);
+              if (activeSnapshot.integrations) setIntegrations(activeSnapshot.integrations);
+              if (activeSnapshot.intro) setIntro(activeSnapshot.intro);
+              if (activeSnapshot.og) setOg(activeSnapshot.og);
+              if (activeSnapshot.music) setMusic(activeSnapshot.music);
+              if (activeSnapshot.rsvpSchedule) setRsvpSchedule(activeSnapshot.rsvpSchedule);
+              if (activeSnapshot.enabledSteps) setEnabledSteps(activeSnapshot.enabledSteps);
+              if (Array.isArray(activeSnapshot.pageOrder)) setPageOrder(activeSnapshot.pageOrder);
+              if (activeSnapshot.defaultLang) setDefaultLang(activeSnapshot.defaultLang);
+              if (activeSnapshot.enabledLanguages) setEnabledLanguages(activeSnapshot.enabledLanguages);
+              if (activeSnapshot.swipeDirection) setSwipeDirection(activeSnapshot.swipeDirection);
+              if (activeSnapshot.transitionStyle) setTransitionStyle(activeSnapshot.transitionStyle);
+            }
           }
         }
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
@@ -7362,14 +7388,6 @@ export default function InvitationBuilder() {
     })();
     (async () => {
       try {
-        const res = await persistentStorage.get(CUSTOM_BLOCKS_KEY, false);
-        if (cancelled || !res?.value) return;
-        const cb = JSON.parse(res.value);
-        setCustomBlocks((c) => ({ ...emptyCustomBlocks(), ...c, ...cb }));
-      } catch {}
-    })();
-    (async () => {
-      try {
         const res = await persistentStorage.get(MUSIC_AUDIO_KEY, false);
         if (cancelled || !res?.value) return;
         setMusic((m) => ({ ...m, url: res.value }));
@@ -7398,10 +7416,6 @@ export default function InvitationBuilder() {
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
       ...ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)),
       ...LANGS.filter((lang) => intro.media[lang]?.url).map((lang) => persistentStorage.set(introBgKey(lang), JSON.stringify(intro.media[lang]), false)),
-      // customBlocks can contain embedded base64 images (custom image blocks) —
-      // its own key, same reasoning as everything else here: keep the core
-      // payload small and fast, regardless of how many images are in it.
-      persistentStorage.set(CUSTOM_BLOCKS_KEY, JSON.stringify(customBlocks), false),
       // THE ACTUAL FIX: only write the CURRENTLY ACTIVE invitation's own
       // snapshot here — not every other known client's local copy. Other
       // clients' data is now saved at the moment of switching away from
