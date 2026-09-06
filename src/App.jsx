@@ -3107,18 +3107,18 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                   style={{ filter: `drop-shadow(0 0 14px ${light ? "rgba(244,237,228,0.55)" : "rgba(183,110,110,0.55)"}) drop-shadow(0 0 34px ${light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"})`, zIndex: 0 }}
                 />
               )}
-              <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, lineHeight: 1.15, zIndex: 1 }}>
-                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
+              <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, zIndex: 1 }}>
+                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.3 }}>
                   {content.name1 || "—"}
                 </div>
                 {content.name2 ? (
                   <>
                     {ampersandText && (
-                      <div className="my-1" style={{ fontSize: "0.55em", fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>
+                      <div style={{ margin: "0.35em 0", fontSize: "0.55em", lineHeight: 1.3, fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>
                         {ampersandText}
                       </div>
                     )}
-                    <div style={{ fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
+                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.3 }}>
                       {content.name2}
                     </div>
                   </>
