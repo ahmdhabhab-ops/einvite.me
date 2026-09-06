@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Upload, Navigation2,
   Church, Wine, UtensilsCrossed, PartyPopper, Sparkles, Check, X, Music2, Star,
   Settings, BarChart3, Copy, Link2, ImagePlus, Search, CheckCircle2, XCircle, Move, Mail, Film,
-  ChevronsUp, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
+  ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun,
@@ -1197,10 +1197,10 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
-  ar: { orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
-  fr: { orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
-  es: { orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  en: { orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
+  ar: { orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
+  fr: { orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
+  es: { orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -4207,7 +4207,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide" }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -4277,17 +4277,20 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     if (next !== activeIndex) { setDirection(d); onNavigate(next); }
   };
 
-  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = e.touches[0].clientY; };
+  const isHorizontal = swipeDirection === "horizontal";
+  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
-    const dy = e.changedTouches[0].clientY - touchStartRef.current;
+    const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
     touchStartRef.current = null;
-    if (dy < -40) goDir(1); else if (dy > 40) goDir(-1);
+    if (delta < -40) goDir(1); else if (delta > 40) goDir(-1);
   };
   const onWheel = (e) => {
-    if (layoutEditMode || !started || wheelLockRef.current || Math.abs(e.deltaY) < 15) return;
+    if (layoutEditMode || !started || wheelLockRef.current) return;
+    const delta = isHorizontal ? e.deltaX : e.deltaY;
+    if (Math.abs(delta) < 15) return;
     wheelLockRef.current = true;
-    goDir(e.deltaY > 0 ? 1 : -1);
+    goDir(delta > 0 ? 1 : -1);
     setTimeout(() => (wheelLockRef.current = false), 550);
   };
 
@@ -4379,7 +4382,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       <style>{`
         @keyframes slideUpIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDownIn { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes stackIn { from { opacity: 0; transform: scale(0.88) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        @keyframes bounceLeft { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
         @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
@@ -4419,7 +4424,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} className="h-full w-full" style={{ animation: `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.35s ease` }}>
+          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.35s ease` }}>
             {renderSlide(stepKey)}
           </div>
 
@@ -4556,9 +4561,13 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           <>
             {activeIndex < steps.length - 1 && (
               <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
-                <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
+                {isHorizontal ? (
+                  <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
+                ) : (
+                  <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
+                )}
                 <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
-                  {t.swipeUp}
+                  {isHorizontal ? t.swipeLeft : t.swipeUp}
                 </span>
               </button>
             )}
@@ -4616,7 +4625,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -4664,6 +4673,35 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           This is still the placeholder domain — links won't work for real guests until you update it to wherever this app is actually deployed.
         </p>
       )}
+
+      <Divider />
+
+      <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Navigation style</h2>
+      <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        How guests move between pages of the invitation.
+      </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Swipe direction</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Which way guests swipe to move to the next page</div>
+        </div>
+        <SegmentedToggle
+          value={swipeDirection}
+          onChange={setSwipeDirection}
+          options={[{ value: "vertical", label: "Swipe up" }, { value: "horizontal", label: "Swipe left" }]}
+        />
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Transition style</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>How each page animates in when guests navigate</div>
+        </div>
+        <SegmentedToggle
+          value={transitionStyle}
+          onChange={setTransitionStyle}
+          options={[{ value: "slide", label: "Slide (quick)" }, { value: "stack", label: "Stack (slower)" }]}
+        />
+      </div>
 
       <Divider />
 
@@ -7009,6 +7047,8 @@ export default function InvitationBuilder() {
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
+  const [swipeDirection, setSwipeDirection] = useState("vertical"); // "vertical" (swipe up) or "horizontal" (swipe left)
+  const [transitionStyle, setTransitionStyle] = useState("slide"); // "slide" (current quick fade) or "stack" (slower, card-emerging-from-a-stack feel)
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
@@ -7115,11 +7155,13 @@ export default function InvitationBuilder() {
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
     },
     intro: defaultIntroSettings,
+    swipeDirection: "vertical", transitionStyle: "slide",
   });
 
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
+    swipeDirection, transitionStyle,
   });
 
   const applySnapshot = (snap) => {
@@ -7129,6 +7171,7 @@ export default function InvitationBuilder() {
     setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(snap.customBlocks);
     setOg(snap.og); setGuestGroups(snap.guestGroups); setTables(snap.tables || []); setRsvpSettings(snap.rsvpSettings);
     setIntegrations(snap.integrations); setIntro(snap.intro);
+    setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
     setActiveIndex(0); setVisited(new Set([0])); setStarted(false); setSelectedBlockId(null); setLayoutEditMode(false);
   };
 
@@ -7245,6 +7288,8 @@ export default function InvitationBuilder() {
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
         if (d.integrations) setIntegrations((i) => ({ ...i, ...d.integrations }));
+        if (d.swipeDirection) setSwipeDirection(d.swipeDirection);
+        if (d.transitionStyle) setTransitionStyle(d.transitionStyle);
         if (Array.isArray(d.invitationIds) && d.invitationIds.length) {
           const results = await Promise.allSettled(d.invitationIds.map((id) => persistentStorage.get(invitationKey(id), false)));
           if (!cancelled) {
@@ -7343,7 +7388,7 @@ export default function InvitationBuilder() {
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users, integrations, siteDomain,
+      guestGroups, tables, rsvpSettings, users, integrations, siteDomain, swipeDirection, transitionStyle,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media (image or video) saved separately below via introBgKey
@@ -7997,6 +8042,8 @@ export default function InvitationBuilder() {
           siteDomain={siteDomain}
           prefilledGuestName={resolvedGuestName}
           onUpdateRsvpContent={() => {}}
+          swipeDirection={swipeDirection}
+          transitionStyle={transitionStyle}
         />
       </div>
     );
@@ -8309,7 +8356,7 @@ export default function InvitationBuilder() {
             </div>
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
-              <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} />
+              <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
@@ -8322,7 +8369,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
