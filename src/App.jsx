@@ -3107,22 +3107,20 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                   style={{ filter: `drop-shadow(0 0 14px ${light ? "rgba(244,237,228,0.55)" : "rgba(183,110,110,0.55)"}) drop-shadow(0 0 34px ${light ? "rgba(244,237,228,0.35)" : "rgba(183,110,110,0.35)"})`, zIndex: 0 }}
                 />
               )}
-              <div className="relative" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, lineHeight: 1.1, zIndex: 1 }}>
-                <span style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
+              <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, lineHeight: 1.15, zIndex: 1 }}>
+                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
                   {content.name1 || "—"}
-                </span>
+                </div>
                 {content.name2 ? (
                   <>
                     {ampersandText && (
-                      <>
-                        {" "}
-                        <span style={{ fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>{ampersandText}</span>
-                      </>
+                      <div className="my-1" style={{ fontSize: "0.55em", fontFamily: namesStyle.ampersandFontFamily || namesStyle.fontFamily || fontScript, color: light ? GOLD_SOFT : ROSE }}>
+                        {ampersandText}
+                      </div>
                     )}
-                    {" "}
-                    <span style={{ fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
+                    <div style={{ fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD) }}>
                       {content.name2}
-                    </span>
+                    </div>
                   </>
                 ) : null}
               </div>
