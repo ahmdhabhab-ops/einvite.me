@@ -227,6 +227,12 @@ const supabaseHeaders = {
 // to public in Supabase Dashboard -> Storage -> template-images -> bucket
 // settings, or these URLs won't load for guests/clients.
 const TEMPLATE_IMAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/template-images`;
+// Same setup as TEMPLATE_IMAGE_BASE, but its own bucket — videos are much
+// larger than the template thumbnails, so keeping them separate avoids
+// slowing down anything that lists all templates and only needs the image.
+// Create this bucket the same way: Supabase Dashboard -> Storage -> New
+// bucket -> name it exactly "template-videos" -> toggle Public.
+const TEMPLATE_VIDEO_BASE = `${SUPABASE_URL}/storage/v1/object/public/template-videos`;
 
 const INVITATION_TEMPLATES = [
   {
@@ -266,6 +272,7 @@ const INVITATION_TEMPLATES = [
     // price is shown on the template card and is what buyer actually pays.
     price: 0, // placeholder — set the real price in USD (or your currency) before enabling this for real
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link here
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/1.mp4`
   },
   {
     id: "design-3",
@@ -281,6 +288,7 @@ const INVITATION_TEMPLATES = [
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/3.mp4`
   },
   {
     id: "design-5",
@@ -296,6 +304,7 @@ const INVITATION_TEMPLATES = [
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/5.mp4`
   },
   {
     id: "design-6",
@@ -311,6 +320,7 @@ const INVITATION_TEMPLATES = [
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/6.mp4`
   },
   {
     id: "design-8",
@@ -326,6 +336,7 @@ const INVITATION_TEMPLATES = [
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/8.mp4`
   },
   {
     id: "design-11",
@@ -341,6 +352,7 @@ const INVITATION_TEMPLATES = [
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/11.mp4`
   },
   {
     id: "design-12",
@@ -356,6 +368,7 @@ const INVITATION_TEMPLATES = [
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/12.mp4`
   },
 ];
 
@@ -6455,23 +6468,33 @@ function TemplateShopPage() {
 
         {selectedTemplate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
-            <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)` }}>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
-                <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
+            <div className="w-full max-w-sm overflow-hidden rounded-2xl" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, maxHeight: "90vh", overflowY: "auto" }}>
+              {selectedTemplate.previewVideo && (
+                <video
+                  src={selectedTemplate.previewVideo}
+                  controls
+                  playsInline
+                  style={{ width: "100%", display: "block", background: INK }}
+                />
+              )}
+              <div className="p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
+                  <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
+                </div>
+                <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
+                <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
+                <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
+                {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+                <button
+                  onClick={startPurchase}
+                  disabled={paying}
+                  className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
+                  style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: paying ? 0.6 : 1 }}
+                >
+                  {paying ? "Opening payment…" : `Pay $${selectedTemplate.price}`}
+                </button>
               </div>
-              <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
-              <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
-              <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
-              {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-              <button
-                onClick={startPurchase}
-                disabled={paying}
-                className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
-                style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: paying ? 0.6 : 1 }}
-              >
-                {paying ? "Opening payment…" : `Pay $${selectedTemplate.price}`}
-              </button>
             </div>
           </div>
         )}
