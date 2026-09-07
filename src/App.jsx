@@ -689,6 +689,32 @@ async function getStreamUrl(paymentReference) {
   return await res.json(); // { authorized, embedUrl? , status? }
 }
 
+/**
+ * Sends a real approval-notification email via the send-approval-email
+ * Edge Function (Resend under the hood — see approval-email-backend/).
+ * Never throws: a failed email send is logged but never blocks the actual
+ * account approval from succeeding, since the approval itself (unlocking
+ * the client's access) matters more than the notification about it.
+ */
+async function sendApprovalEmail({ recipientEmail, recipientName, invitationLink, siteDomain }) {
+  try {
+    const res = await fetch(`${EDGE_FUNCTIONS_URL}/send-approval-email`, {
+      method: "POST",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ recipientEmail, recipientName, invitationLink, siteDomain }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error("sendApprovalEmail failed:", res.status, data.error);
+      return { sent: false, error: data.error || `Status ${res.status}` };
+    }
+    return { sent: true };
+  } catch (err) {
+    console.error("sendApprovalEmail threw:", err);
+    return { sent: false, error: "Couldn't reach the email service." };
+  }
+}
+
 // ---------------------------------------------------------------------- //
 // Package purchases — a client can build/edit their invitation completely
 // freely; this is what actually unlocks it for real, live use (publishing
@@ -6042,9 +6068,9 @@ function UsersView({ users, invitationsStore, onDelete, onToggleStatus, onCreate
         <div className="mb-4 flex items-center gap-2 rounded-xl px-4 py-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.35)` }}>
           <Mail size={14} color={GOLD} />
           <span className="text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
-            Approved — a notification email was sent to <strong style={{ color: GOLD_SOFT }}>{approvalNotice}</strong>.
+            Approved — sending a notification email to <strong style={{ color: GOLD_SOFT }}>{approvalNotice}</strong>.
           </span>
-          <span className="ml-auto text-[10.5px] italic" style={{ color: MUTED, fontFamily: FONT_BODY }}>(simulated — no real email sent)</span>
+          <span className="ml-auto text-[10.5px] italic" style={{ color: MUTED, fontFamily: FONT_BODY }}>Check Edge Function logs if it doesn't arrive</span>
         </div>
       )}
 
@@ -7654,7 +7680,18 @@ export default function InvitationBuilder() {
 
   const deleteUser = (id) => saveUsersDirectly((list) => list.filter((u) => u.id !== id));
   const toggleUserStatus = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, status: u.status === "active" ? "inactive" : "active" } : u)));
-  const approveUser = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, status: "active", dashboardAccess: true, canDesign: true } : u)));
+  const approveUser = (id) => {
+    saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, status: "active", dashboardAccess: true, canDesign: true } : u)));
+    const approvedUser = users.find((u) => u.id === id);
+    if (approvedUser) {
+      sendApprovalEmail({
+        recipientEmail: approvedUser.email,
+        recipientName: approvedUser.name,
+        invitationLink: approvedUser.invitationSlug ? `https://${siteDomain}/e/${approvedUser.invitationSlug}` : null,
+        siteDomain,
+      });
+    }
+  };
   const toggleDashboardAccess = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, dashboardAccess: !u.dashboardAccess } : u)));
   const toggleCanDesign = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
   const updateUserEmail = (id, email) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
