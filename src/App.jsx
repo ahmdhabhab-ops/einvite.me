@@ -7922,6 +7922,7 @@ export default function InvitationBuilder() {
     const params = new URLSearchParams(window.location.search);
     const groupId = params.get("g");
     const guestNameParam = params.get("guest");
+    let cancelled = false;
 
     // This device's own currently-loaded invitation matches directly —
     // reuse the live state, no snapshot lookup needed.
@@ -7941,8 +7942,39 @@ export default function InvitationBuilder() {
       setGuestView({ found: false });
       return;
     }
-    const snapshot = invitationsStore[matchedUser.id] || freshInvitationSnapshot();
-    setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot, snapshotGuestGroups: snapshot.guestGroups || [], groupId, guestNameParam, packageTier: matchedUser.packageTier || null });
+    const cached = invitationsStore[matchedUser.id];
+    if (cached) {
+      setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot: cached, snapshotGuestGroups: cached.guestGroups || [], groupId, guestNameParam, packageTier: matchedUser.packageTier || null });
+      return;
+    }
+    // THE ACTUAL FIX for "shows default names first, then the real edits
+    // appear": this client's own real data was already saved correctly to
+    // their own invitationKey the moment their account was created — but
+    // this specific browser's local invitationsStore only knows about
+    // clients whose id happened to be listed in d.invitationIds at the
+    // last full "Save invitation" click, which creating a new client
+    // doesn't itself trigger. Rather than immediately falling back to
+    // generic default content while waiting for that list to eventually
+    // catch up, fetch this client's real data directly, right now — it's
+    // already sitting in Supabase regardless of whether their id made it
+    // into that list yet.
+    (async () => {
+      let snapshot = null;
+      if (persistentStorage.available()) {
+        try {
+          const res = await persistentStorage.get(invitationKey(matchedUser.id), false);
+          if (res?.value) snapshot = JSON.parse(res.value);
+        } catch (err) {
+          console.error(`Guest view: failed to directly fetch invitation data for user "${matchedUser.id}":`, err);
+        }
+      }
+      if (cancelled) return;
+      const finalSnapshot = snapshot || freshInvitationSnapshot();
+      if (snapshot) setInvitationsStore((store) => ({ ...store, [matchedUser.id]: snapshot })); // cache it, so this doesn't need to be re-fetched again this session
+      setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot: finalSnapshot, snapshotGuestGroups: finalSnapshot.guestGroups || [], groupId, guestNameParam, packageTier: matchedUser.packageTier || null });
+    })();
+
+    return () => { cancelled = true; };
     // Re-run once the real saved data finishes loading (it loads
     // asynchronously in a separate effect) — without this, a guest link can
     // get permanently evaluated against the initial seed/demo data instead
