@@ -256,6 +256,16 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"], // tag more narrowly once you know which occasion(s) each real design actually suits
+    // Etsy-style purchase: a guest pays THIS specific price for THIS
+    // specific design, then gets redirected straight to canvaTemplateUrl
+    // to customize it themselves in Canva — this app has no further
+    // involvement once that redirect happens. canvaTemplateUrl needs to
+    // be a real Canva "Use template" share link (Canva: open the design →
+    // Share → "Template link" — NOT the normal edit-URL, which would let
+    // a buyer edit YOUR original instead of getting their own copy).
+    // price is shown on the template card and is what buyer actually pays.
+    price: 0, // placeholder — set the real price in USD (or your currency) before enabling this for real
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link here
   },
   {
     id: "design-3",
@@ -269,6 +279,8 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "petals",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+    price: 0, // placeholder — set the real price
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
   },
   {
     id: "design-5",
@@ -282,6 +294,8 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "sparkleDrift",
     gateIcon: "star",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+    price: 0, // placeholder — set the real price
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
   },
   {
     id: "design-6",
@@ -295,6 +309,8 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+    price: 0, // placeholder — set the real price
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
   },
   {
     id: "design-8",
@@ -308,6 +324,8 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "floatingHearts",
     gateIcon: "heart",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+    price: 0, // placeholder — set the real price
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
   },
   {
     id: "design-11",
@@ -321,6 +339,8 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "petals",
     gateIcon: "star",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+    price: 0, // placeholder — set the real price
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
   },
   {
     id: "design-12",
@@ -334,6 +354,8 @@ const INVITATION_TEMPLATES = [
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
+    price: 0, // placeholder — set the real price
+    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
   },
 ];
 
@@ -771,6 +793,43 @@ async function getPackageStatus(paymentReference) {
     });
     if (!res.ok) return null;
     return await res.json(); // { status, packageTier }
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------- //
+// Per-template Canva purchases — an Etsy-style flow, separate and
+// independent from the package/publish system above: a guest picks a
+// specific design, pays that design's own price, and is redirected
+// straight to a real Canva template link to customize it themselves in
+// Canva — this app never touches that customization at all. Same proven
+// payment pattern (a pending session, a redirect to Whish, a server-side
+// webhook confirms it, this app polls to find out), against separate
+// Edge Functions of its own — see the setup note above INVITATION_TEMPLATES
+// for exactly what needs to be deployed for this to work for real.
+// ---------------------------------------------------------------------- //
+
+async function createTemplatePaymentSession(templateId, buyerEmail) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/create-template-payment-session`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ templateId, buyerEmail, guestToken: getOrCreateGuestToken() }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't start payment — please try again.");
+  return data; // { paymentReference, paymentUrl }
+}
+
+async function getTemplatePurchaseStatus(paymentReference) {
+  try {
+    const res = await fetch(`${EDGE_FUNCTIONS_URL}/get-template-purchase-status`, {
+      method: "POST",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ paymentReference }),
+    });
+    if (!res.ok) return null;
+    return await res.json(); // { status, canvaTemplateUrl }
   } catch {
     return null;
   }
@@ -6276,6 +6335,151 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
   );
 }
 
+// Etsy-style, standalone shop page — no account, no signup, no builder
+// involved at all. A buyer picks a specific design, pays that design's
+// own price, and is redirected straight to a real Canva template link to
+// customize it themselves in Canva. Completely separate from this app's
+// own package/publish payment system (PublishPaywallModal) — a template
+// bought here has nothing to do with an eInvite.me account or invitation.
+function TemplateShopPage() {
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [buyerEmail, setBuyerEmail] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [error, setError] = useState("");
+  const [purchasedUrl, setPurchasedUrl] = useState(null);
+
+  // On return from Whish's checkout, resume checking a payment that was
+  // already started before the redirect — same reasoning as the
+  // livestream flow: the guest may come back to this exact page after
+  // completing checkout in another tab/after being redirected back.
+  useEffect(() => {
+    const storedRef = window.localStorage.getItem("einvite:template-purchase-ref");
+    const storedTemplateId = window.localStorage.getItem("einvite:template-purchase-template-id");
+    if (!storedRef || !storedTemplateId) return;
+    const tpl = INVITATION_TEMPLATES.find((t) => t.id === storedTemplateId);
+    if (!tpl) return;
+    setSelectedTemplate(tpl);
+    setPolling(true);
+    const start = Date.now();
+    const poll = async () => {
+      if (Date.now() - start > 10 * 60 * 1000) { setPolling(false); setError("Payment session expired — please try again."); return; }
+      const result = await getTemplatePurchaseStatus(storedRef);
+      if (result?.status === "paid" && result.canvaTemplateUrl) {
+        setPolling(false);
+        setPurchasedUrl(result.canvaTemplateUrl);
+        window.localStorage.removeItem("einvite:template-purchase-ref");
+        window.localStorage.removeItem("einvite:template-purchase-template-id");
+        return;
+      }
+      setTimeout(poll, 3000);
+    };
+    poll();
+  }, []);
+
+  const startPurchase = async () => {
+    if (!selectedTemplate) return;
+    if (!buyerEmail.trim()) { setError("Please enter your email so we can confirm your purchase."); return; }
+    setPaying(true);
+    setError("");
+    try {
+      const { paymentReference, paymentUrl } = await createTemplatePaymentSession(selectedTemplate.id, buyerEmail.trim());
+      window.localStorage.setItem("einvite:template-purchase-ref", paymentReference);
+      window.localStorage.setItem("einvite:template-purchase-template-id", selectedTemplate.id);
+      window.location.href = paymentUrl; // hand off to Whish's own checkout — real payment happens there, not in this app
+    } catch (err) {
+      setError(err.message);
+      setPaying(false);
+    }
+  };
+
+  if (purchasedUrl) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ textAlign: "center", maxWidth: 360 }}>
+          <CheckCircle2 size={40} color="#8FBFA3" style={{ margin: "0 auto 14px" }} />
+          <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Payment confirmed!</h1>
+          <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Your design is ready to customize in Canva.</p>
+          <a
+            href={purchasedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold"
+            style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}
+          >
+            Open in Canva <ExternalLink size={14} />
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (polling) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 13 }}>Waiting for payment to complete…</p>
+          <p className="mt-2 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>This updates automatically once payment is confirmed — no need to refresh.</p>
+          {error && <p className="mt-3 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK }}>
+      <div className="mx-auto max-w-4xl px-5 py-10">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Wedding Invitation Designs</h1>
+          <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Buy a design, then customize it yourself directly in Canva — no account needed here.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
+          {INVITATION_TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.id}
+              onClick={() => { setSelectedTemplate(tpl); setError(""); }}
+              className="group overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02]"
+              style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
+            >
+              {tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }} />}
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-[14px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{tpl.name}</div>
+                  <div className="text-[14px] font-bold" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>${tpl.price}</div>
+                </div>
+                <div className="mt-1 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{tpl.description}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {selectedTemplate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
+            <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)` }}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
+                <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
+              </div>
+              <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
+              <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
+              <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
+              {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+              <button
+                onClick={startPurchase}
+                disabled={paying}
+                className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
+                style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: paying ? 0.6 : 1 }}
+              >
+                {paying ? "Opening payment…" : `Pay $${selectedTemplate.price}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) {
   const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
@@ -7891,6 +8095,7 @@ export default function InvitationBuilder() {
   const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
   const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
   const [isAdminPath, setIsAdminPath] = useState(null); // null = checking, true/false = resolved
+  const [isShopPath, setIsShopPath] = useState(null); // null = checking, true/false = resolved
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
@@ -7905,6 +8110,11 @@ export default function InvitationBuilder() {
   useEffect(() => {
     const p = window.location.pathname;
     setIsAdminPath(p === "/admin" || p.startsWith("/admin/"));
+  }, []);
+
+  useEffect(() => {
+    const p = window.location.pathname;
+    setIsShopPath(p === "/shop" || p.startsWith("/shop/"));
   }, []);
 
   useEffect(() => {
@@ -8081,6 +8291,13 @@ export default function InvitationBuilder() {
   }
   if (djDashboardSlug) {
     return <DjDashboard slug={djDashboardSlug} />;
+  }
+
+  if (isShopPath === null) {
+    return <AppLoadingScreen />; // still checking the URL
+  }
+  if (isShopPath) {
+    return <TemplateShopPage />;
   }
 
   if (networkingSlug === null) {
