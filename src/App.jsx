@@ -6456,19 +6456,26 @@ function TemplateShopPage() {
               className="group overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02]"
               style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
             >
-              {tpl.previewVideo ? (
-                <video
-                  key={tpl.previewVideo}
-                  src={tpl.previewVideo}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", display: "block" }}
-                />
-              ) : (
-                tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", display: "block" }} />
-              )}
+              <div className="p-3" style={{ background: INK_3 }}>
+                <div className="relative mx-auto" style={{ width: "100%", maxWidth: 180, background: "#000", borderRadius: 20, padding: 6, boxShadow: "0 10px 24px -8px rgba(0,0,0,0.6)" }}>
+                  <div className="absolute left-1/2 top-2 z-10 h-2.5 w-10 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
+                  <div className="relative overflow-hidden" style={{ borderRadius: 15, aspectRatio: "9 / 19.5" }}>
+                    {tpl.previewVideo ? (
+                      <video
+                        key={tpl.previewVideo}
+                        src={tpl.previewVideo}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      />
+                    ) : (
+                      tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    )}
+                  </div>
+                </div>
+              </div>
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-[14px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{tpl.name}</div>
