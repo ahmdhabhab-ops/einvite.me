@@ -8036,6 +8036,15 @@ export default function InvitationBuilder() {
   // "has this client already picked a design" — if they haven't, they see
   // the picker now; once chosen, they land straight in their own Builder.
   const enterBuilderAsLoggedInUser = (user) => {
+    // The owner/admin logging in goes straight to the admin dashboard —
+    // never treated as "acting as" a specific client's invitation, since
+    // that mode is for actually working inside ONE client's data, not for
+    // the owner's own account.
+    if (user.role === "owner") {
+      setShowAuthPreview(false);
+      setView("users");
+      return;
+    }
     if (!user.invitationSlug) {
       setPendingNewUser(user);
       return;
