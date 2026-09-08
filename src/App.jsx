@@ -6458,15 +6458,16 @@ function TemplateShopPage() {
             >
               {tpl.previewVideo ? (
                 <video
+                  key={tpl.previewVideo}
                   src={tpl.previewVideo}
                   autoPlay
                   muted
                   loop
                   playsInline
-                  style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }}
+                  style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", display: "block" }}
                 />
               ) : (
-                tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }} />
+                tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", display: "block" }} />
               )}
               <div className="p-4">
                 <div className="flex items-center justify-between">
