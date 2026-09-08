@@ -271,7 +271,7 @@ const INVITATION_TEMPLATES = [
     // a buyer edit YOUR original instead of getting their own copy).
     // price is shown on the template card and is what buyer actually pays.
     price: 0, // placeholder — set the real price in USD (or your currency) before enabling this for real
-    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link here
+    canvaTemplateUrl: "https://canva.link/hj1zcghbmpr8bc9", // verify this is specifically a "Use Template" share link, not a regular edit link — see the setup note above INVITATION_TEMPLATES
     // Filename has spaces ("template video 1.mp4") — encodeURIComponent
     // handles that correctly; a raw space in a URL breaks it.
     previewVideo: `${TEMPLATE_VIDEO_BASE}/${encodeURIComponent("template video 1.mp4")}`,
