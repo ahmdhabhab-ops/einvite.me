@@ -6456,7 +6456,18 @@ function TemplateShopPage() {
               className="group overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02]"
               style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
             >
-              {tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }} />}
+              {tpl.previewVideo ? (
+                <video
+                  src={tpl.previewVideo}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }}
+                />
+              ) : (
+                tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ height: 140, width: "100%", objectFit: "cover", display: "block" }} />
+              )}
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-[14px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{tpl.name}</div>
