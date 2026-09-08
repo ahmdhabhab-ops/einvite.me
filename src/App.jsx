@@ -274,7 +274,7 @@ const INVITATION_TEMPLATES = [
     canvaTemplateUrl: "https://canva.link/hj1zcghbmpr8bc9", // verify this is specifically a "Use Template" share link, not a regular edit link — see the setup note above INVITATION_TEMPLATES
     // Filename has spaces ("template video 1.mp4") — encodeURIComponent
     // handles that correctly; a raw space in a URL breaks it.
-    previewVideo: `${TEMPLATE_VIDEO_BASE}/${encodeURIComponent("template video 1.mp4")}`,
+    previewVideo: `${TEMPLATE_VIDEO_BASE}/wedding-template-1.mp4`,
   },
   {
     id: "design-3",
