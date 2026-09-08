@@ -305,8 +305,8 @@ const INVITATION_TEMPLATES = [
     gateIcon: "star",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
-    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
-    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/5.mp4`
+    canvaTemplateUrl: "https://canva.link/arv645e3ivxnkgf", // verify this is specifically a "Use Template" share link, not a regular edit link
+    previewVideo: `${TEMPLATE_VIDEO_BASE}/wedding-template.mp4`,
   },
   {
     id: "design-6",
