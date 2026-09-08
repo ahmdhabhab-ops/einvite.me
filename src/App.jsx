@@ -272,7 +272,9 @@ const INVITATION_TEMPLATES = [
     // price is shown on the template card and is what buyer actually pays.
     price: 0, // placeholder — set the real price in USD (or your currency) before enabling this for real
     canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link here
-    previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/1.mp4`
+    // Filename has spaces ("template video 1.mp4") — encodeURIComponent
+    // handles that correctly; a raw space in a URL breaks it.
+    previewVideo: `${TEMPLATE_VIDEO_BASE}/${encodeURIComponent("template video 1.mp4")}`,
   },
   {
     id: "design-3",
