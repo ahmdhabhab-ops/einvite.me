@@ -60,6 +60,29 @@ function LatinCrossIcon({ size = 24, color = "currentColor", style }) {
   );
 }
 
+function CelticCrossIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" style={style}>
+      <line x1="12" y1="2" x2="12" y2="22" />
+      <line x1="5" y1="9" x2="19" y2="9" />
+      <circle cx="12" cy="9" r="5.5" />
+    </svg>
+  );
+}
+
+function OrnateCrossIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <line x1="12" y1="3" x2="12" y2="21" />
+      <line x1="5" y1="9" x2="19" y2="9" />
+      <path d="M12 3l-2 2 2 2 2-2-2-2z" />
+      <path d="M12 17l-2 2 2 2 2-2-2-2z" />
+      <path d="M5 9l-2 2 2 2 2-2-2-2z" />
+      <path d="M19 9l-2 2 2 2 2-2-2-2z" />
+    </svg>
+  );
+}
+
 // Decorative icons available as a standalone block on ANY page, or next to
 // each side's title on the Family page. Lucide doesn't provide a combined
 // crescent-and-star or Star-of-David icon, so each entry is named for
@@ -68,6 +91,8 @@ function LatinCrossIcon({ size = 24, color = "currentColor", style }) {
 // represent.
 const DECORATIVE_ICONS = {
   cross: { name: "Cross", icon: LatinCrossIcon },
+  crossCeltic: { name: "Celtic cross", icon: CelticCrossIcon },
+  crossOrnate: { name: "Ornate cross", icon: OrnateCrossIcon },
   church: { name: "Church", icon: Church },
   crescentMoon: { name: "Crescent moon", icon: Moon },
   openBook: { name: "Open book", icon: BookOpen },
@@ -1904,7 +1929,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
     <div className="mb-5 rounded-xl p-4" style={{ background: INK_3, border: `1px solid rgba(201,164,76,0.3)` }}>
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
-          {current.type === "video" ? "Custom video" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
+          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
         </span>
         <button onClick={onDeselect} style={{ color: MUTED }}><X size={14} /></button>
       </div>
@@ -1923,6 +1948,34 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         <div className="mb-3">
           <FieldLabel>Text content</FieldLabel>
           <TextArea value={current.text} onChange={onChangeText} rows={2} />
+        </div>
+      )}
+
+      {current.type === "divider" && (
+        <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+          <div>
+            <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Orientation</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Horizontal line, or a subtle vertical line to split the page</div>
+          </div>
+          <SegmentedToggle
+            value={current.orientation || "horizontal"}
+            onChange={(v) => onChangeStyle({ orientation: v })}
+            options={[{ value: "horizontal", label: "Horizontal" }, { value: "vertical", label: "Vertical" }]}
+          />
+        </div>
+      )}
+
+      {current.type === "divider" && (
+        <div className="mb-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <FieldLabel>Size</FieldLabel>
+            <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.width || 40}%</span>
+          </div>
+          <input
+            type="range" min={10} max={100} value={current.width || 40}
+            onChange={(e) => onChangeStyle({ width: Number(e.target.value) })}
+            className="w-full" style={{ accentColor: GOLD }}
+          />
         </div>
       )}
 
@@ -8162,9 +8215,9 @@ export default function InvitationBuilder() {
     setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
-  const addCustomDivider = () => {
+  const addCustomDivider = (orientation = "horizontal") => {
     const stepKey = steps[safeIndex].key;
-    const newBlock = { id: uid(), type: "divider", orientation: "horizontal", x: 50, y: 50, width: 40, color: null };
+    const newBlock = { id: uid(), type: "divider", orientation, x: 50, y: 50, width: 40, color: null };
     setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
@@ -8978,23 +9031,44 @@ export default function InvitationBuilder() {
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
                   {layoutEditMode && <GhostUploadButton accept="video/*" onChange={addCustomVideo}><Film size={13} /> Add video</GhostUploadButton>}
-                  {layoutEditMode && <GhostButton onClick={addCustomDivider}><Minus size={13} /> Add divider</GhostButton>}
                   {layoutEditMode && (
                     <div className="relative">
-                      <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Add icon</GhostButton>
+                      <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Elements</GhostButton>
                       {iconPickerOpen && (
-                        <div className="absolute left-0 top-full z-50 mt-1 grid grid-cols-4 gap-1 rounded-lg p-2" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, width: 168 }}>
-                          {Object.entries(DECORATIVE_ICONS).map(([key, { name, icon: Icon }]) => (
+                        <div className="absolute left-0 top-full z-50 mt-1 rounded-lg p-2" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, width: 200 }}>
+                          <div className="mb-1.5 px-1 text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>Icons</div>
+                          <div className="mb-2 grid grid-cols-4 gap-1">
+                            {Object.entries(DECORATIVE_ICONS).map(([key, { name, icon: Icon }]) => (
+                              <button
+                                key={key}
+                                onClick={() => { addCustomIcon(key); setIconPickerOpen(false); }}
+                                title={name}
+                                className="flex h-8 w-8 items-center justify-center rounded-md"
+                                style={{ color: MUTED, border: `1px solid rgba(147,166,155,0.25)` }}
+                              >
+                                <Icon size={15} />
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mb-1.5 px-1 text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>Dividers</div>
+                          <div className="grid grid-cols-2 gap-1.5">
                             <button
-                              key={key}
-                              onClick={() => { addCustomIcon(key); setIconPickerOpen(false); }}
-                              title={name}
-                              className="flex h-8 w-8 items-center justify-center rounded-md"
+                              onClick={() => { addCustomDivider("horizontal"); setIconPickerOpen(false); }}
+                              className="flex h-9 items-center justify-center rounded-md"
                               style={{ color: MUTED, border: `1px solid rgba(147,166,155,0.25)` }}
+                              title="Horizontal divider"
                             >
-                              <Icon size={15} />
+                              <Minus size={16} />
                             </button>
-                          ))}
+                            <button
+                              onClick={() => { addCustomDivider("vertical"); setIconPickerOpen(false); }}
+                              className="flex h-9 items-center justify-center rounded-md"
+                              style={{ color: MUTED, border: `1px solid rgba(147,166,155,0.25)` }}
+                              title="Vertical divider"
+                            >
+                              <Minus size={16} style={{ transform: "rotate(90deg)" }} />
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
