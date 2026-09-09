@@ -7993,7 +7993,7 @@ export default function InvitationBuilder() {
       const url = await uploadVideoToStorage(file);
       const existingVideos = customBlocks[stepKey].filter((b) => b.type === "video").length;
       const offset = (existingVideos % 4) * 8; // small staggered offset so new videos don't land exactly on top of existing ones
-      const newBlock = { id: uid(), type: "video", url, x: 50 + offset, y: 50 + offset, width: 55 };
+      const newBlock = { id: uid(), type: "video", url, x: 50 + offset, y: 50 + offset, width: 80 };
       setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
       setSelectedBlockId(`custom:${newBlock.id}`);
     } catch (err) {
