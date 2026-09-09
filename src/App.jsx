@@ -861,7 +861,7 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // ChatSupportWidget for exactly what needs to be deployed.
 // ---------------------------------------------------------------------- //
 async function sendChatSupportMessage(messages) {
-  const res = await fetch(`${EDGE_FUNCTIONS_URL}/bright-function`, {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/super-task`, {
     method: "POST",
     headers: supabaseHeaders,
     body: JSON.stringify({ messages }), // [{ role: "user"|"assistant", content: "..." }, ...]
