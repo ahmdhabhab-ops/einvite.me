@@ -2044,11 +2044,11 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
     <div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <FieldLabel>Partner one</FieldLabel>
+          <FieldLabel>Name</FieldLabel>
           <TextInput value={c.name1} onChange={(v) => updateContent({ name1: v })} placeholder="Elena" />
         </div>
         <div>
-          <FieldLabel>Partner two</FieldLabel>
+          <FieldLabel>Second name (optional)</FieldLabel>
           <TextInput value={c.name2} onChange={(v) => updateContent({ name2: v })} placeholder="Marcus" />
         </div>
       </div>
@@ -6006,7 +6006,7 @@ function EventOverviewView({
       {/* Header banner */}
       <div className="mb-5 overflow-hidden rounded-2xl p-6 text-center" style={{ background: "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)", border: `1px solid rgba(201,164,76,0.2)` }}>
         <h2 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>
-          {names.name1 || "—"} <span style={{ color: ROSE }}>&amp;</span> {names.name2 || "—"}
+          {names.name1 || "—"}{names.name2 ? <> <span style={{ color: ROSE }}>&amp;</span> {names.name2}</> : null}
         </h2>
         {date && (
           <p className="mt-1 text-[12.5px]" style={{ color: "rgba(244,237,228,0.75)", fontFamily: FONT_BODY }}>
@@ -8655,7 +8655,7 @@ export default function InvitationBuilder() {
           <div>
             <div className="text-[10px] font-semibold uppercase" style={{ color: GOLD, letterSpacing: "0.2em" }}>eInvite.me</div>
             <h1 className="mt-1 text-2xl" style={{ fontFamily: activeLang === "ar" ? FONT_AR : FONT_DISPLAY, color: IVORY, fontStyle: activeLang === "ar" ? "normal" : "italic" }}>
-              {c.cover.name1 || "—"} &amp; {c.cover.name2 || "—"}
+              {c.cover.name1 || "—"}{c.cover.name2 ? <> &amp; {c.cover.name2}</> : null}
             </h1>
           </div>
           <div className="flex items-center gap-2">
