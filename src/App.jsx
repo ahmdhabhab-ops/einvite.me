@@ -157,6 +157,22 @@ const EVENT_TYPES = [
       family: { greeting: "Come celebrate another wonderful year — your presence would make the day even sweeter.", side1Title: "Hosted by", side1Names: "The Smith Family", side2Title: "", side2Names: "" },
       rsvp: { yesLabel: "Yes, I'll be there!", noLabel: "Sorry, can't make it" },
     },
+    // Replaces the wedding-specific timeline/locations/registry entirely —
+    // a birthday has its own day shape (arrival, cake, party) rather than
+    // a ceremony-then-reception structure, and no gift registry makes
+    // sense without a couple to register as.
+    timeline: [
+      { id: uid(), icon: "utensils", time: "4:00 PM", label: { en: "Guests Arrive", ar: "وصول الضيوف", fr: "Arrivée des invités", es: "Llegada de invitados" } },
+      { id: uid(), icon: "party", time: "5:00 PM", label: { en: "Games & Fun", ar: "ألعاب ومرح", fr: "Jeux et animations", es: "Juegos y diversión" } },
+      { id: uid(), icon: "wine", time: "6:30 PM", label: { en: "Cake & Candles", ar: "الكيك والشموع", fr: "Gâteau et bougies", es: "Pastel y velas" } },
+      { id: uid(), icon: "party", time: "7:30 PM", label: { en: "Party Continues", ar: "استمرار الحفلة", fr: "La fête continue", es: "Sigue la fiesta" } },
+    ],
+    locations: [
+      { id: uid(), time: "4:00 PM", address: "123 Celebration Lane", title: { en: "The Party", ar: "مكان الحفلة", fr: "La Fête", es: "La Fiesta" } },
+    ],
+    registry: [
+      { id: uid(), label: "Wishlist", url: "", note: "" },
+    ],
   },
   {
     id: "baptism",
@@ -182,11 +198,11 @@ const EVENT_TYPES = [
 
 /** Applies an event type's content overrides onto a fresh snapshot — English only, see the honest note above EVENT_TYPES. */
 function applyEventTypeToSnapshot(snapshot, eventType) {
-  if (!eventType?.contentOverrides) return snapshot;
+  if (!eventType?.contentOverrides && !eventType?.timeline && !eventType?.locations && !eventType?.registry) return snapshot;
   const en = snapshot.content.en;
   return {
     ...snapshot,
-    content: {
+    content: eventType.contentOverrides ? {
       ...snapshot.content,
       en: {
         ...en,
@@ -194,7 +210,10 @@ function applyEventTypeToSnapshot(snapshot, eventType) {
         family: { ...en.family, ...eventType.contentOverrides.family },
         rsvp: { ...en.rsvp, ...eventType.contentOverrides.rsvp },
       },
-    },
+    } : snapshot.content,
+    timeline: eventType.timeline || snapshot.timeline,
+    locations: eventType.locations || snapshot.locations,
+    registry: eventType.registry || snapshot.registry,
   };
 }
 
