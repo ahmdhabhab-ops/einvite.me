@@ -4536,6 +4536,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
         @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
+        @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
         .pv-fullscreen-card { max-width: 420px; aspect-ratio: 292 / 600; }
         @media (max-width: 420px) {
           .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; height: 100dvh; }
