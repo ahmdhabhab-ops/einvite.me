@@ -7,7 +7,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -1940,6 +1940,20 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </div>
       )}
 
+      {current.fullScreen && (
+        <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+          <div>
+            <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Show full {current.type === "video" ? "video" : "image"}</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No cropping — adds empty bars above/below instead of cutting off part of it</div>
+          </div>
+          <SegmentedToggle
+            value={current.noCrop ? "on" : "off"}
+            onChange={(v) => onChangeStyle({ noCrop: v === "on" })}
+            options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+          />
+        </div>
+      )}
+
       {!current.fullScreen && (
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -3219,12 +3233,14 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     if (block.fullScreen) {
       return (
         <>
-          <img
-            src={block.url}
-            alt=""
-            draggable={false}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", minHeight: "100%", objectFit: "cover", zIndex: 0, pointerEvents: editMode ? "auto" : "none" }}
-          />
+          <div style={{ position: "absolute", inset: 0, zIndex: 0, background: block.noCrop ? "#000" : "transparent" }}>
+            <img
+              src={block.url}
+              alt=""
+              draggable={false}
+              style={{ width: "100%", height: "100%", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none" }}
+            />
+          </div>
           {editMode && (
             <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
               {toolbar}
@@ -3248,15 +3264,17 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     if (block.fullScreen) {
       return (
         <>
-          <video
-            src={block.url}
-            controls={false}
-            autoPlay
-            muted
-            loop
-            playsInline
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", minHeight: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
-          />
+          <div style={{ position: "absolute", inset: 0, zIndex: 0, background: block.noCrop ? "#000" : "transparent" }}>
+            <video
+              src={block.url}
+              controls={false}
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{ width: "100%", height: "100%", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: "none" }}
+            />
+          </div>
           {editMode && (
             <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
               {toolbar}
@@ -3286,6 +3304,24 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth>
         {toolbar}
         <Icon size={block.iconSize || 32} color={block.color || (light ? PAPER : EMERALD)} />
+      </DraggableBlock>
+    );
+  }
+  if (block.type === "divider") {
+    const dividerColor = block.color || (light ? "rgba(244,237,228,0.55)" : "rgba(201,164,76,0.55)");
+    const isVertical = block.orientation === "vertical";
+    return (
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Divider" light={light} selected={selected} onSelect={onSelect} noMaxWidth>
+        {toolbar}
+        {isVertical ? (
+          <div style={{ width: 1, height: `${(block.width || 40) * 4}px`, background: `linear-gradient(to bottom, transparent, ${dividerColor}, transparent)` }} />
+        ) : (
+          <div className="flex items-center gap-2" style={{ width: `${(block.width || 40) * 3}px` }}>
+            <div style={{ flex: 1, height: 1, background: `linear-gradient(to right, transparent, ${dividerColor})` }} />
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: dividerColor, flexShrink: 0 }} />
+            <div style={{ flex: 1, height: 1, background: `linear-gradient(to left, transparent, ${dividerColor})` }} />
+          </div>
+        )}
       </DraggableBlock>
     );
   }
@@ -4836,7 +4872,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
-              <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+              <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -8126,6 +8162,12 @@ export default function InvitationBuilder() {
     setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
+  const addCustomDivider = () => {
+    const stepKey = steps[safeIndex].key;
+    const newBlock = { id: uid(), type: "divider", orientation: "horizontal", x: 50, y: 50, width: 40, color: null };
+    setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+    setSelectedBlockId(`custom:${newBlock.id}`);
+  };
   const updateCustomBlock = (stepKey, id, patch) =>
     setCustomBlocks((c) => ({ ...c, [stepKey]: c[stepKey].map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
   const moveCustomBlock = (stepKey, id, pos) => updateCustomBlock(stepKey, id, pos);
@@ -8936,6 +8978,7 @@ export default function InvitationBuilder() {
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
                   {layoutEditMode && <GhostUploadButton accept="video/*" onChange={addCustomVideo}><Film size={13} /> Add video</GhostUploadButton>}
+                  {layoutEditMode && <GhostButton onClick={addCustomDivider}><Minus size={13} /> Add divider</GhostButton>}
                   {layoutEditMode && (
                     <div className="relative">
                       <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Add icon</GhostButton>
