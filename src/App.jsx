@@ -175,6 +175,34 @@ const EVENT_TYPES = [
     ],
   },
   {
+    id: "quinceanera",
+    name: "Quinceañera",
+    icon: Crown,
+    contentOverrides: {
+      cover: { name1: "Sofía", name2: "", intro: "joyfully invites you to celebrate her Quinceañera — a magical XV celebration", tapText: "TAP TO START" },
+      family: { greeting: "Fifteen years of joy, grace, and dreams — please join us as we celebrate this cherished milestone.", side1Title: "Parents", side1Names: "Mr. & Mrs. Rodríguez", side2Title: "Padrinos", side2Names: "" },
+      rsvp: { yesLabel: "Joyfully Accepts", noLabel: "Regretfully Declines" },
+    },
+    // A Quinceañera has its own well-known shape — mass, the court of
+    // honor, the traditional shoe-change and father-daughter waltz — quite
+    // different from either a wedding or an ordinary birthday party.
+    timeline: [
+      { id: "quince-tl-1", icon: "church", time: "4:00 PM", label: { en: "Mass / Ceremony", ar: "القداس", fr: "Messe / Cérémonie", es: "Misa / Ceremonia" } },
+      { id: "quince-tl-2", icon: "sparkles", time: "6:00 PM", label: { en: "Court of Honor Presentation", ar: "تقديم موكب الشرف", fr: "Présentation de la cour d'honneur", es: "Presentación de la corte de honor" } },
+      { id: "quince-tl-3", icon: "party", time: "6:30 PM", label: { en: "Changing of the Shoes & Waltz", ar: "تبديل الحذاء والرقصة", fr: "Changement de chaussures et valse", es: "Cambio de zapatillas y vals" } },
+      { id: "quince-tl-4", icon: "utensils", time: "7:30 PM", label: { en: "Dinner", ar: "العشاء", fr: "Dîner", es: "Cena" } },
+      { id: "quince-tl-5", icon: "wine", time: "9:00 PM", label: { en: "Cake & Toast", ar: "الكيك ونخب", fr: "Gâteau et toast", es: "Pastel y brindis" } },
+      { id: "quince-tl-6", icon: "party", time: "9:30 PM", label: { en: "Party & Dancing", ar: "حفلة ورقص", fr: "Fête et danse", es: "Fiesta y baile" } },
+    ],
+    locations: [
+      { id: "quince-loc-1", time: "4:00 PM", address: "123 Cathedral Ave", title: { en: "The Ceremony", ar: "مكان القداس", fr: "La Cérémonie", es: "La Ceremonia" } },
+      { id: "quince-loc-2", time: "6:00 PM", address: "456 Grand Ballroom Dr", title: { en: "The Celebration", ar: "مكان الحفلة", fr: "La Célébration", es: "La Celebración" } },
+    ],
+    registry: [
+      { id: "quince-reg-1", label: "Wishlist", url: "", note: "" },
+    ],
+  },
+  {
     id: "baptism",
     name: "Baptism",
     icon: Church,
