@@ -7920,10 +7920,34 @@ export default function InvitationBuilder() {
       return;
     }
     setSaveStatus("saving");
+    // THE ACTUAL FIX: `users` was being written straight from this
+    // browser's own local state on every single content save — not just
+    // ones that actually touch the user list. If ANY client (or the
+    // owner) signed up a new account in a DIFFERENT browser/tab after
+    // this one loaded, this session's local `users` wouldn't know about
+    // them — and saving invitation content here would silently overwrite
+    // the server's users list with this older, smaller one, permanently
+    // losing every account that signed up since. Reading the server's
+    // current users list right before saving, and only reconciling this
+    // browser's own known edits onto it, is what actually prevents that.
+    let usersToSave = users;
+    try {
+      const res = await persistentStorage.get(DRAFT_KEY, false);
+      const latestUsers = res?.value ? JSON.parse(res.value).users : null;
+      if (Array.isArray(latestUsers)) {
+        const localById = new Map(users.map((u) => [u.id, u]));
+        const merged = latestUsers.map((u) => localById.get(u.id) || u); // this browser's own edits to a known user win; anything server-only stays
+        const localOnlyNew = users.filter((u) => !latestUsers.some((lu) => lu.id === u.id)); // a user this browser created but the server doesn't have yet
+        usersToSave = [...localOnlyNew, ...merged];
+      }
+    } catch {
+      // Couldn't fetch the latest — fall back to this browser's own copy
+      // rather than blocking the save entirely.
+    }
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users, integrations, siteDomain, swipeDirection, transitionStyle,
+      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media (image or video) saved separately below via introBgKey
