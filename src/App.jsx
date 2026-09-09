@@ -1922,7 +1922,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect }) {
+function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect, onApplyToAllPages }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   return (
@@ -1949,6 +1949,16 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
           <FieldLabel>Text content</FieldLabel>
           <TextArea value={current.text} onChange={onChangeText} rows={2} />
         </div>
+      )}
+
+      {isCustom && onApplyToAllPages && (
+        <button
+          onClick={onApplyToAllPages}
+          className="mb-3 w-full rounded-lg py-2 text-[11.5px] font-semibold"
+          style={{ background: "rgba(201,164,76,0.12)", color: GOLD_SOFT, fontFamily: FONT_BODY, border: `1px solid rgba(201,164,76,0.3)` }}
+        >
+          Add this to every page
+        </button>
       )}
 
       {current.type === "divider" && (
@@ -8229,6 +8239,24 @@ export default function InvitationBuilder() {
     setSelectedBlockId((sel) => (sel === `custom:${id}` ? null : sel));
   };
 
+  // Duplicates one custom block (an image, icon, divider, etc.) onto every
+  // OTHER page of this same invitation — for when a client wants the same
+  // decorative element repeated throughout, not just on the one page they
+  // added it to. Each copy gets its own id so it can be moved or deleted
+  // independently afterward on its own page.
+  const applyBlockToAllPages = (sourceStepKey, blockId) => {
+    const block = customBlocks[sourceStepKey]?.find((b) => b.id === blockId);
+    if (!block) return;
+    setCustomBlocks((c) => {
+      const next = { ...c };
+      for (const key of Object.keys(next)) {
+        if (key === sourceStepKey) continue;
+        next[key] = [...next[key], { ...block, id: uid() }];
+      }
+      return next;
+    });
+  };
+
   const toggleLayoutEditMode = () => setLayoutEditMode((v) => { if (v) setSelectedBlockId(null); return !v; });
 
   const handleAudioUpload = (e) => {
@@ -9094,6 +9122,7 @@ export default function InvitationBuilder() {
                     onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
                     onDelete={() => removeCustomBlock(stepKey, customId)}
                     onDeselect={() => setSelectedBlockId(null)}
+                    onApplyToAllPages={isCustom ? () => applyBlockToAllPages(stepKey, customId) : null}
                   />
                 );
               })()}
