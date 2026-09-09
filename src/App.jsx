@@ -8136,23 +8136,31 @@ export default function InvitationBuilder() {
     return candidate;
   };
 
-  const finalizeInvitationCreation = (user, template, eventType, destinationView) => {
+  const finalizeInvitationCreation = async (user, template, eventType, destinationView) => {
     let finalUser = user;
     if (!user.invitationSlug) {
       const slug = generateUniqueSlug(user.name || `guest-${user.id.slice(0, 6)}`, user.id);
       setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, invitationSlug: slug } : u)));
       finalUser = { ...user, invitationSlug: slug };
     }
+    let seeded = null;
     if (template || eventType) {
-      // Pre-seed this new client's slot with the event type's content and
-      // the template's visual style both applied, so
-      // switchActiveInvitation's own lookup (invitationsStore[nextId] ||
-      // freshInvitationSnapshot()) finds the fully-set-up version instead
-      // of falling back to the plain, un-templated wedding default.
-      const seeded = applyTemplateToSnapshot(applyEventTypeToSnapshot(freshInvitationSnapshot(), eventType), template);
+      seeded = applyTemplateToSnapshot(applyEventTypeToSnapshot(freshInvitationSnapshot(), eventType), template);
       setInvitationsStore((store) => ({ ...store, [finalUser.id]: seeded }));
     }
-    switchActiveInvitation(finalUser.id);
+    await switchActiveInvitation(finalUser.id);
+    // THE ACTUAL FIX: switchActiveInvitation just above reads
+    // invitationsStore[nextId] from its own closure to decide what to load
+    // — but the setInvitationsStore call a few lines up hasn't actually
+    // applied to that closure yet (React state updates aren't synchronous),
+    // so it silently fell back to a plain, un-customized freshInvitationSnapshot()
+    // instead of the event-type/template-seeded one. Re-applying seeded
+    // directly here, after switchActiveInvitation has finished, makes sure
+    // the customized version wins regardless of that timing.
+    if (seeded) {
+      applySnapshot(seeded);
+      setInvitationsStore((store) => ({ ...store, [finalUser.id]: seeded }));
+    }
     setActingAsUser(finalUser);
     window.localStorage.setItem("einvite:acting-as-user-id", finalUser.id);
     setShowAuthPreview(false);
