@@ -8598,24 +8598,16 @@ export default function InvitationBuilder() {
     return (
       <div className="min-h-screen" style={{ background: INK }}>
         <EventTypePicker
-          onChoose={(eventType) => setChosenEventType(eventType)}
-          onCancel={() => setPendingNewUser(null)}
-        />
-      </div>
-    );
-  }
-
-  if (pendingNewUser && chosenEventType) {
-    return (
-      <div className="min-h-screen" style={{ background: INK }}>
-        <TemplatePicker
-          eventTypeId={chosenEventType.id}
-          onChoose={(template) => {
-            finalizeInvitationCreation(pendingNewUser, template, chosenEventType, "builder");
+          onChoose={(eventType) => {
+            // In-app template/design selection has been removed — designs
+            // are now bought separately via the standalone /shop, not
+            // picked here. Straight into the Builder with no template
+            // applied (template: null), just the event type's own content
+            // wording (see applyEventTypeToSnapshot).
+            finalizeInvitationCreation(pendingNewUser, null, eventType, "builder");
             setPendingNewUser(null);
-            setChosenEventType(null);
           }}
-          onCancel={() => setChosenEventType(null)}
+          onCancel={() => setPendingNewUser(null)}
         />
       </div>
     );
@@ -8719,8 +8711,7 @@ export default function InvitationBuilder() {
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} />
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <GhostButton onClick={() => setShowTemplateSwitcher(true)}><ImagePlus size={13} /> Browse Templates</GhostButton>
+              <div className="mb-4 flex items-center justify-end gap-2">
                 <button
                   onClick={() => setShowPublishModal(true)}
                   className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-bold uppercase"
@@ -8958,15 +8949,6 @@ export default function InvitationBuilder() {
           />
         )}
           </>
-        )}
-
-        {showTemplateSwitcher && (
-          <div className="fixed inset-0 z-[100] overflow-y-auto" style={{ background: INK }}>
-            <TemplatePicker
-              onChoose={switchToTemplate}
-              onCancel={() => setShowTemplateSwitcher(false)}
-            />
-          </div>
         )}
 
         {showPublishModal && activeUserRecord && (
