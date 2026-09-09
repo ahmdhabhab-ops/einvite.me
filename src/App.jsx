@@ -1578,10 +1578,10 @@ function GhostUploadButton({ children, accept, onChange }) {
   );
 }
 
-function GoldButton({ children, onClick }) {
+function GoldButton({ children, onClick, type = "button" }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-transform active:scale-[0.98]"
       style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}
@@ -6789,7 +6789,7 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) 
                 </div>
               </div>
               {error && <p className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-              <GoldButton onClick={submitSignUp}>
+              <GoldButton type="submit" onClick={submitSignUp}>
                 <UserPlus size={14} /> Sign up
               </GoldButton>
             </form>
@@ -6828,7 +6828,7 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) 
                 <TextInput type="password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} placeholder="••••••••" />
               </div>
               {error && <p className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-              <GoldButton onClick={submitLogin}>
+              <GoldButton type="submit" onClick={submitLogin}>
                 <LogIn size={14} /> Log in
               </GoldButton>
             </form>
