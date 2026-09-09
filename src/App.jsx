@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Upload, Navigation2,
   Church, Wine, UtensilsCrossed, PartyPopper, Sparkles, Check, X, Music2, Star,
   Settings, BarChart3, Copy, Link2, ImagePlus, Search, CheckCircle2, XCircle, Move, Mail, Film,
-  ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle,
+  ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun,
@@ -848,6 +848,27 @@ async function getTemplatePurchaseStatus(paymentReference) {
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------- //
+// AI support chatbot — a real AI (not scripted FAQ answers) that can
+// answer anything a visitor asks. The actual AI call has to happen on a
+// server, never in this browser code: an API key for a real AI service
+// (e.g. Anthropic's Claude) must never be embedded in client-side code,
+// since anyone could open dev tools and steal it. So this just posts the
+// conversation so far to a new Edge Function, which is what actually
+// holds the API key and calls the AI service — see the setup note above
+// ChatSupportWidget for exactly what needs to be deployed.
+// ---------------------------------------------------------------------- //
+async function sendChatSupportMessage(messages) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/chat-support`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ messages }), // [{ role: "user"|"assistant", content: "..." }, ...]
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't reach support chat — please try again.");
+  return data.reply; // { role: "assistant", content: "..." }
 }
 
 // ---------------------------------------------------------------------- //
@@ -6542,6 +6563,109 @@ function TemplateShopPage() {
   );
 }
 
+// Floating AI support chat — a small round bubble in the corner that
+// expands into a chat panel. Needs a new Edge Function called
+// "chat-support" deployed on Supabase before this actually answers
+// anything: that function is what holds the real API key and calls an
+// AI service (e.g. Anthropic's Claude) server-side, then returns just
+// the reply text here. Until that Edge Function exists, this will show
+// the friendly error message below instead of a real answer.
+function ChatSupportWidget() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "Hi! I'm here to help with any questions about eInvite.me — designs, pricing, how it works, anything at all. What would you like to know?" },
+  ]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, open]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    const nextMessages = [...messages, { role: "user", content: text }];
+    setMessages(nextMessages);
+    setInput("");
+    setSending(true);
+    try {
+      const reply = await sendChatSupportMessage(nextMessages);
+      setMessages((m) => [...m, reply]);
+    } catch (err) {
+      setMessages((m) => [...m, { role: "assistant", content: "Sorry, I couldn't connect just now — please try again in a moment." }]);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 200 }}>
+      {open && (
+        <div
+          className="mb-3 flex flex-col overflow-hidden rounded-2xl"
+          style={{ width: 320, height: 420, background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, boxShadow: "0 20px 50px -15px rgba(0,0,0,0.6)" }}
+        >
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
+            <div className="flex items-center gap-2">
+              <MessageCircle size={16} color={GOLD_SOFT} />
+              <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Ask us anything</span>
+            </div>
+            <button onClick={() => setOpen(false)} style={{ color: MUTED }}><X size={16} /></button>
+          </div>
+          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                <div
+                  className="max-w-[85%] rounded-2xl px-3 py-2 text-[12.5px]"
+                  style={{
+                    background: m.role === "user" ? GOLD : INK_3,
+                    color: m.role === "user" ? INK : IVORY,
+                    fontFamily: FONT_BODY,
+                  }}
+                >
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {sending && (
+              <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                <div className="rounded-2xl px-3 py-2 text-[12.5px]" style={{ background: INK_3, color: MUTED, fontFamily: FONT_BODY }}>…</div>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 p-3" style={{ borderTop: `1px solid rgba(201,164,76,0.15)` }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              placeholder="Type your question…"
+              className="flex-1 rounded-full px-3 py-2 text-[12.5px] outline-none"
+              style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}
+            />
+            <button
+              onClick={send}
+              disabled={sending || !input.trim()}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+              style={{ background: GOLD, color: INK, opacity: sending || !input.trim() ? 0.5 : 1 }}
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-14 w-14 items-center justify-center rounded-full"
+        style={{ background: GOLD, boxShadow: "0 10px 30px -8px rgba(201,164,76,0.5)", marginLeft: "auto" }}
+      >
+        {open ? <X size={22} color={INK} /> : <MessageCircle size={22} color={INK} />}
+      </button>
+    </div>
+  );
+}
+
 function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) {
   const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
@@ -6721,6 +6845,7 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) 
             )}
           </div>
         )}
+      <ChatSupportWidget />
     </div>
   );
 }
