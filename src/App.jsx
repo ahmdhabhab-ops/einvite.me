@@ -907,15 +907,15 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // holds the API key and calls the AI service — see the setup note above
 // ChatSupportWidget for exactly what needs to be deployed.
 // ---------------------------------------------------------------------- //
-async function sendChatSupportMessage(messages) {
+async function sendChatSupportMessage(messages, context = "shop") {
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
     headers: supabaseHeaders,
-    body: JSON.stringify({ messages }), // [{ role: "user"|"assistant", content: "..." }, ...]
+    body: JSON.stringify({ messages, context }), // context: "shop" (default, public/no-account) or "builder" (logged-in client filling their own invitation)
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Couldn't reach support chat — please try again.");
-  return data.reply; // { role: "assistant", content: "..." }
+  return data; // { reply: { role: "assistant", content: "..." }, formData?: {...} }
 }
 
 // ---------------------------------------------------------------------- //
@@ -3238,7 +3238,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             muted
             loop
             playsInline
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", minHeight: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
           />
           {editMode && (
             <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
@@ -6700,10 +6700,15 @@ function TemplateShopPage() {
 // AI service (e.g. Anthropic's Claude) server-side, then returns just
 // the reply text here. Until that Edge Function exists, this will show
 // the friendly error message below instead of a real answer.
-function ChatSupportWidget() {
+function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hi! I'm here to help with any questions about eInvite.me — designs, pricing, how it works, anything at all. What would you like to know?" },
+    {
+      role: "assistant",
+      content: context === "builder"
+        ? "Hi! Tell me about your invitation — partner names, the date, ceremony/reception details — and I'll fill it in for you as we go."
+        : "Hi! I'm here to help with any questions about eInvite.me — designs, pricing, how it works, anything at all. What would you like to know?",
+    },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -6721,7 +6726,8 @@ function ChatSupportWidget() {
     setInput("");
     setSending(true);
     try {
-      const reply = await sendChatSupportMessage(nextMessages);
+      const { reply, formData } = await sendChatSupportMessage(nextMessages, context);
+      if (formData && onFillForm) onFillForm(formData); // this browser's own React state is what actually gets updated — the Edge Function only extracted the fields
       setMessages((m) => [...m, reply]);
     } catch (err) {
       setMessages((m) => [...m, { role: "assistant", content: "Sorry, I couldn't connect just now — please try again in a moment." }]);
@@ -7797,6 +7803,41 @@ export default function InvitationBuilder() {
   const updateContentSection = (stepKey, patch) =>
     setContent((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: { ...c[activeLang][stepKey], ...patch } } }));
 
+  // Applies whatever fields the AI chat widget extracted from the
+  // conversation (see ChatSupportWidget's onFillForm) onto this
+  // invitation's real, live state — the Edge Function only ever hands
+  // back plain extracted data; this is the one place that actually
+  // writes it into the Builder.
+  const applyAiFormData = (data) => {
+    const coverPatch = {};
+    if (data.partner1_name) coverPatch.name1 = data.partner1_name;
+    if (data.partner2_name) coverPatch.name2 = data.partner2_name;
+    if (data.intro_text) coverPatch.intro = data.intro_text;
+    if (Object.keys(coverPatch).length) updateContentSection("cover", coverPatch);
+
+    if (data.event_date) setRsvpSchedule((s) => ({ ...s, date: data.event_date }));
+
+    const hasCeremonyInfo = data.ceremony_time || data.ceremony_location_name || data.ceremony_location_address;
+    const hasReceptionInfo = data.reception_time || data.reception_location_name || data.reception_location_address;
+    if (hasCeremonyInfo || hasReceptionInfo) {
+      setLocations((list) => {
+        const next = [...list];
+        const applyEntry = (index, time, name, address) => {
+          const existing = next[index] || { id: uid(), time: "", address: "", title: { en: "", ar: "", fr: "", es: "" } };
+          next[index] = {
+            ...existing,
+            time: time || existing.time,
+            address: address || existing.address,
+            title: name ? { ...existing.title, [activeLang]: name } : existing.title,
+          };
+        };
+        if (hasCeremonyInfo) applyEntry(0, data.ceremony_time, data.ceremony_location_name, data.ceremony_location_address);
+        if (hasReceptionInfo) applyEntry(hasCeremonyInfo ? 1 : 0, data.reception_time, data.reception_location_name, data.reception_location_address);
+        return next;
+      });
+    }
+  };
+
   const setBgFor = (stepKey) => (bg) => { userChangedBackgroundsRef.current = true; setPageBackgrounds((p) => ({ ...p, [stepKey]: bg })); };
 
   const moveBlock = (stepKey, blockId, pos) =>
@@ -8817,7 +8858,7 @@ export default function InvitationBuilder() {
           </button>
         )}
 
-        {!showAuthPreview && <ChatSupportWidget />}
+        {!showAuthPreview && <ChatSupportWidget context="builder" onFillForm={applyAiFormData} />}
 
         {showAuthPreview ? (
           <AuthPreview users={users} onSignUp={signUpUser} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
