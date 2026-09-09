@@ -7985,19 +7985,20 @@ export default function InvitationBuilder() {
       reader.readAsDataURL(file);
     }
   };
-  const addCustomVideo = (e) => {
+  const addCustomVideo = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const stepKey = steps[safeIndex].key;
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const url = await uploadVideoToStorage(file);
       const existingVideos = customBlocks[stepKey].filter((b) => b.type === "video").length;
       const offset = (existingVideos % 4) * 8; // small staggered offset so new videos don't land exactly on top of existing ones
-      const newBlock = { id: uid(), type: "video", url: reader.result, x: 50 + offset, y: 50 + offset, width: 55 };
+      const newBlock = { id: uid(), type: "video", url, x: 50 + offset, y: 50 + offset, width: 55 };
       setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
       setSelectedBlockId(`custom:${newBlock.id}`);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      alert(err.message || "Couldn't upload the video — please try again.");
+    }
   };
   const addCustomIcon = (iconKey) => {
     const stepKey = steps[safeIndex].key;
