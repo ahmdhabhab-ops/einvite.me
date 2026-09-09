@@ -6845,7 +6845,6 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) 
             )}
           </div>
         )}
-      <ChatSupportWidget />
     </div>
   );
 }
@@ -8648,6 +8647,8 @@ export default function InvitationBuilder() {
             <UserPlus size={12} /> Preview the guest sign-up &amp; login flow
           </button>
         )}
+
+        {!showAuthPreview && <ChatSupportWidget />}
 
         {showAuthPreview ? (
           <AuthPreview users={users} onSignUp={signUpUser} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
