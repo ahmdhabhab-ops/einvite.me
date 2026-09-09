@@ -1926,6 +1926,21 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </div>
       )}
 
+      {current.type === "video" && (
+        <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+          <div>
+            <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Full screen</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Covers the entire phone screen instead of a positioned block</div>
+          </div>
+          <SegmentedToggle
+            value={current.fullScreen ? "on" : "off"}
+            onChange={(v) => onChangeStyle({ fullScreen: v === "on" })}
+            options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+          />
+        </div>
+      )}
+
+      {!current.fullScreen && (
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className="mb-1.5 flex items-center justify-between">
@@ -1942,11 +1957,14 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
           <input type="range" min={6} max={94} value={current.y ?? 50} onChange={(e) => onChangeStyle({ y: Number(e.target.value) })} className="w-full accent-current" style={{ accentColor: GOLD }} />
         </div>
       </div>
+      )}
+      {!current.fullScreen && (
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Drag on the phone works too — these sliders are a reliable backup if dragging doesn't respond on your device.
       </p>
+      )}
 
-      {isImage ? (
+      {isImage && !current.fullScreen ? (
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
             <FieldLabel>Size (% of screen width)</FieldLabel>
@@ -3210,6 +3228,26 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     );
   }
   if (block.type === "video") {
+    if (block.fullScreen) {
+      return (
+        <>
+          <video
+            src={block.url}
+            controls={false}
+            autoPlay
+            muted
+            loop
+            playsInline
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0 }}
+          />
+          {editMode && (
+            <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
+              {toolbar}
+            </div>
+          )}
+        </>
+      );
+    }
     return (
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT}>
         {toolbar}
