@@ -1926,7 +1926,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </div>
       )}
 
-      {current.type === "video" && (
+      {(current.type === "video" || current.type === "image") && (
         <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
           <div>
             <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Full screen</div>
@@ -3216,6 +3216,23 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     const normalizedLinkUrl = block.linkUrl && !/^([a-z][a-z0-9+.-]*:)/i.test(block.linkUrl.trim())
       ? `https://${block.linkUrl.trim()}`
       : block.linkUrl?.trim();
+    if (block.fullScreen) {
+      return (
+        <>
+          <img
+            src={block.url}
+            alt=""
+            draggable={false}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", minHeight: "100%", objectFit: "cover", zIndex: 0, pointerEvents: editMode ? "auto" : "none" }}
+          />
+          {editMode && (
+            <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
+              {toolbar}
+            </div>
+          )}
+        </>
+      );
+    }
     return (
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT}>
         {toolbar}
