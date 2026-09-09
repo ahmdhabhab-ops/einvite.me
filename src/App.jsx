@@ -3181,6 +3181,22 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       </DraggableBlock>
     );
   }
+  if (block.type === "video") {
+    return (
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT}>
+        {toolbar}
+        <video
+          src={block.url}
+          controls={editMode}
+          autoPlay={!editMode}
+          muted={!editMode}
+          loop={!editMode}
+          playsInline
+          style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", display: "block", borderRadius: 8 }}
+        />
+      </DraggableBlock>
+    );
+  }
   if (block.type === "icon") {
     const Icon = DECORATIVE_ICONS[block.icon]?.icon || Sparkles;
     return (
@@ -7941,6 +7957,20 @@ export default function InvitationBuilder() {
       reader.readAsDataURL(file);
     }
   };
+  const addCustomVideo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const stepKey = steps[safeIndex].key;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const existingVideos = customBlocks[stepKey].filter((b) => b.type === "video").length;
+      const offset = (existingVideos % 4) * 8; // small staggered offset so new videos don't land exactly on top of existing ones
+      const newBlock = { id: uid(), type: "video", url: reader.result, x: 50 + offset, y: 50 + offset, width: 55 };
+      setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+      setSelectedBlockId(`custom:${newBlock.id}`);
+    };
+    reader.readAsDataURL(file);
+  };
   const addCustomIcon = (iconKey) => {
     const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "icon", icon: iconKey, x: 50, y: 50, iconSize: 32, color: null };
@@ -8756,6 +8786,7 @@ export default function InvitationBuilder() {
                 <div className="flex flex-wrap items-center gap-2">
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
+                  {layoutEditMode && <GhostUploadButton accept="video/*" onChange={addCustomVideo}><Film size={13} /> Add video</GhostUploadButton>}
                   {layoutEditMode && (
                     <div className="relative">
                       <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Add icon</GhostButton>
