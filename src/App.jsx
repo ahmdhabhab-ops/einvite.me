@@ -1352,6 +1352,30 @@ async function uploadImageToStorage(file, bucket = "og-images") {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
+// Videos can't be compressed client-side the way images are, and are
+// typically many times larger — storing one as a base64 data URL directly
+// inside the saved JSON snapshot (like an image used to be, before
+// uploadImageToStorage existed) blows straight through the size limit on
+// that saved row. Uploading the raw file to its own Storage bucket and
+// keeping only the resulting URL in the snapshot avoids that entirely.
+// Needs a "custom-videos" bucket created the same way as the others:
+// Supabase Dashboard -> Storage -> New bucket -> name it exactly
+// "custom-videos" -> toggle Public.
+async function uploadVideoToStorage(file) {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "mp4";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/custom-videos/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": file.type || "video/mp4" },
+    body: file,
+  });
+  if (!res.ok) {
+    console.error("uploadVideoToStorage failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Couldn't upload the video — please try again.");
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/custom-videos/${path}`;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Languages                                                                */
 /* ---------------------------------------------------------------------- */
