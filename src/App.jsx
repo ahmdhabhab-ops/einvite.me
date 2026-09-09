@@ -162,16 +162,16 @@ const EVENT_TYPES = [
     // a ceremony-then-reception structure, and no gift registry makes
     // sense without a couple to register as.
     timeline: [
-      { id: uid(), icon: "utensils", time: "4:00 PM", label: { en: "Guests Arrive", ar: "وصول الضيوف", fr: "Arrivée des invités", es: "Llegada de invitados" } },
-      { id: uid(), icon: "party", time: "5:00 PM", label: { en: "Games & Fun", ar: "ألعاب ومرح", fr: "Jeux et animations", es: "Juegos y diversión" } },
-      { id: uid(), icon: "wine", time: "6:30 PM", label: { en: "Cake & Candles", ar: "الكيك والشموع", fr: "Gâteau et bougies", es: "Pastel y velas" } },
-      { id: uid(), icon: "party", time: "7:30 PM", label: { en: "Party Continues", ar: "استمرار الحفلة", fr: "La fête continue", es: "Sigue la fiesta" } },
+      { id: "bday-tl-1", icon: "utensils", time: "4:00 PM", label: { en: "Guests Arrive", ar: "وصول الضيوف", fr: "Arrivée des invités", es: "Llegada de invitados" } },
+      { id: "bday-tl-2", icon: "party", time: "5:00 PM", label: { en: "Games & Fun", ar: "ألعاب ومرح", fr: "Jeux et animations", es: "Juegos y diversión" } },
+      { id: "bday-tl-3", icon: "wine", time: "6:30 PM", label: { en: "Cake & Candles", ar: "الكيك والشموع", fr: "Gâteau et bougies", es: "Pastel y velas" } },
+      { id: "bday-tl-4", icon: "party", time: "7:30 PM", label: { en: "Party Continues", ar: "استمرار الحفلة", fr: "La fête continue", es: "Sigue la fiesta" } },
     ],
     locations: [
-      { id: uid(), time: "4:00 PM", address: "123 Celebration Lane", title: { en: "The Party", ar: "مكان الحفلة", fr: "La Fête", es: "La Fiesta" } },
+      { id: "bday-loc-1", time: "4:00 PM", address: "123 Celebration Lane", title: { en: "The Party", ar: "مكان الحفلة", fr: "La Fête", es: "La Fiesta" } },
     ],
     registry: [
-      { id: uid(), label: "Wishlist", url: "", note: "" },
+      { id: "bday-reg-1", label: "Wishlist", url: "", note: "" },
     ],
   },
   {
