@@ -6657,7 +6657,7 @@ function ChatSupportWidget() {
         >
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
             <div className="flex items-center gap-2">
-              <MessageCircle size={16} color={GOLD_SOFT} />
+              <Sparkles size={16} color={GOLD_SOFT} />
               <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Ask us anything</span>
             </div>
             <button onClick={() => setOpen(false)} style={{ color: MUTED }}><X size={16} /></button>
@@ -6708,7 +6708,7 @@ function ChatSupportWidget() {
         className="flex h-14 w-14 items-center justify-center rounded-full"
         style={{ background: GOLD, boxShadow: "0 10px 30px -8px rgba(201,164,76,0.5)", marginLeft: "auto" }}
       >
-        {open ? <X size={22} color={INK} /> : <MessageCircle size={22} color={INK} />}
+        {open ? <X size={22} color={INK} /> : <Sparkles size={22} color={INK} />}
       </button>
     </div>
   );
