@@ -1875,19 +1875,23 @@ function BackgroundPicker({ bg, onChange }) {
 
 function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
-  const isImage = current.type === "image";
+  const isImage = current.type === "image" || current.type === "video";
   return (
     <div className="mb-5 rounded-xl p-4" style={{ background: INK_3, border: `1px solid rgba(201,164,76,0.3)` }}>
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
-          {isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
+          {current.type === "video" ? "Custom video" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
         </span>
         <button onClick={onDeselect} style={{ color: MUTED }}><X size={14} /></button>
       </div>
 
       {isImage && (
         <div className="mb-3 overflow-hidden rounded-lg" style={{ background: INK_2, maxHeight: 100 }}>
-          <img src={current.url} alt="" className="mx-auto" style={{ maxHeight: 100, objectFit: "contain" }} />
+          {current.type === "video" ? (
+            <video src={current.url} muted className="mx-auto" style={{ maxHeight: 100, objectFit: "contain" }} />
+          ) : (
+            <img src={current.url} alt="" className="mx-auto" style={{ maxHeight: 100, objectFit: "contain" }} />
+          )}
         </div>
       )}
 
