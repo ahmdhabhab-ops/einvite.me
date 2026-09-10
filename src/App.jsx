@@ -6838,7 +6838,7 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
   );
 }
 
-function TemplateShopPage() {
+function TemplateShopPage({ mode = "canva" }) {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [buyerEmail, setBuyerEmail] = useState("");
   const [paying, setPaying] = useState(false);
@@ -6850,7 +6850,9 @@ function TemplateShopPage() {
   // this page is standalone with no shared state from the main app, so it
   // fetches them directly from their own dedicated key.
   const [shopDesigns, setShopDesigns] = useState([]);
-  const allTemplates = [...INVITATION_TEMPLATES, ...shopDesigns];
+  const allTemplates = [...INVITATION_TEMPLATES, ...shopDesigns].filter((t) =>
+    mode === "website" ? t.editOnWebsite : !t.editOnWebsite
+  );
 
   useEffect(() => {
     (async () => {
@@ -6952,7 +6954,9 @@ function TemplateShopPage() {
       <div className="mx-auto max-w-4xl px-5 py-10">
         <div className="mb-8 text-center">
           <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Wedding Invitation Designs</h1>
-          <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Buy a design, then customize it yourself directly in Canva — no account needed here.</p>
+          <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            {mode === "website" ? "Buy a design, then customize it yourself directly on our website." : "Buy a design, then customize it yourself directly in Canva — no account needed here."}
+          </p>
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
           {allTemplates.map((tpl) => (
@@ -9116,6 +9120,7 @@ export default function InvitationBuilder() {
   const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
   const [isAdminPath, setIsAdminPath] = useState(null); // null = checking, true/false = resolved
   const [isShopPath, setIsShopPath] = useState(null); // null = checking, true/false = resolved
+  const [isDesignsPath, setIsDesignsPath] = useState(null); // null = checking, true/false = resolved — /designs shows only website-built (editOnWebsite) designs, separate from /shop's real Canva designs
   // Set when this visit came from a completed /shop purchase of an
   // editOnWebsite design (e.g. design-12) — carries which template to
   // apply automatically once the new account finishes signing up, and the
@@ -9152,6 +9157,11 @@ export default function InvitationBuilder() {
   useEffect(() => {
     const p = window.location.pathname;
     setIsShopPath(p === "/shop" || p.startsWith("/shop/"));
+  }, []);
+
+  useEffect(() => {
+    const p = window.location.pathname;
+    setIsDesignsPath(p === "/designs" || p.startsWith("/designs/"));
   }, []);
 
   useEffect(() => {
@@ -9334,7 +9344,14 @@ export default function InvitationBuilder() {
     return <AppLoadingScreen />; // still checking the URL
   }
   if (isShopPath) {
-    return <TemplateShopPage />;
+    return <TemplateShopPage mode="canva" />;
+  }
+
+  if (isDesignsPath === null) {
+    return <AppLoadingScreen />; // still checking the URL
+  }
+  if (isDesignsPath) {
+    return <TemplateShopPage mode="website" />;
   }
 
   if (networkingSlug === null) {
