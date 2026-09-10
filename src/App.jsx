@@ -6956,10 +6956,10 @@ function TemplateShopPage() {
                     ) : (
                       <div
                         className="flex h-full w-full items-center justify-center"
-                        style={{ background: "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}
+                        style={{ background: BG_PRESETS[tpl.coverPreset]?.css || "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}
                       >
-                        <span style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 28, color: "rgba(244,237,228,0.4)" }}>
-                          {(tpl.name || "?").charAt(0).toUpperCase()}
+                        <span style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: "rgba(244,237,228,0.55)", textAlign: "center", padding: "0 10px" }}>
+                          {tpl.name}
                         </span>
                       </div>
                     )}
@@ -7070,6 +7070,7 @@ function ShopDesignFullPreview({ template, onClose }) {
     key: s.key,
     label: s.label,
     image: s.key === "cover" ? template.coverImage : template.pageImages?.[s.key],
+    preset: s.key === "cover" ? (template.coverPreset || template.pageBackgroundPreset) : template.pagePresets?.[s.key],
   }));
   const [index, setIndex] = useState(0);
   const page = pages[index];
@@ -7083,7 +7084,7 @@ function ShopDesignFullPreview({ template, onClose }) {
           {page.image ? (
             <img src={page.image} alt={page.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           ) : (
-            <div className="flex h-full w-full items-center justify-center" style={{ background: "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}>
+            <div className="flex h-full w-full items-center justify-center" style={{ background: BG_PRESETS[page.preset]?.css || "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}>
               <span className="text-[12px]" style={{ color: "rgba(244,237,228,0.5)", fontFamily: FONT_BODY }}>{page.label}</span>
             </div>
           )}
@@ -8579,6 +8580,12 @@ export default function InvitationBuilder() {
         .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
         .map((key) => [key, pageBackgrounds[key].image])
     );
+    // Captured regardless of whether a real photo is set — this is what
+    // lets the shop preview show the invitation's actual color/gradient
+    // when there's no uploaded image, instead of a generic placeholder.
+    const pagePresets = Object.fromEntries(
+      Object.keys(pageBackgrounds).map((key) => [key, pageBackgrounds[key]?.preset || null])
+    );
     const namesLayout = layouts?.cover?.names || {};
     const newDesign = {
       id: `shop-${uid()}`,
@@ -8587,7 +8594,9 @@ export default function InvitationBuilder() {
       price: Number(price) || 0,
       coverImage: pageBackgrounds.cover?.mode === "photo" ? pageBackgrounds.cover.image : null,
       coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
+      coverPreset: pagePresets.cover,
       pageImages,
+      pagePresets,
       coverNameFont: namesLayout.fontFamily || null,
       coverName1Font: namesLayout.name1FontFamily || null,
       coverName2Font: namesLayout.name2FontFamily || null,
@@ -8630,11 +8639,16 @@ export default function InvitationBuilder() {
         .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
         .map((key) => [key, pageBackgrounds[key].image])
     );
+    const pagePresets = Object.fromEntries(
+      Object.keys(pageBackgrounds).map((key) => [key, pageBackgrounds[key]?.preset || null])
+    );
     const namesLayout = layouts?.cover?.names || {};
     await updateShopDesign(editingShopDesignId, {
       coverImage: pageBackgrounds.cover?.mode === "photo" ? pageBackgrounds.cover.image : null,
       coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
+      coverPreset: pagePresets.cover,
       pageImages,
+      pagePresets,
       coverNameFont: namesLayout.fontFamily || null,
       coverName1Font: namesLayout.name1FontFamily || null,
       coverName2Font: namesLayout.name2FontFamily || null,
