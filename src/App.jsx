@@ -3200,7 +3200,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         zIndex: editMode ? (selected ? 31 : 30) : 1,
       }}
     >
-      {editMode && (
+      {editMode && selected && (
         <div className="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
           <Move size={8} /> {label}{onTextEdit ? " · double-tap to edit text" : ""}
         </div>
@@ -3222,18 +3222,32 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         )}
       </div>
       {editMode && selected && onScale && (
-        <div
-          onPointerDown={handleResizeDown}
-          onPointerMove={handleResizeMove}
-          onPointerUp={handleResizeUp}
-          className="absolute flex items-center justify-center rounded-full"
-          style={{
-            bottom: -16, right: -16, width: 22, height: 22,
-            background: GOLD, border: `2px solid ${INK}`,
-            cursor: "nwse-resize", touchAction: "none", zIndex: 32,
-          }}
-          title="Drag to resize"
-        />
+        <>
+          {[
+            { bottom: -5, right: -5, cursor: "nwse-resize" },
+            { bottom: -5, left: -5, cursor: "nesw-resize" },
+            { top: -5, right: -5, cursor: "nesw-resize" },
+            { top: -5, left: -5, cursor: "nwse-resize" },
+          ].map((posStyle, i) => (
+            <div
+              key={i}
+              onPointerDown={handleResizeDown}
+              onPointerMove={handleResizeMove}
+              onPointerUp={handleResizeUp}
+              className="absolute"
+              style={{
+                ...posStyle,
+                width: 10, height: 10,
+                background: "#FFFFFF",
+                border: `1.5px solid ${GOLD}`,
+                borderRadius: 2,
+                touchAction: "none", zIndex: 32,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+              }}
+              title="Drag to resize"
+            />
+          ))}
+        </>
       )}
       {frameRect && centerSnap.x && (
         <div
@@ -3243,8 +3257,8 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
             top: frameRect.top,
             width: 1,
             height: frameRect.height,
-            background: GOLD,
-            boxShadow: `0 0 4px ${GOLD}`,
+            background: "repeating-linear-gradient(to bottom, #FF3D8A 0, #FF3D8A 6px, transparent 6px, transparent 11px)",
+            boxShadow: "0 0 4px rgba(255,61,138,0.6)",
             zIndex: 200,
           }}
         />
@@ -3257,8 +3271,8 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
             top: frameRect.top + frameRect.height / 2 - 0.5,
             width: frameRect.width,
             height: 1,
-            background: GOLD,
-            boxShadow: `0 0 4px ${GOLD}`,
+            background: "repeating-linear-gradient(to right, #FF3D8A 0, #FF3D8A 6px, transparent 6px, transparent 11px)",
+            boxShadow: "0 0 4px rgba(255,61,138,0.6)",
             zIndex: 200,
           }}
         />
