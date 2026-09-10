@@ -6824,7 +6824,6 @@ function TemplateShopPage() {
   // this page is standalone with no shared state from the main app, so it
   // fetches them directly from their own dedicated key.
   const [shopDesigns, setShopDesigns] = useState([]);
-  const [previewingFullDesign, setPreviewingFullDesign] = useState(null); // the template currently shown in the multi-page swipeable preview
   const allTemplates = [...INVITATION_TEMPLATES, ...shopDesigns];
 
   useEffect(() => {
@@ -6993,13 +6992,6 @@ function TemplateShopPage() {
                   <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
                   <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
                 </div>
-                <button
-                  onClick={() => setPreviewingFullDesign(selectedTemplate)}
-                  className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-full py-2 text-[12px] font-semibold"
-                  style={{ border: `1px solid rgba(201,164,76,0.4)`, color: GOLD_SOFT, fontFamily: FONT_BODY }}
-                >
-                  <ImagePlus size={13} /> Preview all pages
-                </button>
                 <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
                 <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
                 <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
@@ -7050,69 +7042,6 @@ function TemplateShopPage() {
             </div>
           </div>
         )}
-
-        {previewingFullDesign && (
-          <ShopDesignFullPreview template={previewingFullDesign} onClose={() => setPreviewingFullDesign(null)} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// A simple, standalone swipeable preview — steps through every page's
-// captured background image (cover, then each entry in pageImages, in
-// ALL_STEPS order) inside a phone frame. This is NOT the full interactive
-// invitation experience (no live fonts/layouts/content) — just a quick
-// look at what each page's background looks like, for a shop buyer
-// deciding whether to purchase.
-function ShopDesignFullPreview({ template, onClose }) {
-  const pages = ALL_STEPS.map((s) => ({
-    key: s.key,
-    label: s.label,
-    image: s.key === "cover" ? template.coverImage : template.pageImages?.[s.key],
-    preset: s.key === "cover" ? (template.coverPreset || template.pageBackgroundPreset) : template.pagePresets?.[s.key],
-  }));
-  const [index, setIndex] = useState(0);
-  const page = pages[index];
-
-  return (
-    <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center p-4" style={{ background: "rgba(6,8,6,0.92)" }}>
-      <button onClick={onClose} className="absolute right-4 top-4 z-10" style={{ color: IVORY }}><X size={22} /></button>
-      <div className="relative mx-auto" style={{ width: 260, background: "#000", borderRadius: 32, padding: 8, boxShadow: "0 20px 50px -15px rgba(0,0,0,0.7)" }}>
-        <div className="absolute left-1/2 top-2.5 z-10 h-2 w-8 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
-        <div className="relative overflow-hidden" style={{ borderRadius: 24, aspectRatio: "9 / 19.5" }}>
-          {page.image ? (
-            <img src={page.image} alt={page.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center" style={{ background: BG_PRESETS[page.preset]?.css || "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}>
-              <span className="text-[12px]" style={{ color: "rgba(244,237,228,0.5)", fontFamily: FONT_BODY }}>{page.label}</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <p className="mt-4 text-[13px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{page.label}</p>
-      <div className="mt-3 flex items-center gap-3">
-        <button
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          disabled={index === 0}
-          className="flex h-9 w-9 items-center justify-center rounded-full"
-          style={{ background: INK_2, color: index === 0 ? MUTED : IVORY, opacity: index === 0 ? 0.4 : 1 }}
-        >
-          <ChevronsLeft size={16} />
-        </button>
-        <div className="flex items-center gap-1.5">
-          {pages.map((_, i) => (
-            <button key={i} onClick={() => setIndex(i)} className="h-1.5 rounded-full" style={{ width: i === index ? 16 : 6, background: i === index ? GOLD : "rgba(147,166,155,0.4)", transition: "all 0.2s" }} />
-          ))}
-        </div>
-        <button
-          onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
-          disabled={index === pages.length - 1}
-          className="flex h-9 w-9 items-center justify-center rounded-full"
-          style={{ background: INK_2, color: index === pages.length - 1 ? MUTED : IVORY, opacity: index === pages.length - 1 ? 0.4 : 1, transform: "rotate(180deg)" }}
-        >
-          <ChevronsLeft size={16} />
-        </button>
       </div>
     </div>
   );
@@ -7227,7 +7156,7 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   );
 }
 
-function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "" }) {
+function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "", skipApproval = false }) {
   const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
   const [form, setForm] = useState({ name: "", email: prefillEmail, phone: "", password: "" });
   const [showPw, setShowPw] = useState(false);
@@ -7249,8 +7178,12 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
       setError("An account with that email already exists.");
       return;
     }
-    onSignUp({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password });
-    setScreen("pendingNotice");
+    const newUser = onSignUp({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password });
+    if (skipApproval && newUser) {
+      onEnterBuilderAs(newUser); // paid already — go straight into the Builder, no separate approval wait
+    } else {
+      setScreen("pendingNotice");
+    }
   };
 
   const submitLogin = (e) => {
@@ -8933,8 +8866,12 @@ export default function InvitationBuilder() {
   const toggleCanDesign = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
   const updateUserEmail = (id, email) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
   const signUpUser = (params) => {
-    const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
+    // Shop-purchase signups skip the normal pending-approval wait — the
+    // client already paid, so making them wait for a separate manual
+    // approval on top of that would be a confusing, redundant step.
+    const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: pendingShopTemplate ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
     saveUsersDirectly((list) => [newUser, ...list]);
+    return newUser;
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
   const [chosenEventType, setChosenEventType] = useState(null);
@@ -9472,7 +9409,7 @@ export default function InvitationBuilder() {
   if (!isAdminPath && !actingAsUser) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
-        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} prefillEmail={prefillSignupEmail} />
+        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} prefillEmail={prefillSignupEmail} skipApproval={!!pendingShopTemplate} />
       </div>
     );
   }
