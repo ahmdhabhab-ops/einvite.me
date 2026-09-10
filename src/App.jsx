@@ -3371,12 +3371,12 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     if (block.fullScreen) {
       return (
         <>
-          <div style={{ position: "absolute", inset: 0, zIndex: 0, background: block.noCrop ? "#000" : "transparent" }}>
+          <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: block.noCrop ? "#000" : "transparent" }}>
             <img
               src={block.url}
               alt=""
               draggable={false}
-              style={{ width: "100%", height: "100%", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none" }}
+              style={{ width: "100%", height: "100%", display: "block", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none" }}
             />
           </div>
           {editMode && (
@@ -3402,7 +3402,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     if (block.fullScreen) {
       return (
         <>
-          <div style={{ position: "absolute", inset: 0, zIndex: 0, background: block.noCrop ? "#000" : "transparent" }}>
+          <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: block.noCrop ? "#000" : "transparent" }}>
             <video
               src={block.url}
               controls={false}
@@ -3580,10 +3580,10 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
               {content.intro}
             </p>
           </DraggableBlock>
-          {(formattedDate || editMode) && (
+          {formattedDate && (
             <DraggableBlock id="date" pos={dateStyle} editMode={editMode} onMove={(p) => onMoveBlock("date", p)} onScale={(scale) => onMoveBlock("date", { scale })} label="Date" light={light} selected={selectedBlock === "date"} onSelect={() => onSelectBlock("date")}>
               <p className="text-center" style={{ color: dateStyle.color || (light ? GOLD_SOFT : ROSE), fontFamily: dateStyle.fontFamily || FONT_BODY, fontSize: dateStyle.fontSize ? `${dateStyle.fontSize}px` : 12 }}>
-                {formattedDate || "Set your date in RSVP settings"}
+                {formattedDate}
               </p>
             </DraggableBlock>
           )}
@@ -6700,11 +6700,14 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
 // bought here has nothing to do with an eInvite.me account or invitation.
 // Admin-only modal for capturing the current invitation's visual style
 // (see saveCurrentAsShopDesign) as a new, independent design on /shop.
-function SaveAsShopDesignModal({ onClose, onSave }) {
+function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
 
   const submit = async () => {
     if (!name.trim()) return;
@@ -6714,13 +6717,60 @@ function SaveAsShopDesignModal({ onClose, onSave }) {
     setDone(true);
   };
 
+  const startEdit = (design) => {
+    setEditingId(design.id);
+    setEditName(design.name);
+    setEditPrice(String(design.price || ""));
+  };
+  const saveEdit = () => {
+    onUpdateDesign(editingId, { name: editName.trim() || "Untitled design", price: Number(editPrice) || 0 });
+    setEditingId(null);
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
-      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)` }}>
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, maxHeight: "85vh" }}>
+        <div className="overflow-y-auto p-6" style={{ maxHeight: "85vh" }}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Save as Shop Design</h2>
+          <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Shop Designs</h2>
           <button onClick={onClose} style={{ color: MUTED }}><X size={18} /></button>
         </div>
+
+        {existingDesigns && existingDesigns.length > 0 && (
+          <div className="mb-5 space-y-2">
+            <FieldLabel>Your published designs</FieldLabel>
+            {existingDesigns.map((d) => (
+              <div key={d.id} className="rounded-lg p-3" style={{ background: INK_3 }}>
+                {editingId === d.id ? (
+                  <div className="space-y-2">
+                    <TextInput value={editName} onChange={setEditName} placeholder="Design name" />
+                    <TextInput type="number" value={editPrice} onChange={setEditPrice} placeholder="Price" />
+                    <div className="flex gap-2">
+                      <button onClick={saveEdit} className="flex-1 rounded-full py-1.5 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>Save</button>
+                      <button onClick={() => setEditingId(null)} className="flex-1 rounded-full py-1.5 text-[11.5px] font-semibold" style={{ border: `1px solid rgba(147,166,155,0.3)`, color: MUTED, fontFamily: FONT_BODY }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[12.5px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>{d.name}</div>
+                      <div className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>${d.price}</div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => startEdit(d)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: MUTED }} title="Edit">
+                        <Settings size={13} />
+                      </button>
+                      <button onClick={() => onDeleteDesign(d.id)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "#E29B9B" }} title="Delete">
+                        <X size={13} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {done ? (
           <div className="text-center">
             <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 10px" }} />
@@ -6729,7 +6779,8 @@ function SaveAsShopDesignModal({ onClose, onSave }) {
           </div>
         ) : (
           <>
-            <p className="mb-4 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            <FieldLabel>Save current styling as a new design</FieldLabel>
+            <p className="mb-3 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
               This captures every page's current background image and the Cover page's name fonts/colors — not any names or content you've typed — as a brand new design buyers can pick on /shop.
             </p>
             <FieldLabel>Design name</FieldLabel>
@@ -6744,10 +6795,11 @@ function SaveAsShopDesignModal({ onClose, onSave }) {
               className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
               style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: saving || !name.trim() ? 0.6 : 1 }}
             >
-              {saving ? "Saving…" : "Save to Shop"}
+              {saving ? "Saving…" : "Save as New Design"}
             </button>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -6891,8 +6943,17 @@ function TemplateShopPage() {
                         playsInline
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                       />
+                    ) : tpl.coverImage ? (
+                      <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     ) : (
-                      tpl.coverImage && <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      <div
+                        className="flex h-full w-full items-center justify-center"
+                        style={{ background: "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}
+                      >
+                        <span style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 28, color: "rgba(244,237,228,0.4)" }}>
+                          {(tpl.name || "?").charAt(0).toUpperCase()}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -8470,6 +8531,24 @@ export default function InvitationBuilder() {
     }
     return newDesign;
   };
+  const updateShopDesign = async (id, patch) => {
+    const nextList = shopDesigns.map((d) => (d.id === id ? { ...d, ...patch } : d));
+    setShopDesigns(nextList);
+    try {
+      await persistentStorage.set(SHOP_DESIGNS_KEY, JSON.stringify(nextList), false);
+    } catch {
+      alert("Updated locally, but couldn't sync to the server — try again in a moment.");
+    }
+  };
+  const deleteShopDesign = async (id) => {
+    const nextList = shopDesigns.filter((d) => d.id !== id);
+    setShopDesigns(nextList);
+    try {
+      await persistentStorage.set(SHOP_DESIGNS_KEY, JSON.stringify(nextList), false);
+    } catch {
+      alert("Deleted locally, but couldn't sync to the server — try again in a moment.");
+    }
+  };
   const addCustomVideo = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -9605,6 +9684,9 @@ export default function InvitationBuilder() {
           <SaveAsShopDesignModal
             onClose={() => setShowSaveAsShopDesign(false)}
             onSave={saveCurrentAsShopDesign}
+            existingDesigns={shopDesigns}
+            onUpdateDesign={updateShopDesign}
+            onDeleteDesign={deleteShopDesign}
           />
         )}
       </div>
