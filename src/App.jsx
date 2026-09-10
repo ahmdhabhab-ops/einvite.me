@@ -435,7 +435,7 @@ const INVITATION_TEMPLATES = [
     coverImage: `${TEMPLATE_IMAGE_BASE}/12.png`,
     coverBackdropColor: null,
     pageBackgroundPreset: "dusk",
-    coverNameFont: null,
+    coverNameFont: "'Amiri', serif",
     coverNameColor: null,
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
@@ -7713,7 +7713,7 @@ export default function InvitationBuilder() {
     const link = document.createElement("link");
     link.id = id;
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap";
     document.head.appendChild(link);
   }, []);
 
