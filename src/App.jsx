@@ -2179,7 +2179,7 @@ function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
 /* Editor: step panels                                                     */
 /* ---------------------------------------------------------------------- */
 
-function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAudio, onRemoveAudio, intro, updateIntro, activeLang, onUploadIntroMedia, onRemoveIntroMedia }) {
+function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAudio, onRemoveAudio, intro, updateIntro, activeLang, onUploadIntroMedia, onRemoveIntroMedia, introMediaLibrary, isAdmin, onAddLibraryItem, onRemoveLibraryItem, onPickLibraryItem }) {
   const introMedia = intro.media[activeLang];
   return (
     <div>
@@ -2364,6 +2364,55 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
               </span>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <FieldLabel>Choose from the shared background library ({LANG_META[activeLang].short})</FieldLabel>
+        <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          {isAdmin ? "Add photos or videos here once and every client can pick one for their own intro." : "Pick a background the team has provided, or use your own upload above instead."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(introMediaLibrary || []).map((item) => {
+            const picked = intro.introMediaChoiceId === item.id;
+            return (
+              <div key={item.id} className="relative">
+                <button
+                  onClick={() => onPickLibraryItem(picked ? null : item)}
+                  className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg"
+                  style={{
+                    border: picked ? `2px solid ${GOLD}` : `2px solid rgba(147,166,155,0.3)`,
+                    background: item.type === "image" ? `url(${item.url}) center/cover` : INK_3,
+                  }}
+                >
+                  {item.type === "video" && <Film size={16} style={{ color: GOLD_SOFT }} />}
+                  {picked && (
+                    <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full" style={{ background: GOLD }}>
+                      <Check size={10} color={INK} />
+                    </div>
+                  )}
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => onRemoveLibraryItem(item.id)}
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full"
+                    style={{ background: INK, border: `1px solid rgba(226,155,155,0.6)` }}
+                    title="Remove from library"
+                  >
+                    <X size={10} color="#E29B9B" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          {isAdmin && (
+            <GhostUploadButton accept="image/*,video/*" onChange={onAddLibraryItem}>
+              <Plus size={13} /> Add option
+            </GhostUploadButton>
+          )}
+          {!isAdmin && (introMediaLibrary || []).length === 0 && (
+            <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No options added yet.</span>
+          )}
         </div>
       </div>
     </div>
@@ -7709,12 +7758,12 @@ export default function InvitationBuilder() {
   const [activeLang, setActiveLang] = useState("en");
   const [layouts, setLayouts] = useState(DEFAULT_LAYOUTS);
   const [customBlocks, setCustomBlocks] = useState(emptyCustomBlocks);
-  // Global decorative elements (images/icons/dividers) shown on EVERY
-  // client's invitation automatically — set once by the owner, not copied
-  // into each client's own saved data. Keyed the same way as customBlocks
-  // (one array per page), so they merge in at render time for whichever
-  // page they're set on.
-  const [siteWideDecorations, setSiteWideDecorations] = useState(emptyCustomBlocks);
+  // Admin-managed library of Intro-background options (photos/videos) —
+  // set once, shared across every client, who each pick which one (if
+  // any) they want as THEIR OWN intro background. Never copied into a
+  // client's own saved data; only their choice (introMediaChoiceId,
+  // stored per-client in `intro`) is.
+  const [introMediaLibrary, setIntroMediaLibrary] = useState([]);
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -8050,7 +8099,7 @@ export default function InvitationBuilder() {
         }
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
         if (d.users) setUsers(d.users);
-        if (d.siteWideDecorations) setSiteWideDecorations((c) => ({ ...emptyCustomBlocks(), ...c, ...d.siteWideDecorations }));
+        if (Array.isArray(d.introMediaLibrary)) setIntroMediaLibrary(d.introMediaLibrary);
         if (d.siteDomain) setSiteDomain(d.siteDomain);
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
@@ -8139,10 +8188,10 @@ export default function InvitationBuilder() {
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, siteWideDecorations,
+      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
-      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media (image or video) saved separately below via introBgKey
+      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId }, // media (image or video) saved separately below via introBgKey
       musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
     const imageJobs = [
@@ -8201,22 +8250,31 @@ export default function InvitationBuilder() {
       reader.readAsDataURL(file);
     }
   };
-  // Admin-only: adds a decorative element that automatically shows on
-  // EVERY client's invitation (see the merge in the `data` object above) —
-  // uploaded to Storage rather than embedded as base64, same reasoning as
-  // custom videos, since this is saved once in the shared/global payload.
-  const addSiteWideImage = async (e) => {
+  // Admin-only: adds one photo or video to the shared Intro-background
+  // library — every client sees this same library and picks (or removes)
+  // their own choice from it; nothing here is copied into a client's own
+  // saved data, only their choice of which library item to use.
+  const addIntroLibraryItem = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const stepKey = steps[safeIndex].key;
+    const isVideo = file.type.startsWith("video/");
     try {
-      const url = await uploadImageToStorage(file, "site-decorations");
-      const newBlock = { id: uid(), type: "image", url, x: 50, y: 50, width: 40 };
-      setSiteWideDecorations((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
-      setSelectedBlockId(`sitewide:${newBlock.id}`);
+      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
+      const newItem = { id: uid(), type: isVideo ? "video" : "image", url, name: file.name };
+      setIntroMediaLibrary((list) => [...list, newItem]);
     } catch (err) {
-      alert(err.message || "Couldn't upload the image — please try again.");
+      alert(err.message || "Couldn't upload — please try again.");
     }
+  };
+  const removeIntroLibraryItem = (id) => {
+    setIntroMediaLibrary((list) => list.filter((item) => item.id !== id));
+    // A client who had this item picked reverts to no background choice —
+    // otherwise they'd be silently left pointing at a URL that no longer
+    // exists in the library.
+    setIntro((i) => ({
+      ...i,
+      introMediaChoiceId: i.introMediaChoiceId === id ? null : i.introMediaChoiceId,
+    }));
   };
   const addCustomVideo = async (e) => {
     const file = e.target.files?.[0];
@@ -8251,13 +8309,6 @@ export default function InvitationBuilder() {
   const removeCustomBlock = (stepKey, id) => {
     setCustomBlocks((c) => ({ ...c, [stepKey]: c[stepKey].filter((b) => b.id !== id) }));
     setSelectedBlockId((sel) => (sel === `custom:${id}` ? null : sel));
-  };
-  const updateSiteWideBlock = (stepKey, id, patch) =>
-    setSiteWideDecorations((c) => ({ ...c, [stepKey]: c[stepKey].map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
-  const moveSiteWideBlock = (stepKey, id, pos) => updateSiteWideBlock(stepKey, id, pos);
-  const removeSiteWideBlock = (stepKey, id) => {
-    setSiteWideDecorations((c) => ({ ...c, [stepKey]: c[stepKey].filter((b) => b.id !== id) }));
-    setSelectedBlockId((sel) => (sel === `sitewide:${id}` ? null : sel));
   };
 
   const toggleLayoutEditMode = () => setLayoutEditMode((v) => { if (v) setSelectedBlockId(null); return !v; });
@@ -8595,12 +8646,16 @@ export default function InvitationBuilder() {
     }
   };
   const removeIntroMedia = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: null } }));
+  const handlePickIntroLibraryItem = (item) => {
+    setIntro((i) => ({
+      ...i,
+      introMediaChoiceId: item ? item.id : null,
+      media: { ...i.media, [activeLang]: item ? { type: item.type, url: item.url, name: item.name } : null },
+    }));
+  };
 
   const totalAttending = flattenMembers(guestGroups).filter((m) => m.status === "yes").length;
-  const mergedCustomBlocks = Object.fromEntries(
-    Object.keys(customBlocks).map((key) => [key, [...(siteWideDecorations[key] || []), ...customBlocks[key]]])
-  );
-  const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks: mergedCustomBlocks, rsvpSettings, totalAttending, integrations };
+  const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks, rsvpSettings, totalAttending, integrations };
   const stepKey = steps[safeIndex].key;
   const c = content[activeLang];
 
@@ -8752,16 +8807,7 @@ export default function InvitationBuilder() {
   }, [slug, users, invitationsStore, coreDataLoaded]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
-    ? {
-        ...guestView.snapshot,
-        totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length,
-        customBlocks: Object.fromEntries(
-          Object.keys(guestView.snapshot.customBlocks || {}).map((key) => [
-            key,
-            [...(siteWideDecorations[key] || []), ...((guestView.snapshot.customBlocks || {})[key] || [])],
-          ])
-        ),
-      }
+    ? { ...guestView.snapshot, totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length }
     : null;
   const guestData = guestView && guestView.found ? (guestView.ownSlug ? data : guestSnapshotData) : null;
   const guestSteps = guestView && guestView.found
@@ -9074,11 +9120,6 @@ export default function InvitationBuilder() {
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
                   {layoutEditMode && <GhostUploadButton accept="video/*" onChange={addCustomVideo}><Film size={13} /> Add video</GhostUploadButton>}
-                  {layoutEditMode && isAdminPath && !actingAsUser && (
-                    <GhostUploadButton accept="image/*" onChange={addSiteWideImage}>
-                      <Sparkles size={13} /> Add for all clients
-                    </GhostUploadButton>
-                  )}
                   {layoutEditMode && (
                     <div className="relative">
                       <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Elements</GhostButton>
@@ -9130,20 +9171,17 @@ export default function InvitationBuilder() {
 
               {layoutEditMode && selectedBlockId && (() => {
                 const isCustom = selectedBlockId.startsWith("custom:");
-                const isSiteWide = selectedBlockId.startsWith("sitewide:");
-                const customId = isCustom ? selectedBlockId.slice(7) : isSiteWide ? selectedBlockId.slice(9) : null;
+                const customId = isCustom ? selectedBlockId.slice(7) : null;
                 const current = isCustom
                   ? customBlocks[stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
-                  : isSiteWide
-                  ? siteWideDecorations[stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
                   : layouts[stepKey][selectedBlockId] || { fontFamily: null, color: null, fontSize: null };
                 return (
                   <BlockStylePanel
-                    isCustom={isCustom || isSiteWide}
+                    isCustom={isCustom}
                     current={current}
-                    onChangeStyle={(patch) => (isSiteWide ? updateSiteWideBlock(stepKey, customId, patch) : isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
-                    onChangeText={(v) => (isSiteWide ? updateSiteWideBlock(stepKey, customId, { text: v }) : updateCustomBlock(stepKey, customId, { text: v }))}
-                    onDelete={() => (isSiteWide ? removeSiteWideBlock(stepKey, customId) : removeCustomBlock(stepKey, customId))}
+                    onChangeStyle={(patch) => (isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
+                    onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
+                    onDelete={() => removeCustomBlock(stepKey, customId)}
                     onDeselect={() => setSelectedBlockId(null)}
                   />
                 );
@@ -9164,6 +9202,11 @@ export default function InvitationBuilder() {
                   activeLang={activeLang}
                   onUploadIntroMedia={handleIntroMediaUpload}
                   onRemoveIntroMedia={removeIntroMedia}
+                  introMediaLibrary={introMediaLibrary}
+                  isAdmin={isAdminPath && !actingAsUser}
+                  onAddLibraryItem={addIntroLibraryItem}
+                  onRemoveLibraryItem={removeIntroLibraryItem}
+                  onPickLibraryItem={handlePickIntroLibraryItem}
                 />
               )}
               {stepKey === "family" && <FamilyStep c={c.family} updateContent={(p) => updateContentSection("family", p)} bg={pageBackgrounds.family} setBg={setBgFor("family")} />}
