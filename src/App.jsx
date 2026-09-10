@@ -6853,6 +6853,22 @@ function TemplateShopPage() {
                     </a>
                   </>
                 )}
+                {selectedTemplate.editOnWebsite && (
+                  <>
+                    <div className="my-3 flex items-center gap-2">
+                      <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.2)" }} />
+                      <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>TEMPORARY — remove before going live</span>
+                      <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.2)" }} />
+                    </div>
+                    <button
+                      onClick={() => { setPurchaseComplete(true); setPurchasedUrl(null); }}
+                      className="block w-full rounded-full py-2.5 text-center text-[11.5px] font-semibold"
+                      style={{ border: `1px dashed rgba(147,166,155,0.4)`, color: MUTED, fontFamily: FONT_BODY }}
+                    >
+                      Skip payment — go straight to account creation (testing only)
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
