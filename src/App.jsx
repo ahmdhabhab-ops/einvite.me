@@ -6698,6 +6698,61 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
 // customize it themselves in Canva. Completely separate from this app's
 // own package/publish payment system (PublishPaywallModal) — a template
 // bought here has nothing to do with an eInvite.me account or invitation.
+// Admin-only modal for capturing the current invitation's visual style
+// (see saveCurrentAsShopDesign) as a new, independent design on /shop.
+function SaveAsShopDesignModal({ onClose, onSave }) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const submit = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    await onSave(name.trim(), price);
+    setSaving(false);
+    setDone(true);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
+      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)` }}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Save as Shop Design</h2>
+          <button onClick={onClose} style={{ color: MUTED }}><X size={18} /></button>
+        </div>
+        {done ? (
+          <div className="text-center">
+            <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 10px" }} />
+            <p className="text-[13px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>Saved — it's live on /shop now.</p>
+            <button onClick={onClose} className="mt-4 rounded-full px-5 py-2 text-[12px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>Done</button>
+          </div>
+        ) : (
+          <>
+            <p className="mb-4 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              This captures every page's current background image and the Cover page's name fonts/colors — not any names or content you've typed — as a brand new design buyers can pick on /shop.
+            </p>
+            <FieldLabel>Design name</FieldLabel>
+            <TextInput value={name} onChange={setName} placeholder="e.g. Golden Botanical" />
+            <div className="mt-3">
+              <FieldLabel>Price (USD)</FieldLabel>
+              <TextInput type="number" value={price} onChange={setPrice} placeholder="35" />
+            </div>
+            <button
+              onClick={submit}
+              disabled={saving || !name.trim()}
+              className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
+              style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: saving || !name.trim() ? 0.6 : 1 }}
+            >
+              {saving ? "Saving…" : "Save to Shop"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TemplateShopPage() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -6706,6 +6761,20 @@ function TemplateShopPage() {
   const [error, setError] = useState("");
   const [purchasedUrl, setPurchasedUrl] = useState(null);
   const [purchaseComplete, setPurchaseComplete] = useState(false); // true once paid, even for editOnWebsite templates that have no Canva link
+  // Admin-published designs (via "Save as Shop Design" in the Builder) —
+  // this page is standalone with no shared state from the main app, so it
+  // fetches them directly from their own dedicated key.
+  const [shopDesigns, setShopDesigns] = useState([]);
+  const allTemplates = [...INVITATION_TEMPLATES, ...shopDesigns];
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await persistentStorage.get("einvite:shop-designs", false);
+        if (res?.value) setShopDesigns(JSON.parse(res.value));
+      } catch {}
+    })();
+  }, []);
 
   // On return from Whish's checkout, resume checking a payment that was
   // already started before the redirect — same reasoning as the
@@ -6715,7 +6784,7 @@ function TemplateShopPage() {
     const storedRef = window.localStorage.getItem("einvite:template-purchase-ref");
     const storedTemplateId = window.localStorage.getItem("einvite:template-purchase-template-id");
     if (!storedRef || !storedTemplateId) return;
-    const tpl = INVITATION_TEMPLATES.find((t) => t.id === storedTemplateId);
+    const tpl = allTemplates.find((t) => t.id === storedTemplateId);
     if (!tpl) return;
     setSelectedTemplate(tpl);
     setPolling(true);
@@ -6801,7 +6870,7 @@ function TemplateShopPage() {
           <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Buy a design, then customize it yourself directly in Canva — no account needed here.</p>
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
-          {INVITATION_TEMPLATES.map((tpl) => (
+          {allTemplates.map((tpl) => (
             <button
               key={tpl.id}
               onClick={() => { setSelectedTemplate(tpl); setError(""); }}
@@ -7826,6 +7895,13 @@ export default function InvitationBuilder() {
   // client's own saved data; only their choice (introMediaChoiceId,
   // stored per-client in `intro`) is.
   const [introMediaLibrary, setIntroMediaLibrary] = useState([]);
+  // Designs the admin has saved directly from the Builder to appear on
+  // /shop — same shape as an INVITATION_TEMPLATES entry (id, name, price,
+  // coverImage, pageImages, coverNameFont, editOnWebsite: true), but
+  // stored in Supabase instead of hardcoded in this file, so a new one
+  // shows up on /shop immediately without editing any code.
+  const [shopDesigns, setShopDesigns] = useState([]);
+  const [showSaveAsShopDesign, setShowSaveAsShopDesign] = useState(false);
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -8017,6 +8093,7 @@ export default function InvitationBuilder() {
   const bgKey = (stepKey) => `einvite:bg-${stepKey}`;
   const introBgKey = (lang) => `einvite:introbg-${lang}`;
   const OG_IMAGE_KEY = "einvite:og-image";
+  const SHOP_DESIGNS_KEY = "einvite:shop-designs"; // separate top-level key — /shop fetches this directly, independent of the main draft
   const invitationKey = (id) => `einvite:invitation-${id}`;
   const MUSIC_AUDIO_KEY = "einvite:music-audio";
 
@@ -8162,6 +8239,10 @@ export default function InvitationBuilder() {
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
         if (d.users) setUsers(d.users);
         if (Array.isArray(d.introMediaLibrary)) setIntroMediaLibrary(d.introMediaLibrary);
+        // shopDesigns loads separately below, from its own dedicated key —
+        // see SHOP_DESIGNS_KEY — since /shop (a completely separate page
+        // mount) needs to fetch the exact same data independently, without
+        // loading this whole draft.
         if (d.siteDomain) setSiteDomain(d.siteDomain);
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
@@ -8204,6 +8285,13 @@ export default function InvitationBuilder() {
         const res = await persistentStorage.get(OG_IMAGE_KEY, false);
         if (cancelled || !res?.value) return;
         setOg((o) => ({ ...o, image: res.value }));
+      } catch {}
+    })();
+    (async () => {
+      try {
+        const res = await persistentStorage.get(SHOP_DESIGNS_KEY, false);
+        if (cancelled || !res?.value) return;
+        setShopDesigns(JSON.parse(res.value));
       } catch {}
     })();
     (async () => {
@@ -8337,6 +8425,50 @@ export default function InvitationBuilder() {
       ...i,
       introMediaChoiceId: i.introMediaChoiceId === id ? null : i.introMediaChoiceId,
     }));
+  };
+  // Admin-only: captures everything about the CURRENT invitation's visual
+  // style — every page's own background image, and the Cover page's name
+  // fonts/color if the admin customized them — as a brand new, independent
+  // design others can buy on /shop. This never touches or references the
+  // admin's own invitation content (names, dates, etc.) going forward; it's
+  // a one-time snapshot of the STYLE only. Saved straight to Supabase so
+  // /shop (a completely separate page) sees it right away, without
+  // depending on a "Save invitation" click.
+  const saveCurrentAsShopDesign = async (name, price) => {
+    const pageImages = Object.fromEntries(
+      Object.keys(pageBackgrounds)
+        .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
+        .map((key) => [key, pageBackgrounds[key].image])
+    );
+    const namesLayout = layouts?.cover?.names || {};
+    const newDesign = {
+      id: `shop-${uid()}`,
+      name,
+      description: "",
+      price: Number(price) || 0,
+      coverImage: pageBackgrounds.cover?.mode === "photo" ? pageBackgrounds.cover.image : null,
+      coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
+      pageImages,
+      coverNameFont: namesLayout.fontFamily || null,
+      coverName1Font: namesLayout.name1FontFamily || null,
+      coverName2Font: namesLayout.name2FontFamily || null,
+      coverAmpersandFont: namesLayout.ampersandFontFamily || null,
+      coverNameColor: namesLayout.color || null,
+      gateAnimationStyle: intro.animationStyle || "floatingHearts",
+      gateIcon: intro.icon || "heart",
+      eventTypes: ["wedding", "birthday", "baptism", "babyShower", "quinceanera"],
+      editOnWebsite: true,
+      canvaTemplateUrl: null,
+      previewVideo: null,
+    };
+    const nextList = [...shopDesigns, newDesign];
+    setShopDesigns(nextList);
+    try {
+      await persistentStorage.set(SHOP_DESIGNS_KEY, JSON.stringify(nextList), false);
+    } catch {
+      alert("Saved locally, but couldn't sync to the server — try again in a moment.");
+    }
+    return newDesign;
   };
   const addCustomVideo = async (e) => {
     const file = e.target.files?.[0];
@@ -8783,12 +8915,12 @@ export default function InvitationBuilder() {
     const params = new URLSearchParams(window.location.search);
     const templateId = params.get("buildTemplate");
     if (templateId) {
-      const tpl = INVITATION_TEMPLATES.find((t) => t.id === templateId);
+      const tpl = [...INVITATION_TEMPLATES, ...shopDesigns].find((t) => t.id === templateId);
       if (tpl) setPendingShopTemplate(tpl);
       const email = params.get("email");
       if (email) setPrefillSignupEmail(email);
     }
-  }, []);
+  }, [shopDesigns]);
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
@@ -9183,6 +9315,15 @@ export default function InvitationBuilder() {
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} />
               <div className="mb-4 flex items-center justify-end gap-2">
+                {isAdminPath && !actingAsUser && (
+                  <button
+                    onClick={() => setShowSaveAsShopDesign(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-semibold"
+                    style={{ background: "transparent", color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.4)`, fontFamily: FONT_BODY }}
+                  >
+                    <Sparkles size={13} /> Save as Shop Design
+                  </button>
+                )}
                 <button
                   onClick={() => setShowPublishModal(true)}
                   className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-bold uppercase"
@@ -9457,6 +9598,13 @@ export default function InvitationBuilder() {
             currentPackageTier={activeUserRecord.packageTier}
             onClose={() => setShowPublishModal(false)}
             onConfirmed={onPackageConfirmed}
+          />
+        )}
+
+        {showSaveAsShopDesign && (
+          <SaveAsShopDesignModal
+            onClose={() => setShowSaveAsShopDesign(false)}
+            onSave={saveCurrentAsShopDesign}
           />
         )}
       </div>
