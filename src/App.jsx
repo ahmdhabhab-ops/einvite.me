@@ -441,7 +441,11 @@ const INVITATION_TEMPLATES = [
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
     price: 0, // placeholder — set the real price
-    canvaTemplateUrl: null, // placeholder — paste the real Canva "Use template" link
+    // This design is edited directly on core.einvite.me's own Builder,
+    // not via a Canva redirect — the shop purchase flow creates an
+    // account and applies this template instead of emailing a Canva link.
+    editOnWebsite: true,
+    canvaTemplateUrl: null,
     previewVideo: null, // placeholder — once uploaded, set to `${TEMPLATE_VIDEO_BASE}/12.mp4`
   },
 ];
@@ -6669,6 +6673,7 @@ function TemplateShopPage() {
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState("");
   const [purchasedUrl, setPurchasedUrl] = useState(null);
+  const [purchaseComplete, setPurchaseComplete] = useState(false); // true once paid, even for editOnWebsite templates that have no Canva link
 
   // On return from Whish's checkout, resume checking a payment that was
   // already started before the redirect — same reasoning as the
@@ -6686,9 +6691,12 @@ function TemplateShopPage() {
     const poll = async () => {
       if (Date.now() - start > 10 * 60 * 1000) { setPolling(false); setError("Payment session expired — please try again."); return; }
       const result = await getTemplatePurchaseStatus(storedRef);
-      if (result?.status === "paid" && result.canvaTemplateUrl) {
+      // editOnWebsite designs have no Canva link to wait for — payment
+      // confirmed is enough to move on to account creation.
+      if (result?.status === "paid" && (tpl.editOnWebsite || result.canvaTemplateUrl)) {
         setPolling(false);
-        setPurchasedUrl(result.canvaTemplateUrl);
+        setPurchasedUrl(result.canvaTemplateUrl || null);
+        setPurchaseComplete(true);
         window.localStorage.removeItem("einvite:template-purchase-ref");
         window.localStorage.removeItem("einvite:template-purchase-template-id");
         return;
@@ -6714,21 +6722,27 @@ function TemplateShopPage() {
     }
   };
 
-  if (purchasedUrl) {
+  if (purchasedUrl || purchaseComplete) {
+    const isEditOnWebsite = selectedTemplate?.editOnWebsite;
+    const signupUrl = isEditOnWebsite
+      ? `${window.location.origin}/?buildTemplate=${encodeURIComponent(selectedTemplate.id)}&email=${encodeURIComponent(buyerEmail)}`
+      : null;
     return (
       <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ textAlign: "center", maxWidth: 360 }}>
           <CheckCircle2 size={40} color="#8FBFA3" style={{ margin: "0 auto 14px" }} />
           <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Payment confirmed!</h1>
-          <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Your design is ready to customize in Canva.</p>
+          <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            {isEditOnWebsite ? "Create your free account to start customizing this design on the website." : "Your design is ready to customize in Canva."}
+          </p>
           <a
-            href={purchasedUrl}
-            target="_blank"
+            href={isEditOnWebsite ? signupUrl : purchasedUrl}
+            target={isEditOnWebsite ? "_self" : "_blank"}
             rel="noreferrer"
             className="mt-5 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold"
             style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}
           >
-            Open in Canva <ExternalLink size={14} />
+            {isEditOnWebsite ? "Create your account" : "Open in Canva"} <ExternalLink size={14} />
           </a>
         </div>
       </div>
@@ -6957,9 +6971,9 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   );
 }
 
-function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded }) {
+function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "" }) {
   const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: prefillEmail, phone: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loggedInUser, setLoggedInUser] = useState(null);
@@ -8710,6 +8724,23 @@ export default function InvitationBuilder() {
   const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
   const [isAdminPath, setIsAdminPath] = useState(null); // null = checking, true/false = resolved
   const [isShopPath, setIsShopPath] = useState(null); // null = checking, true/false = resolved
+  // Set when this visit came from a completed /shop purchase of an
+  // editOnWebsite design (e.g. design-12) — carries which template to
+  // apply automatically once the new account finishes signing up, and the
+  // email to pre-fill so it's not retyped.
+  const [pendingShopTemplate, setPendingShopTemplate] = useState(null);
+  const [prefillSignupEmail, setPrefillSignupEmail] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const templateId = params.get("buildTemplate");
+    if (templateId) {
+      const tpl = INVITATION_TEMPLATES.find((t) => t.id === templateId);
+      if (tpl) setPendingShopTemplate(tpl);
+      const email = params.get("email");
+      if (email) setPrefillSignupEmail(email);
+    }
+  }, []);
 
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
@@ -8996,7 +9027,7 @@ export default function InvitationBuilder() {
             // picked here. Straight into the Builder with no template
             // applied (template: null), just the event type's own content
             // wording (see applyEventTypeToSnapshot).
-            finalizeInvitationCreation(pendingNewUser, null, eventType, "builder");
+            finalizeInvitationCreation(pendingNewUser, pendingShopTemplate, eventType, "builder");
             setPendingNewUser(null);
           }}
           onCancel={() => setPendingNewUser(null)}
@@ -9012,7 +9043,7 @@ export default function InvitationBuilder() {
   if (!isAdminPath && !actingAsUser) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
-        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
+        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} prefillEmail={prefillSignupEmail} />
       </div>
     );
   }
