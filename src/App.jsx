@@ -6700,7 +6700,7 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
 // bought here has nothing to do with an eInvite.me account or invitation.
 // Admin-only modal for capturing the current invitation's visual style
 // (see saveCurrentAsShopDesign) as a new, independent design on /shop.
-function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign }) {
+function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign, onEditInBuilder }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -6757,7 +6757,10 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
                       <div className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>${d.price}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => startEdit(d)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: MUTED }} title="Edit">
+                      <button onClick={() => onEditInBuilder(d)} className="rounded-md px-2 py-1 text-[10.5px] font-semibold" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }} title="Edit full design in Builder">
+                        Edit design
+                      </button>
+                      <button onClick={() => startEdit(d)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: MUTED }} title="Edit name/price">
                         <Settings size={13} />
                       </button>
                       <button onClick={() => onDeleteDesign(d.id)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "#E29B9B" }} title="Delete">
@@ -6817,6 +6820,7 @@ function TemplateShopPage() {
   // this page is standalone with no shared state from the main app, so it
   // fetches them directly from their own dedicated key.
   const [shopDesigns, setShopDesigns] = useState([]);
+  const [previewingFullDesign, setPreviewingFullDesign] = useState(null); // the template currently shown in the multi-page swipeable preview
   const allTemplates = [...INVITATION_TEMPLATES, ...shopDesigns];
 
   useEffect(() => {
@@ -6985,6 +6989,13 @@ function TemplateShopPage() {
                   <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
                   <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
                 </div>
+                <button
+                  onClick={() => setPreviewingFullDesign(selectedTemplate)}
+                  className="mb-4 flex w-full items-center justify-center gap-1.5 rounded-full py-2 text-[12px] font-semibold"
+                  style={{ border: `1px solid rgba(201,164,76,0.4)`, color: GOLD_SOFT, fontFamily: FONT_BODY }}
+                >
+                  <ImagePlus size={13} /> Preview all pages
+                </button>
                 <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
                 <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
                 <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
@@ -7963,6 +7974,7 @@ export default function InvitationBuilder() {
   // shows up on /shop immediately without editing any code.
   const [shopDesigns, setShopDesigns] = useState([]);
   const [showSaveAsShopDesign, setShowSaveAsShopDesign] = useState(false);
+  const [editingShopDesignId, setEditingShopDesignId] = useState(null); // set while the admin is editing an existing shop design's styling directly in the Builder
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -8531,6 +8543,31 @@ export default function InvitationBuilder() {
     }
     return newDesign;
   };
+  // Re-captures the current styling (same fields as saveCurrentAsShopDesign)
+  // and writes it back onto the design being edited (editingShopDesignId),
+  // keeping its existing name and price untouched.
+  const updateCurrentStylingOnShopDesign = async () => {
+    if (!editingShopDesignId) return;
+    const pageImages = Object.fromEntries(
+      Object.keys(pageBackgrounds)
+        .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
+        .map((key) => [key, pageBackgrounds[key].image])
+    );
+    const namesLayout = layouts?.cover?.names || {};
+    await updateShopDesign(editingShopDesignId, {
+      coverImage: pageBackgrounds.cover?.mode === "photo" ? pageBackgrounds.cover.image : null,
+      coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
+      pageImages,
+      coverNameFont: namesLayout.fontFamily || null,
+      coverName1Font: namesLayout.name1FontFamily || null,
+      coverName2Font: namesLayout.name2FontFamily || null,
+      coverAmpersandFont: namesLayout.ampersandFontFamily || null,
+      coverNameColor: namesLayout.color || null,
+      gateAnimationStyle: intro.animationStyle || "floatingHearts",
+      gateIcon: intro.icon || "heart",
+    });
+    setEditingShopDesignId(null);
+  };
   const updateShopDesign = async (id, patch) => {
     const nextList = shopDesigns.map((d) => (d.id === id ? { ...d, ...patch } : d));
     setShopDesigns(nextList);
@@ -8548,6 +8585,48 @@ export default function InvitationBuilder() {
     } catch {
       alert("Deleted locally, but couldn't sync to the server — try again in a moment.");
     }
+  };
+  // Loads an existing shop design's styling directly into the CURRENT
+  // Builder session (the admin's own invitation) so it can be edited
+  // visually exactly like any other invitation — dragging blocks,
+  // swapping page backgrounds, adjusting fonts. Nothing here touches the
+  // admin's own actual content (names, dates); only the visual styling
+  // pieces a shop design is made of. Saving afterward (via the "Update
+  // Shop Design" button, shown while editingShopDesignId is set) writes
+  // the current styling back onto this same design.
+  const loadShopDesignForEditing = (design) => {
+    setPageBackgrounds((prev) => {
+      const next = { ...prev };
+      if (design.coverImage) {
+        next.cover = { mode: "photo", preset: prev.cover?.preset, image: design.coverImage, backdropColor: design.coverBackdropColor || null, darken: 0 };
+      }
+      if (design.pageImages) {
+        for (const [key, image] of Object.entries(design.pageImages)) {
+          if (image) next[key] = { mode: "photo", preset: prev[key]?.preset, image, backdropColor: null, darken: 0 };
+        }
+      }
+      return next;
+    });
+    userChangedBackgroundsRef.current = true;
+    if (design.coverNameFont || design.coverName1Font || design.coverNameColor) {
+      setLayouts((l) => ({
+        ...l,
+        cover: {
+          ...l.cover,
+          names: {
+            ...l.cover?.names,
+            fontFamily: design.coverNameFont || l.cover?.names?.fontFamily,
+            name1FontFamily: design.coverName1Font || l.cover?.names?.name1FontFamily,
+            name2FontFamily: design.coverName2Font || l.cover?.names?.name2FontFamily,
+            ampersandFontFamily: design.coverAmpersandFont || l.cover?.names?.ampersandFontFamily,
+            color: design.coverNameColor || l.cover?.names?.color,
+          },
+        },
+      }));
+    }
+    setIntro((i) => ({ ...i, animationStyle: design.gateAnimationStyle || i.animationStyle, icon: design.gateIcon || i.icon }));
+    setEditingShopDesignId(design.id);
+    setShowSaveAsShopDesign(false);
   };
   const addCustomVideo = async (e) => {
     const file = e.target.files?.[0];
@@ -9392,6 +9471,21 @@ export default function InvitationBuilder() {
         {view === "builder" && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+              {editingShopDesignId && (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.3)` }}>
+                  <span className="text-[12px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
+                    Editing shop design: {shopDesigns.find((d) => d.id === editingShopDesignId)?.name || "…"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={updateCurrentStylingOnShopDesign} className="rounded-full px-3 py-1.5 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
+                      Update Shop Design
+                    </button>
+                    <button onClick={() => setEditingShopDesignId(null)} className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
               <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} />
               <div className="mb-4 flex items-center justify-end gap-2">
                 {isAdminPath && !actingAsUser && (
@@ -9687,6 +9781,7 @@ export default function InvitationBuilder() {
             existingDesigns={shopDesigns}
             onUpdateDesign={updateShopDesign}
             onDeleteDesign={deleteShopDesign}
+            onEditInBuilder={loadShopDesignForEditing}
           />
         )}
       </div>
