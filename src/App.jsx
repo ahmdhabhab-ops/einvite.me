@@ -1922,7 +1922,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect, onApplyToAllPages }) {
+function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   return (
@@ -1949,16 +1949,6 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
           <FieldLabel>Text content</FieldLabel>
           <TextArea value={current.text} onChange={onChangeText} rows={2} />
         </div>
-      )}
-
-      {isCustom && onApplyToAllPages && (
-        <button
-          onClick={onApplyToAllPages}
-          className="mb-3 w-full rounded-lg py-2 text-[11.5px] font-semibold"
-          style={{ background: "rgba(201,164,76,0.12)", color: GOLD_SOFT, fontFamily: FONT_BODY, border: `1px solid rgba(201,164,76,0.3)` }}
-        >
-          Add this to every page
-        </button>
       )}
 
       {current.type === "divider" && (
@@ -7719,6 +7709,12 @@ export default function InvitationBuilder() {
   const [activeLang, setActiveLang] = useState("en");
   const [layouts, setLayouts] = useState(DEFAULT_LAYOUTS);
   const [customBlocks, setCustomBlocks] = useState(emptyCustomBlocks);
+  // Global decorative elements (images/icons/dividers) shown on EVERY
+  // client's invitation automatically — set once by the owner, not copied
+  // into each client's own saved data. Keyed the same way as customBlocks
+  // (one array per page), so they merge in at render time for whichever
+  // page they're set on.
+  const [siteWideDecorations, setSiteWideDecorations] = useState(emptyCustomBlocks);
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -8054,6 +8050,7 @@ export default function InvitationBuilder() {
         }
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
         if (d.users) setUsers(d.users);
+        if (d.siteWideDecorations) setSiteWideDecorations((c) => ({ ...emptyCustomBlocks(), ...c, ...d.siteWideDecorations }));
         if (d.siteDomain) setSiteDomain(d.siteDomain);
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
@@ -8142,7 +8139,7 @@ export default function InvitationBuilder() {
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle,
+      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, siteWideDecorations,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign }, // media (image or video) saved separately below via introBgKey
@@ -8204,6 +8201,23 @@ export default function InvitationBuilder() {
       reader.readAsDataURL(file);
     }
   };
+  // Admin-only: adds a decorative element that automatically shows on
+  // EVERY client's invitation (see the merge in the `data` object above) —
+  // uploaded to Storage rather than embedded as base64, same reasoning as
+  // custom videos, since this is saved once in the shared/global payload.
+  const addSiteWideImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const stepKey = steps[safeIndex].key;
+    try {
+      const url = await uploadImageToStorage(file, "site-decorations");
+      const newBlock = { id: uid(), type: "image", url, x: 50, y: 50, width: 40 };
+      setSiteWideDecorations((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+      setSelectedBlockId(`sitewide:${newBlock.id}`);
+    } catch (err) {
+      alert(err.message || "Couldn't upload the image — please try again.");
+    }
+  };
   const addCustomVideo = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -8238,23 +8252,12 @@ export default function InvitationBuilder() {
     setCustomBlocks((c) => ({ ...c, [stepKey]: c[stepKey].filter((b) => b.id !== id) }));
     setSelectedBlockId((sel) => (sel === `custom:${id}` ? null : sel));
   };
-
-  // Duplicates one custom block (an image, icon, divider, etc.) onto every
-  // OTHER page of this same invitation — for when a client wants the same
-  // decorative element repeated throughout, not just on the one page they
-  // added it to. Each copy gets its own id so it can be moved or deleted
-  // independently afterward on its own page.
-  const applyBlockToAllPages = (sourceStepKey, blockId) => {
-    const block = customBlocks[sourceStepKey]?.find((b) => b.id === blockId);
-    if (!block) return;
-    setCustomBlocks((c) => {
-      const next = { ...c };
-      for (const key of Object.keys(next)) {
-        if (key === sourceStepKey) continue;
-        next[key] = [...next[key], { ...block, id: uid() }];
-      }
-      return next;
-    });
+  const updateSiteWideBlock = (stepKey, id, patch) =>
+    setSiteWideDecorations((c) => ({ ...c, [stepKey]: c[stepKey].map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
+  const moveSiteWideBlock = (stepKey, id, pos) => updateSiteWideBlock(stepKey, id, pos);
+  const removeSiteWideBlock = (stepKey, id) => {
+    setSiteWideDecorations((c) => ({ ...c, [stepKey]: c[stepKey].filter((b) => b.id !== id) }));
+    setSelectedBlockId((sel) => (sel === `sitewide:${id}` ? null : sel));
   };
 
   const toggleLayoutEditMode = () => setLayoutEditMode((v) => { if (v) setSelectedBlockId(null); return !v; });
@@ -8594,7 +8597,10 @@ export default function InvitationBuilder() {
   const removeIntroMedia = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: null } }));
 
   const totalAttending = flattenMembers(guestGroups).filter((m) => m.status === "yes").length;
-  const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks, rsvpSettings, totalAttending, integrations };
+  const mergedCustomBlocks = Object.fromEntries(
+    Object.keys(customBlocks).map((key) => [key, [...(siteWideDecorations[key] || []), ...customBlocks[key]]])
+  );
+  const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks: mergedCustomBlocks, rsvpSettings, totalAttending, integrations };
   const stepKey = steps[safeIndex].key;
   const c = content[activeLang];
 
@@ -8746,7 +8752,16 @@ export default function InvitationBuilder() {
   }, [slug, users, invitationsStore, coreDataLoaded]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
-    ? { ...guestView.snapshot, totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length }
+    ? {
+        ...guestView.snapshot,
+        totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length,
+        customBlocks: Object.fromEntries(
+          Object.keys(guestView.snapshot.customBlocks || {}).map((key) => [
+            key,
+            [...(siteWideDecorations[key] || []), ...((guestView.snapshot.customBlocks || {})[key] || [])],
+          ])
+        ),
+      }
     : null;
   const guestData = guestView && guestView.found ? (guestView.ownSlug ? data : guestSnapshotData) : null;
   const guestSteps = guestView && guestView.found
@@ -9059,6 +9074,11 @@ export default function InvitationBuilder() {
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
                   {layoutEditMode && <GhostUploadButton accept="video/*" onChange={addCustomVideo}><Film size={13} /> Add video</GhostUploadButton>}
+                  {layoutEditMode && isAdminPath && !actingAsUser && (
+                    <GhostUploadButton accept="image/*" onChange={addSiteWideImage}>
+                      <Sparkles size={13} /> Add for all clients
+                    </GhostUploadButton>
+                  )}
                   {layoutEditMode && (
                     <div className="relative">
                       <GhostButton onClick={() => setIconPickerOpen((o) => !o)}><Sparkles size={13} /> Elements</GhostButton>
@@ -9110,19 +9130,21 @@ export default function InvitationBuilder() {
 
               {layoutEditMode && selectedBlockId && (() => {
                 const isCustom = selectedBlockId.startsWith("custom:");
-                const customId = isCustom ? selectedBlockId.slice(7) : null;
+                const isSiteWide = selectedBlockId.startsWith("sitewide:");
+                const customId = isCustom ? selectedBlockId.slice(7) : isSiteWide ? selectedBlockId.slice(9) : null;
                 const current = isCustom
                   ? customBlocks[stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
+                  : isSiteWide
+                  ? siteWideDecorations[stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
                   : layouts[stepKey][selectedBlockId] || { fontFamily: null, color: null, fontSize: null };
                 return (
                   <BlockStylePanel
-                    isCustom={isCustom}
+                    isCustom={isCustom || isSiteWide}
                     current={current}
-                    onChangeStyle={(patch) => (isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
-                    onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
-                    onDelete={() => removeCustomBlock(stepKey, customId)}
+                    onChangeStyle={(patch) => (isSiteWide ? updateSiteWideBlock(stepKey, customId, patch) : isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
+                    onChangeText={(v) => (isSiteWide ? updateSiteWideBlock(stepKey, customId, { text: v }) : updateCustomBlock(stepKey, customId, { text: v }))}
+                    onDelete={() => (isSiteWide ? removeSiteWideBlock(stepKey, customId) : removeCustomBlock(stepKey, customId))}
                     onDeselect={() => setSelectedBlockId(null)}
-                    onApplyToAllPages={isCustom ? () => applyBlockToAllPages(stepKey, customId) : null}
                   />
                 );
               })()}
