@@ -968,6 +968,23 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // holds the API key and calls the AI service — see the setup note above
 // ChatSupportWidget for exactly what needs to be deployed.
 // ---------------------------------------------------------------------- //
+// ---------------------------------------------------------------------- //
+// WhatsApp — sends an approved template message via the send-whatsapp
+// Edge Function (the only place that ever holds the real Meta access
+// token). See the setup notes above INTEGRATIONS_SETTINGS_HINT / in
+// SettingsView's WhatsApp section for what needs to be deployed.
+// ---------------------------------------------------------------------- //
+async function sendWhatsAppMessage({ to, templateName, languageCode, variables }) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/send-whatsapp`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ to, templateName, languageCode, variables }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't send the WhatsApp message.");
+  return data; // { sent: true, messageId }
+}
+
 async function sendChatSupportMessage(messages, context = "shop") {
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
@@ -5101,7 +5118,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, integrations, updateIntegrations }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -5178,6 +5195,34 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           options={[{ value: "slide", label: "Slide (quick)" }, { value: "stack", label: "Stack (slower)" }]}
         />
       </div>
+
+      <Divider />
+
+      <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>WhatsApp Business</h2>
+      <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        Sends WhatsApp confirmations using Meta's WhatsApp Cloud API. The real access token and phone number ID are never stored here — they live only as Edge Function secrets on Supabase (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID), set up separately by whoever manages your Supabase project. What's below is just which approved message template to use.
+      </p>
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Enable WhatsApp messages</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Off by default until the Edge Function secrets above are actually set up</div>
+        </div>
+        <SegmentedToggle
+          value={integrations.whatsappEnabled ? "on" : "off"}
+          onChange={(v) => updateIntegrations({ whatsappEnabled: v === "on" })}
+          options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+        />
+      </div>
+      {integrations.whatsappEnabled && (
+        <>
+          <FieldLabel>RSVP confirmation template name</FieldLabel>
+          <TextInput value={integrations.whatsappRsvpTemplateName} onChange={(v) => updateIntegrations({ whatsappRsvpTemplateName: v })} placeholder="rsvp_confirmation" />
+          <p className="mb-3 mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Must exactly match an APPROVED template's name in Meta's WhatsApp Manager — an unapproved or misspelled name will fail every send.</p>
+          <FieldLabel>Template language code</FieldLabel>
+          <TextInput value={integrations.whatsappRsvpTemplateLanguage} onChange={(v) => updateIntegrations({ whatsappRsvpTemplateLanguage: v })} placeholder="en_US" />
+          <p className="mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>The exact language code the template was approved under, e.g. en_US, ar.</p>
+        </>
+      )}
 
       <Divider />
 
@@ -8022,6 +8067,11 @@ export default function InvitationBuilder() {
     networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
     livestreamUrl: "", livestreamButtonLabel: "Watch Live", livestreamHeading: "Join Us Live", livestreamSubtitle: "Can't be there in person? Watch the ceremony live, streamed just for you.",
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
+    // WhatsApp — only non-secret settings live here (the real access
+    // token/phone number ID are Edge Function secrets, never in this
+    // saved data). rsvpTemplateName/rsvpTemplateLanguage must match an
+    // APPROVED template's exact name/language in Meta's WhatsApp Manager.
+    whatsappEnabled: false, whatsappRsvpTemplateName: "", whatsappRsvpTemplateLanguage: "en_US",
   });
   const updateIntegrations = (patch) => setIntegrations((i) => ({ ...i, ...patch }));
   const [users, setUsers] = useState(seedUsers);
@@ -8116,6 +8166,7 @@ export default function InvitationBuilder() {
       networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
       livestreamUrl: "", livestreamButtonLabel: "Watch Live", livestreamHeading: "Join Us Live", livestreamSubtitle: "Can't be there in person? Watch the ceremony live, streamed just for you.",
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
+    whatsappEnabled: false, whatsappRsvpTemplateName: "", whatsappRsvpTemplateLanguage: "en_US",
     },
     intro: defaultIntroSettings,
     swipeDirection: "vertical", transitionStyle: "slide",
@@ -9795,7 +9846,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} integrations={integrations} updateIntegrations={updateIntegrations} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
