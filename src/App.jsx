@@ -4509,6 +4509,18 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
                 >
                   <Lock size={11} /> {starting ? "Starting…" : `${buttonLabel}${price ? ` — ${price}` : ""}`}
                 </button>
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="h-px flex-1" style={{ background: light ? "rgba(244,237,228,0.25)" : "rgba(147,166,155,0.3)" }} />
+                  <span className="text-[9px]" style={{ color: light ? "rgba(244,237,228,0.5)" : MUTED, fontFamily: FONT_BODY }}>TEMPORARY — remove before going live</span>
+                  <div className="h-px flex-1" style={{ background: light ? "rgba(244,237,228,0.25)" : "rgba(147,166,155,0.3)" }} />
+                </div>
+                <button
+                  onClick={() => setSession({ status: "authorized", embedUrl: url })}
+                  className="mt-2 rounded-full px-4 py-1.5 text-[10.5px] font-semibold"
+                  style={{ border: `1px dashed ${light ? "rgba(244,237,228,0.4)" : "rgba(147,166,155,0.4)"}`, color: light ? "rgba(244,237,228,0.7)" : MUTED, fontFamily: FONT_BODY }}
+                >
+                  Skip payment — unlock stream directly (testing only)
+                </button>
               </>
             )}
           </div>
