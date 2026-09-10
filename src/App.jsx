@@ -437,6 +437,20 @@ const INVITATION_TEMPLATES = [
     pageBackgroundPreset: "dusk",
     coverNameFont: "'Amiri', serif",
     coverNameColor: null,
+    // One image per other page — upload each to the template-images
+    // bucket (same as coverImage above) and set its URL here. Any page
+    // left as null keeps the pageBackgroundPreset ("dusk") instead.
+    pageImages: {
+      family: null, // e.g. `${TEMPLATE_IMAGE_BASE}/12-family.png`
+      timeline: null,
+      locations: null,
+      countdown: null,
+      rsvp: null,
+      registry: null,
+      djRequests: null,
+      networking: null,
+      livestream: null,
+    },
     gateAnimationStyle: "confetti",
     gateIcon: "sparkles",
     eventTypes: ["wedding", "birthday", "baptism", "babyShower"],
@@ -465,6 +479,24 @@ function applyTemplateToSnapshot(snapshot, template) {
     pageBackgrounds = {
       ...pageBackgrounds,
       cover: { mode: "photo", preset: pageBackgrounds.cover.preset, image: template.coverImage, backdropColor: template.coverBackdropColor || null, darken: template.coverDarken ?? 0 },
+    };
+  }
+  // Per-page custom images beyond just the cover — e.g. a 9-page Canva
+  // design where every page (Family, Timeline, Locations, RSVP...) has
+  // its own matching background, not just one shared preset. Only pages
+  // actually listed in pageImages are overridden; anything not listed
+  // keeps whatever pageBackgroundPreset (or the default) already set.
+  if (template.pageImages) {
+    pageBackgrounds = {
+      ...pageBackgrounds,
+      ...Object.fromEntries(
+        Object.entries(template.pageImages)
+          .filter(([, image]) => image) // skip any page not yet given a real image — leave its preset background alone
+          .map(([stepKey, image]) => [
+            stepKey,
+            { mode: "photo", preset: pageBackgrounds[stepKey]?.preset, image, backdropColor: null, darken: 0 },
+          ])
+      ),
     };
   }
   // Only touches layouts.cover when the snapshot actually has one AND the
