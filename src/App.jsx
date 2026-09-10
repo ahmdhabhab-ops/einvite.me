@@ -6700,7 +6700,7 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
 // bought here has nothing to do with an eInvite.me account or invitation.
 // Admin-only modal for capturing the current invitation's visual style
 // (see saveCurrentAsShopDesign) as a new, independent design on /shop.
-function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign, onEditInBuilder }) {
+function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign, onEditInBuilder, onUploadVideo }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -6760,6 +6760,10 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
                       <button onClick={() => onEditInBuilder(d)} className="rounded-md px-2 py-1 text-[10.5px] font-semibold" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }} title="Edit full design in Builder">
                         Edit design
                       </button>
+                      <label className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md" style={{ color: MUTED }} title={d.previewVideo ? "Replace preview video" : "Add preview video"}>
+                        <Film size={13} />
+                        <input type="file" accept="video/*" className="hidden" onChange={(e) => onUploadVideo(d.id, e.target.files?.[0])} />
+                      </label>
                       <button onClick={() => startEdit(d)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: MUTED }} title="Edit name/price">
                         <Settings size={13} />
                       </button>
@@ -7046,6 +7050,68 @@ function TemplateShopPage() {
             </div>
           </div>
         )}
+
+        {previewingFullDesign && (
+          <ShopDesignFullPreview template={previewingFullDesign} onClose={() => setPreviewingFullDesign(null)} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// A simple, standalone swipeable preview — steps through every page's
+// captured background image (cover, then each entry in pageImages, in
+// ALL_STEPS order) inside a phone frame. This is NOT the full interactive
+// invitation experience (no live fonts/layouts/content) — just a quick
+// look at what each page's background looks like, for a shop buyer
+// deciding whether to purchase.
+function ShopDesignFullPreview({ template, onClose }) {
+  const pages = ALL_STEPS.map((s) => ({
+    key: s.key,
+    label: s.label,
+    image: s.key === "cover" ? template.coverImage : template.pageImages?.[s.key],
+  }));
+  const [index, setIndex] = useState(0);
+  const page = pages[index];
+
+  return (
+    <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center p-4" style={{ background: "rgba(6,8,6,0.92)" }}>
+      <button onClick={onClose} className="absolute right-4 top-4 z-10" style={{ color: IVORY }}><X size={22} /></button>
+      <div className="relative mx-auto" style={{ width: 260, background: "#000", borderRadius: 32, padding: 8, boxShadow: "0 20px 50px -15px rgba(0,0,0,0.7)" }}>
+        <div className="absolute left-1/2 top-2.5 z-10 h-2 w-8 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
+        <div className="relative overflow-hidden" style={{ borderRadius: 24, aspectRatio: "9 / 19.5" }}>
+          {page.image ? (
+            <img src={page.image} alt={page.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center" style={{ background: "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}>
+              <span className="text-[12px]" style={{ color: "rgba(244,237,228,0.5)", fontFamily: FONT_BODY }}>{page.label}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <p className="mt-4 text-[13px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{page.label}</p>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={() => setIndex((i) => Math.max(0, i - 1))}
+          disabled={index === 0}
+          className="flex h-9 w-9 items-center justify-center rounded-full"
+          style={{ background: INK_2, color: index === 0 ? MUTED : IVORY, opacity: index === 0 ? 0.4 : 1 }}
+        >
+          <ChevronsLeft size={16} />
+        </button>
+        <div className="flex items-center gap-1.5">
+          {pages.map((_, i) => (
+            <button key={i} onClick={() => setIndex(i)} className="h-1.5 rounded-full" style={{ width: i === index ? 16 : 6, background: i === index ? GOLD : "rgba(147,166,155,0.4)", transition: "all 0.2s" }} />
+          ))}
+        </div>
+        <button
+          onClick={() => setIndex((i) => Math.min(pages.length - 1, i + 1))}
+          disabled={index === pages.length - 1}
+          className="flex h-9 w-9 items-center justify-center rounded-full"
+          style={{ background: INK_2, color: index === pages.length - 1 ? MUTED : IVORY, opacity: index === pages.length - 1 ? 0.4 : 1, transform: "rotate(180deg)" }}
+        >
+          <ChevronsLeft size={16} />
+        </button>
       </div>
     </div>
   );
@@ -8543,7 +8609,18 @@ export default function InvitationBuilder() {
     }
     return newDesign;
   };
-  // Re-captures the current styling (same fields as saveCurrentAsShopDesign)
+  // Attaches a preview video to a specific shop design — same effect as
+  // the previewVideo field already set on design-1/3/5, just settable
+  // per admin-created design instead of hardcoded.
+  const uploadShopDesignVideo = async (designId, file) => {
+    if (!file) return;
+    try {
+      const url = await uploadVideoToStorage(file);
+      await updateShopDesign(designId, { previewVideo: url });
+    } catch (err) {
+      alert(err.message || "Couldn't upload the video — please try again.");
+    }
+  };
   // and writes it back onto the design being edited (editingShopDesignId),
   // keeping its existing name and price untouched.
   const updateCurrentStylingOnShopDesign = async () => {
@@ -9782,6 +9859,7 @@ export default function InvitationBuilder() {
             onUpdateDesign={updateShopDesign}
             onDeleteDesign={deleteShopDesign}
             onEditInBuilder={loadShopDesignForEditing}
+            onUploadVideo={uploadShopDesignVideo}
           />
         )}
       </div>
