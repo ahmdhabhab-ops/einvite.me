@@ -980,7 +980,7 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // guest's own invitation link; its header is an Image (the invitation's
 // share photo).
 const WHATSAPP_TEMPLATE_NAME = "wedding_invitation";
-const WHATSAPP_TEMPLATE_LANGUAGE = "en_US"; // must match the language the template was actually approved under in Meta's WhatsApp Manager
+const WHATSAPP_TEMPLATE_LANGUAGE = "en"; // must match the language the template was actually approved under in Meta's WhatsApp Manager
 
 async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
