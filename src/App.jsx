@@ -4071,32 +4071,18 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           <DraggableBlock id="buttons" pos={bs} editMode={editMode} onMove={(p) => onMoveBlock("buttons", p)} label="RSVP form" light={light} selected={selectedBlock === "buttons"} onSelect={() => onSelectBlock("buttons")}>
             <div style={{ width: 230 }}>
               {submitted ? (
-                voiceMessageStage === "recording" ? (
-                  <>
-                    {choice === "no" && rsvpSettings.declineVoiceMessageUrl && (
-                      <div className="mb-3 rounded-lg p-2" style={{ background: light ? "rgba(244,237,228,0.12)" : "rgba(20,32,26,0.5)" }}>
-                        <audio src={rsvpSettings.declineVoiceMessageUrl} controls autoPlay style={{ width: "100%", height: 32 }} />
-                      </div>
-                    )}
-                    <VoiceMessageRecorder
-                      rsvpStatus={choice}
-                      guestName={name.trim() || "Guest"}
-                      slug={slug}
-                      guestGroupId={null}
-                      light={light}
-                      onDone={() => setVoiceMessageStage("done")}
-                      onSkip={() => setVoiceMessageStage("done")}
-                    />
-                  </>
+                voiceMessageStage === "recording" && choice === "no" && rsvpSettings.enableGuestVoiceRecorder ? (
+                  <VoiceMessageRecorder
+                    rsvpStatus={choice}
+                    guestName={name.trim() || "Guest"}
+                    slug={slug}
+                    guestGroupId={null}
+                    light={light}
+                    onDone={() => setVoiceMessageStage("done")}
+                    onSkip={() => setVoiceMessageStage("done")}
+                  />
                 ) : (
-                  <>
-                    {choice === "no" && rsvpSettings.declineVoiceMessageUrl && (
-                      <div className="mb-3 rounded-lg p-2" style={{ background: light ? "rgba(244,237,228,0.12)" : "rgba(20,32,26,0.5)" }}>
-                        <audio src={rsvpSettings.declineVoiceMessageUrl} controls autoPlay style={{ width: "100%", height: 32 }} />
-                      </div>
-                    )}
-                    {thankYou(light)}
-                  </>
+                  thankYou(light)
                 )
               ) : style === "stacked" ? (
                 <>
@@ -5314,7 +5300,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
   );
 }
 
-function RsvpSettingsView({ rsvpSettings, updateRsvpSettings, onUploadDeclineVoice }) {
+function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
   return (
     <div className="mx-auto mt-6 max-w-2xl rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
       <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>RSVP configuration</h2>
@@ -5350,24 +5336,16 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings, onUploadDeclineVoi
 
       <Divider />
 
-      <div>
-        <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Voice message when declining</div>
-        <div className="mb-3 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-          Plays automatically for a guest right after they select "Not Attending" — e.g. a short recorded message from the couple saying they'll be missed. Nothing plays when a guest selects "Attending".
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Let guests record a voice message</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Only offered to guests who select "Not Attending" — never shown when a guest confirms they're coming</div>
         </div>
-        {rsvpSettings.declineVoiceMessageUrl ? (
-          <div className="flex items-center gap-3 rounded-lg p-3" style={{ background: INK_2 }}>
-            <audio src={rsvpSettings.declineVoiceMessageUrl} controls style={{ height: 32, flex: 1 }} />
-            <button onClick={() => updateRsvpSettings({ declineVoiceMessageUrl: null })} className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md" style={{ color: "#E29B9B" }} title="Remove">
-              <X size={13} />
-            </button>
-          </div>
-        ) : (
-          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }}>
-            <Upload size={13} /> Upload voice message
-            <input type="file" accept="audio/*" style={VISUALLY_HIDDEN} onChange={onUploadDeclineVoice} />
-          </label>
-        )}
+        <SegmentedToggle
+          value={rsvpSettings.enableGuestVoiceRecorder}
+          onChange={(v) => updateRsvpSettings({ enableGuestVoiceRecorder: v })}
+          options={[{ value: false, label: "Off" }, { value: true, label: "On" }]}
+        />
       </div>
 
       <Divider />
@@ -8135,7 +8113,7 @@ export default function InvitationBuilder() {
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
-  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, declineVoiceMessageUrl: null });
+  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true });
   const [integrations, setIntegrations] = useState({
     djUrl: "", djButtonLabel: "Request a Song", djHeading: "Song Requests", djSubtitle: "Have a song you want to hear tonight? Send it straight to the DJ.",
     networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
@@ -8229,7 +8207,7 @@ export default function InvitationBuilder() {
     enabledSteps: Object.fromEntries(ALL_STEPS.map((s) => [s.key, true])), pageOrder: ALL_STEPS.map((s) => s.key),
     defaultLang: "en", enabledLanguages: LANGS, layouts: DEFAULT_LAYOUTS, customBlocks: emptyCustomBlocks(),
     og: { image: null, title: "", description: "" }, guestGroups: [], tables: [],
-    rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, declineVoiceMessageUrl: null },
+    rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true },
     integrations: {
       djUrl: "", djButtonLabel: "Request a Song", djHeading: "Song Requests", djSubtitle: "Have a song you want to hear tonight? Send it straight to the DJ.",
       networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
@@ -8913,23 +8891,6 @@ export default function InvitationBuilder() {
   };
 
   const updateRsvpSettings = (patch) => setRsvpSettings((s) => ({ ...s, ...patch }));
-  const uploadDeclineVoiceMessage = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "mp3";
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/rsvp-voice-messages/${path}`, {
-        method: "POST",
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": file.type || "audio/mpeg" },
-        body: file,
-      });
-      if (!res.ok) throw new Error(await res.text().catch(() => "Upload failed"));
-      updateRsvpSettings({ declineVoiceMessageUrl: `${SUPABASE_URL}/storage/v1/object/public/rsvp-voice-messages/${path}` });
-    } catch (err) {
-      alert("Couldn't upload the voice message — please try again.");
-    }
-  };
 
   const addTable = (name, capacity) => setTables((list) => [...list, { id: uid(), name: name.trim() || "New table", capacity: Math.max(1, capacity || 8) }]);
   const updateTable = (id, patch) => setTables((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -9932,7 +9893,7 @@ export default function InvitationBuilder() {
         {view === "settings" && (
           <>
             <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} integrations={integrations} updateIntegrations={updateIntegrations} />
-            <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} onUploadDeclineVoice={uploadDeclineVoiceMessage} />
+            <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
 
