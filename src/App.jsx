@@ -979,11 +979,11 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // name. Its variables, in order, are: guest name, couple names, and the
 // guest's own invitation link; its header is an Image (the invitation's
 // share photo).
-const WHATSAPP_TEMPLATE_NAME = "wedding_invitation_reminder";
+const WHATSAPP_TEMPLATE_NAME = "wedding_invitation";
 const WHATSAPP_TEMPLATE_LANGUAGE = "en_US"; // must match the language the template was actually approved under in Meta's WhatsApp Manager
 
 async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
-  const res = await fetch(`${EDGE_FUNCTIONS_URL}/send-whatsapp`, {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/whatsapp-send`, {
     method: "POST",
     headers: supabaseHeaders,
     body: JSON.stringify({ to, templateName, languageCode, variables, headerImageUrl }),
