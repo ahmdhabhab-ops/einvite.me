@@ -2750,6 +2750,21 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Button wording is per language; the event date lives on the Countdown page.
       </p>
+
+      <Divider />
+
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names Required When Declining</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Applies to the open invitation link, when a guest selects "Not Attending"</div>
+        </div>
+        <SegmentedToggle
+          value={rsvpSettings.namesRequiredWhenDeclining}
+          onChange={(v) => updateRsvpSettings({ namesRequiredWhenDeclining: v })}
+          options={[{ value: false, label: "Optional" }, { value: true, label: "Required" }]}
+        />
+      </div>
+
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
   );
@@ -5324,20 +5339,6 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names Required When Declining</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Applies to the open invitation link, when a guest selects "Not Attending"</div>
-        </div>
-        <SegmentedToggle
-          value={rsvpSettings.namesRequiredWhenDeclining}
-          onChange={(v) => updateRsvpSettings({ namesRequiredWhenDeclining: v })}
-          options={[{ value: false, label: "Optional" }, { value: true, label: "Required" }]}
-        />
-      </div>
-
-      <Divider />
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
           <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Let guests record a voice message</div>
           <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Only offered to guests who select "Not Attending" — never shown when a guest confirms they're coming</div>
         </div>
@@ -5891,6 +5892,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [addGuestsCount, setAddGuestsCount] = useState(0);
+  const [addGuestError, setAddGuestError] = useState("");
   const [phone, setPhone] = useState("");
   const [copiedOpenLink, setCopiedOpenLink] = useState(false);
   const [copiedRowId, setCopiedRowId] = useState(null);
@@ -6026,6 +6028,11 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
 
   const submitAddGuest = () => {
     if (!lastName.trim() || !firstName.trim()) return;
+    if (!phone.trim()) {
+      setAddGuestError("Phone number is required.");
+      return;
+    }
+    setAddGuestError("");
     addGuestGroup({
       id: uid(), lastName: lastName.trim(),
       members: [{ id: uid(), name: firstName.trim(), status: "pending" }],
@@ -6137,7 +6144,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               <button onClick={() => setAddGuestsCount((c) => c + 1)} style={{ color: IVORY }}><ChevronUp size={14} /></button>
             </div>
           </div>
-          <TextInput value={phone} onChange={setPhone} placeholder="Phone (for WhatsApp), optional" />
+          <TextInput value={phone} onChange={setPhone} placeholder="Phone (required)" />
+          {addGuestError && <p className="text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{addGuestError}</p>}
           <GoldButton onClick={submitAddGuest}><Plus size={14} /> Add guest</GoldButton>
         </div>
       </div>
