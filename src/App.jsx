@@ -6210,6 +6210,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                 <th></th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Members</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Last Name</th>
+                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Phone</th>
                 <th className="px-2 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>+ Guests</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>
                   RSVPs
@@ -6275,6 +6276,15 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                         placeholder="Last name"
                         className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
                         style={{ color: IVORY, fontFamily: FONT_BODY }}
+                      />
+                    </td>
+                    <td className="px-2 py-0.5">
+                      <input
+                        value={g.phone || ""}
+                        onChange={(e) => updateGuestGroup(g.id, { phone: e.target.value })}
+                        placeholder="Phone"
+                        className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
+                        style={{ color: g.phone ? IVORY : "#E29B9B", fontFamily: FONT_BODY }}
                       />
                     </td>
                     <td className="px-2 py-0.5 text-center">
