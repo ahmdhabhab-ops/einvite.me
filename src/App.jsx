@@ -974,11 +974,19 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // token). See the setup notes above INTEGRATIONS_SETTINGS_HINT / in
 // SettingsView's WhatsApp section for what needs to be deployed.
 // ---------------------------------------------------------------------- //
-async function sendWhatsAppMessage({ to, templateName, languageCode, variables }) {
+// The one approved WhatsApp template this app sends — created and
+// approved once in Meta's WhatsApp Manager, referenced here by its exact
+// name. Its variables, in order, are: guest name, couple names, and the
+// guest's own invitation link; its header is an Image (the invitation's
+// share photo).
+const WHATSAPP_TEMPLATE_NAME = "wedding_invitation_reminder";
+const WHATSAPP_TEMPLATE_LANGUAGE = "en_US"; // must match the language the template was actually approved under in Meta's WhatsApp Manager
+
+async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/send-whatsapp`, {
     method: "POST",
     headers: supabaseHeaders,
-    body: JSON.stringify({ to, templateName, languageCode, variables }),
+    body: JSON.stringify({ to, templateName, languageCode, variables, headerImageUrl }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Couldn't send the WhatsApp message.");
@@ -5198,34 +5206,6 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
 
       <Divider />
 
-      <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>WhatsApp Business</h2>
-      <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Sends WhatsApp confirmations using Meta's WhatsApp Cloud API. The real access token and phone number ID are never stored here — they live only as Edge Function secrets on Supabase (WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID), set up separately by whoever manages your Supabase project. What's below is just which approved message template to use.
-      </p>
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Enable WhatsApp messages</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Off by default until the Edge Function secrets above are actually set up</div>
-        </div>
-        <SegmentedToggle
-          value={integrations.whatsappEnabled ? "on" : "off"}
-          onChange={(v) => updateIntegrations({ whatsappEnabled: v === "on" })}
-          options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
-        />
-      </div>
-      {integrations.whatsappEnabled && (
-        <>
-          <FieldLabel>RSVP confirmation template name</FieldLabel>
-          <TextInput value={integrations.whatsappRsvpTemplateName} onChange={(v) => updateIntegrations({ whatsappRsvpTemplateName: v })} placeholder="rsvp_confirmation" />
-          <p className="mb-3 mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Must exactly match an APPROVED template's name in Meta's WhatsApp Manager — an unapproved or misspelled name will fail every send.</p>
-          <FieldLabel>Template language code</FieldLabel>
-          <TextInput value={integrations.whatsappRsvpTemplateLanguage} onChange={(v) => updateIntegrations({ whatsappRsvpTemplateLanguage: v })} placeholder="en_US" />
-          <p className="mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>The exact language code the template was approved under, e.g. en_US, ar.</p>
-        </>
-      )}
-
-      <Divider />
-
       <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Share preview</h2>
       <p className="mb-6 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         This is what appears when your invitation link is shared on WhatsApp, iMessage, or social media.
@@ -5889,7 +5869,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
   );
 }
 
-function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, coupleTitle, slug, siteDomain }) {
+function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, coupleTitle, slug, siteDomain, og }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -5948,6 +5928,44 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     const digits = group.phone.replace(/[^0-9]/g, "");
     const msg = `Hi ${group.members[0]?.name || ""}! Here's your invitation link: ${guestLink(group)}`;
     return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
+  };
+
+  // Tracks per-guest send state so the UI can show a spinner/checkmark/error
+  // right on that guest's row without a page-wide loading state.
+  const [sendingWhatsAppIds, setSendingWhatsAppIds] = useState(() => new Set());
+  const [whatsappResults, setWhatsappResults] = useState({}); // { [groupId]: "sent" | "error" }
+
+  const sendAutomatedWhatsApp = async (group) => {
+    if (!group.phone) {
+      setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
+      return;
+    }
+    setSendingWhatsAppIds((s) => new Set(s).add(group.id));
+    try {
+      await sendWhatsAppMessage({
+        to: group.phone,
+        templateName: WHATSAPP_TEMPLATE_NAME,
+        languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
+        variables: [group.members[0]?.name || group.lastName, coupleTitle, guestLink(group)],
+        headerImageUrl: og?.image || null,
+      });
+      setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
+    } catch {
+      setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
+    } finally {
+      setSendingWhatsAppIds((s) => { const next = new Set(s); next.delete(group.id); return next; });
+    }
+  };
+
+  const sendWhatsAppToSelected = async () => {
+    const groups = guestGroups.filter((g) => selectedIds.has(g.id));
+    // Sent one at a time with a short pause between each — Meta rate-limits
+    // bursts of template sends, and this keeps each guest's row updating
+    // individually as it goes rather than all appearing to hang at once.
+    for (const group of groups) {
+      await sendAutomatedWhatsApp(group);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
   };
 
   const toggleSelected = (id) =>
@@ -6120,6 +6138,11 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
             <GhostButton onClick={sendInvites}>
               <MessageCircle size={12} /> Send Invites{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </GhostButton>
+            {selectedIds.size > 0 && (
+              <GhostButton onClick={sendWhatsAppToSelected}>
+                <Send size={12} /> Send WhatsApp Template ({selectedIds.size})
+              </GhostButton>
+            )}
             <button onClick={addBlankRow} title="Add a blank row" className="flex h-7 w-7 items-center justify-center rounded-md" style={{ background: INK_3, color: GOLD_SOFT }}>
               <Plus size={14} />
             </button>
@@ -6268,6 +6291,21 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                           <span title="No phone number on file" className="flex h-5 w-5 items-center justify-center rounded" style={{ background: INK_3, color: "rgba(147,166,155,0.35)" }}>
                             <MessageCircle size={10} />
                           </span>
+                        )}
+                        {g.phone && (
+                          <button
+                            onClick={() => sendAutomatedWhatsApp(g)}
+                            disabled={sendingWhatsAppIds.has(g.id)}
+                            title={whatsappResults[g.id] === "sent" ? "Sent!" : whatsappResults[g.id] === "error" ? "Failed — click to retry" : "Send approved WhatsApp template automatically"}
+                            className="flex h-5 w-5 items-center justify-center rounded"
+                            style={{
+                              background: whatsappResults[g.id] === "sent" ? "rgba(143,191,163,0.2)" : whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
+                              color: whatsappResults[g.id] === "sent" ? CHART_COLORS.yes : whatsappResults[g.id] === "error" ? "#E29B9B" : GOLD_SOFT,
+                              opacity: sendingWhatsAppIds.has(g.id) ? 0.5 : 1,
+                            }}
+                          >
+                            {whatsappResults[g.id] === "sent" ? <CheckCircle2 size={10} /> : whatsappResults[g.id] === "error" ? <XCircle size={10} /> : <Send size={10} />}
+                          </button>
                         )}
                       </div>
                     </td>
@@ -8067,11 +8105,6 @@ export default function InvitationBuilder() {
     networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
     livestreamUrl: "", livestreamButtonLabel: "Watch Live", livestreamHeading: "Join Us Live", livestreamSubtitle: "Can't be there in person? Watch the ceremony live, streamed just for you.",
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
-    // WhatsApp — only non-secret settings live here (the real access
-    // token/phone number ID are Edge Function secrets, never in this
-    // saved data). rsvpTemplateName/rsvpTemplateLanguage must match an
-    // APPROVED template's exact name/language in Meta's WhatsApp Manager.
-    whatsappEnabled: false, whatsappRsvpTemplateName: "", whatsappRsvpTemplateLanguage: "en_US",
   });
   const updateIntegrations = (patch) => setIntegrations((i) => ({ ...i, ...patch }));
   const [users, setUsers] = useState(seedUsers);
@@ -8166,7 +8199,6 @@ export default function InvitationBuilder() {
       networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
       livestreamUrl: "", livestreamButtonLabel: "Watch Live", livestreamHeading: "Join Us Live", livestreamSubtitle: "Can't be there in person? Watch the ceremony live, streamed just for you.",
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
-    whatsappEnabled: false, whatsappRsvpTemplateName: "", whatsappRsvpTemplateLanguage: "en_US",
     },
     intro: defaultIntroSettings,
     swipeDirection: "vertical", transitionStyle: "slide",
@@ -9867,6 +9899,7 @@ export default function InvitationBuilder() {
             coupleTitle={`${c.cover.name1} & ${c.cover.name2}`}
             slug={slug}
             siteDomain={siteDomain}
+            og={og}
           />
         )}
 
