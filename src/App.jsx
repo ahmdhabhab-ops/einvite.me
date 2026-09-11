@@ -983,10 +983,10 @@ const WHATSAPP_TEMPLATE_NAME = "wedding_invitation";
 const WHATSAPP_TEMPLATE_LANGUAGE = "en_US"; // must match the language the template was actually approved under in Meta's WhatsApp Manager
 
 async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
-  const res = await fetch(`${EDGE_FUNCTIONS_URL}/whatsapp-send`, {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
     headers: supabaseHeaders,
-    body: JSON.stringify({ to, templateName, languageCode, variables, headerImageUrl }),
+    body: JSON.stringify({ action: "send-whatsapp", to, templateName, languageCode, variables, headerImageUrl }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Couldn't send the WhatsApp message.");
