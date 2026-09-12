@@ -9982,7 +9982,16 @@ export default function InvitationBuilder() {
                     <>
                       <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(201,164,76,0.08)", border: `1px solid rgba(201,164,76,0.2)` }}>
                         <p className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                          The real stream link is kept genuinely hidden now — it's stored server-side and only ever sent to a guest's browser after Whish confirms their payment actually went through. It never sits in this invitation's normal saved data, so there's nothing for a guest to find by inspecting the page, copying a link, or sharing it with someone who hasn't paid.
+                          The real stream link is kept genuinely hidden — it's stored server-side and only ever sent to a guest's browser after payment is confirmed. It never sits in this invitation's normal saved data, so there's nothing for a guest to find by inspecting the page, copying a link, or sharing it with someone who hasn't paid.
+                        </p>
+                      </div>
+                      <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
+                        <p className="text-[11px] font-semibold" style={{ color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>How each payment is split</p>
+                        <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+                          Paid Live payments are processed through <strong>Stripe</strong> (not Whish). Of each guest's payment: <strong>75%</strong> goes to you, <strong>20%</strong> is the platform fee, and <strong>5%</strong> goes to an environmental charity. The split happens automatically at checkout — you never need to send anything on manually.
+                        </p>
+                        <p className="mt-2 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>
+                          Setup pending: this needs a connected Stripe account before it can actually process a real payment — checkout isn't live yet.
                         </p>
                       </div>
                       <div className="mb-3">
