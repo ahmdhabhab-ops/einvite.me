@@ -3048,7 +3048,7 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 /* Draggable text block (Canva-style)                                      */
 /* ---------------------------------------------------------------------- */
 
-function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent }) {
+function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
@@ -3233,7 +3233,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
         touchAction: editMode ? "none" : "auto",
-        outline: editMode && (selected || !onTextEdit || (editableText && editableText.trim())) ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
+        outline: editMode && (selected || (isEmpty !== undefined ? !isEmpty : (!onTextEdit || (editableText && editableText.trim())))) ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
@@ -3596,7 +3596,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
-          <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
+          <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")} isEmpty={!content.name1 && !content.name2}>
             <div className="relative text-center">
               {/* Large icon with a soft glow behind the names — optional,
                   and choosable (not forced to a heart specifically). CSS
@@ -3613,7 +3613,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
               )}
               <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, zIndex: 1 }}>
                 <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.3 }}>
-                  {content.name1 || "—"}
+                  {content.name1 || ""}
                 </div>
                 {content.name2 ? (
                   <>
@@ -4542,14 +4542,24 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
             ) : (
               <>
                 {session.status === "error" && <p className="mt-3 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{session.error}</p>}
-                <button
-                  onClick={startPayment}
-                  disabled={starting}
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
-                  style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY, opacity: starting ? 0.7 : 1 }}
-                >
-                  <Lock size={11} /> {starting ? "Starting…" : `${buttonLabel}${price ? ` — ${price}` : ""}`}
-                </button>
+                <p className="mt-4 text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.6)" : MUTED, fontFamily: FONT_BODY }}>Choose how to pay:</p>
+                <div className="mt-2 flex flex-col items-center gap-2">
+                  <button
+                    onClick={startPayment}
+                    disabled={starting}
+                    className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
+                    style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY, opacity: starting ? 0.7 : 1 }}
+                  >
+                    <Lock size={11} /> {starting ? "Starting…" : `Pay with Whish${price ? ` — ${price}` : ""}`}
+                  </button>
+                  <button
+                    onClick={() => setSession({ status: "error", error: "Credit card payment isn't set up yet — a Stripe account needs to be connected first." })}
+                    className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
+                    style={{ border: `1.5px solid ${light ? GOLD : EMERALD}`, color: light ? GOLD : EMERALD, letterSpacing: "0.1em", fontFamily: FONT_BODY }}
+                  >
+                    <Lock size={11} /> Pay by Credit Card{price ? ` — ${price}` : ""}
+                  </button>
+                </div>
                 <div className="mt-4 flex items-center gap-2">
                   <div className="h-px flex-1" style={{ background: light ? "rgba(244,237,228,0.25)" : "rgba(147,166,155,0.3)" }} />
                   <span className="text-[9px]" style={{ color: light ? "rgba(244,237,228,0.5)" : MUTED, fontFamily: FONT_BODY }}>TEMPORARY — remove before going live</span>
@@ -7265,20 +7275,28 @@ function TemplateShopPage({ mode = "canva" }) {
                 <p className="mb-3 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
                 <div className="mb-4 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
                   <p className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                    Paid by <strong>credit card via Stripe</strong> — not Whish. Of each purchase: <strong>80%</strong> to the design owner, <strong>15%</strong> platform fee, <strong>5%</strong> to an environmental charity, split automatically at checkout.
+                    Paying by <strong>credit card via Stripe</strong> splits automatically: <strong>80%</strong> to the design owner, <strong>15%</strong> platform fee, <strong>5%</strong> to an environmental charity. Paying via Whish doesn't split automatically.
                   </p>
-                  <p className="mt-1.5 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>Setup pending — checkout isn't live until a Stripe account is connected.</p>
+                  <p className="mt-1.5 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>Credit card setup pending — not live until a Stripe account is connected.</p>
                 </div>
                 <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
                 <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
                 {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+                <p className="mb-1.5 mt-4 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Choose how to pay:</p>
                 <button
                   onClick={startPurchase}
                   disabled={paying}
-                  className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase"
+                  className="w-full rounded-full py-3 text-sm font-bold uppercase"
                   style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em", opacity: paying ? 0.6 : 1 }}
                 >
-                  {paying ? "Opening payment…" : `Pay $${selectedTemplate.price}`}
+                  {paying ? "Opening payment…" : `Pay with Whish — $${selectedTemplate.price}`}
+                </button>
+                <button
+                  onClick={() => setError("Credit card payment isn't set up yet — a Stripe account needs to be connected first.")}
+                  className="mt-2 w-full rounded-full py-3 text-sm font-bold uppercase"
+                  style={{ border: `1.5px solid ${GOLD}`, color: GOLD, fontFamily: FONT_BODY, letterSpacing: "0.05em" }}
+                >
+                  {`Pay by Credit Card — $${selectedTemplate.price}`}
                 </button>
                 {selectedTemplate.canvaTemplateUrl && (
                   <>
@@ -9994,7 +10012,7 @@ export default function InvitationBuilder() {
                       <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
                         <p className="text-[11px] font-semibold" style={{ color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>How each payment is split</p>
                         <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                          Paid Live payments are processed by <strong>credit card via Stripe</strong> — not Whish. Of each guest's payment: <strong>80%</strong> goes to you, <strong>15%</strong> is the platform fee, and <strong>5%</strong> goes to an environmental charity. The split happens automatically at checkout — you never need to send anything on manually.
+                          Paid Live payments are processed by <strong>credit card via Stripe only</strong>. Of each guest's payment: <strong>80%</strong> goes to you, <strong>15%</strong> is the platform fee, and <strong>5%</strong> goes to an environmental charity. The split happens automatically at checkout — you never need to send anything on manually.
                         </p>
                         <p className="mt-2 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>
                           Setup pending: this needs a connected Stripe account before it can actually process a real payment — checkout isn't live yet.
