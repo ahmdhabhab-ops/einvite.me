@@ -9825,7 +9825,7 @@ export default function InvitationBuilder() {
         )}
 
         {view === "builder" && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_320px]">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_320px]">
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               {editingShopDesignId && (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.3)` }}>
@@ -10065,7 +10065,7 @@ export default function InvitationBuilder() {
               </div>
             </div>
 
-            <div className="flex w-full flex-col items-center gap-3 overflow-x-auto lg:sticky lg:top-10 lg:w-auto lg:self-start">
+            <div className="flex w-full flex-col items-center gap-3 overflow-x-auto md:sticky md:top-10 md:w-auto md:self-start">
               <div className="relative">
                 <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
                 {/* Fades to hide the instant background/style swap behind an
