@@ -4919,7 +4919,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         style={
           fullscreen
             ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: fsViewportHeight } : {}) }
-            : { width: 292, height: 600, background: "#000", borderRadius: 42, padding: 10, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
+            : { width: 292, height: 600, background: "#000", borderRadius: 30, padding: 8, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
         <div
@@ -4927,11 +4927,12 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           style={
             fullscreen
               ? { touchAction: "none", width: 292, height: 600, transform: `scale(${fsScale})`, transformOrigin: "top left" }
-              : { touchAction: "none", borderRadius: 32, background: PAPER, height: "100%", width: "100%" }
+              : { touchAction: "none", borderRadius: 22, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
         >
-          {!fullscreen && <div className="absolute left-1/2 top-2 z-30 h-5 w-24 -translate-x-1/2 rounded-full" style={{ background: "#000" }} />}
+          {/* Samsung-style centered punch-hole camera, instead of a wide notch/Dynamic Island */}
+          {!fullscreen && <div className="absolute left-1/2 top-2.5 z-30 h-2.5 w-2.5 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />}
 
           {started && !fullscreen && (
             <div className="absolute left-3 right-3 top-4 z-20 flex gap-1.5">
