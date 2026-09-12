@@ -3440,7 +3440,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             />
           </div>
           {editMode && (
-            <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
+            <div className="absolute left-1/2 top-16 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
               {toolbar}
             </div>
           )}
@@ -3477,7 +3477,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             />
           </div>
           {editMode && (
-            <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
+            <div className="absolute left-1/2 top-16 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
               {toolbar}
             </div>
           )}
