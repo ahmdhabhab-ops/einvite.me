@@ -5071,12 +5071,26 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             aspect ratio compares to 292:600, without needing to compromise
             on filling the full width. */}
         {started && (layoutEditMode ? (
-          <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
-            <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.6)", backdropFilter: "blur(4px)" }}>
-              <Move size={11} color={GOLD_SOFT} />
-              <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
+          <>
+            <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.6)", backdropFilter: "blur(4px)" }}>
+                <Move size={11} color={GOLD_SOFT} />
+                <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
+              </div>
             </div>
-          </div>
+            {activeIndex < steps.length - 1 && (
+              <div className="absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+                {isHorizontal ? (
+                  <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
+                ) : (
+                  <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
+                )}
+                <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
+                  {isHorizontal ? t.swipeLeft : t.swipeUp}
+                </span>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
@@ -9508,7 +9522,7 @@ export default function InvitationBuilder() {
             // enabledSteps — building/editing every page stays unrestricted
             // for the client themselves; this only affects what an actual
             // guest's link can navigate to.
-            .filter((s) => guestView.packageTier ? (PACKAGE_TIERS[guestView.packageTier]?.pageKeys || []).includes(s.key) : s.key === "cover"))
+            .filter((s) => guestView.packageTier ? (PACKAGE_TIERS[guestView.packageTier]?.pageKeys || []).includes(s.key) : true))
     : null;
   const guestEnabledLanguages = guestView && guestView.found
     ? (guestView.ownSlug ? enabledLanguages : (guestView.snapshot.enabledLanguages || ["en"]))
