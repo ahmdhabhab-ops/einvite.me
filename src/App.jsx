@@ -4930,7 +4930,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100dvh" } : {}) }
+            ? { margin: "0 auto", background: INK, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100dvh" } : {}) }
             : { width: 292, height: 600, background: "#000", borderRadius: 30, padding: 8, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
