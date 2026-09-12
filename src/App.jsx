@@ -3214,6 +3214,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
   // drags. 88 keeps any block clear of the swipe-up hint's zone at the bottom.
   const safeY = Math.min(pos.y, 88);
   const scale = pos.scale || 1;
+  const isTrulyEmpty = isEmpty !== undefined ? isEmpty : (onTextEdit ? !(editableText && editableText.trim()) : false);
 
   return (
     <div
@@ -3233,7 +3234,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
         touchAction: editMode ? "none" : "auto",
-        outline: editMode && (selected || (isEmpty !== undefined ? !isEmpty : (!onTextEdit || (editableText && editableText.trim())))) ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
+        outline: editMode && !isTrulyEmpty ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
@@ -3241,7 +3242,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         zIndex: editMode ? (selected ? 31 : 30) : 1,
       }}
     >
-      {editMode && selected && (
+      {editMode && selected && !isTrulyEmpty && (
         <div className="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
           <Move size={8} /> {label}{onTextEdit ? " · double-tap to edit text" : ""}
         </div>
@@ -3262,7 +3263,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
           children
         )}
       </div>
-      {editMode && selected && onScale && (
+      {editMode && selected && onScale && !isTrulyEmpty && (
         <>
           {[
             { bottom: -5, right: -5, cursor: "nwse-resize" },
