@@ -7,7 +7,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -980,6 +980,7 @@ async function getTemplatePurchaseStatus(paymentReference) {
 // guest's own invitation link; its header is an Image (the invitation's
 // share photo).
 const WHATSAPP_TEMPLATE_NAME = "wedding_invitation";
+const WHATSAPP_REMINDER_TEMPLATE_NAME = "wedding_invitation_reminder"; // sent via the paid "Send Reminder" feature, once unlocked
 const WHATSAPP_TEMPLATE_LANGUAGE = "en"; // confirmed via Meta's own template list — do not change without re-checking there first
 
 async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
@@ -5884,7 +5885,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
   );
 }
 
-function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, coupleTitle, slug, siteDomain, og }) {
+function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -5893,6 +5894,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   const [firstName, setFirstName] = useState("");
   const [addGuestsCount, setAddGuestsCount] = useState(0);
   const [addGuestError, setAddGuestError] = useState("");
+  const [showReminderUnlockModal, setShowReminderUnlockModal] = useState(false);
   const [phone, setPhone] = useState("");
   const [copiedOpenLink, setCopiedOpenLink] = useState(false);
   const [copiedRowId, setCopiedRowId] = useState(null);
@@ -5950,6 +5952,36 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   // right on that guest's row without a page-wide loading state.
   const [sendingWhatsAppIds, setSendingWhatsAppIds] = useState(() => new Set());
   const [whatsappResults, setWhatsappResults] = useState({}); // { [groupId]: "sent" | "error" }
+  // Maps phone number -> latest delivery status Meta has reported via the
+  // webhook ("sent" | "delivered" | "read" | "failed"). Refreshed
+  // periodically so the checkmarks update without a manual page reload.
+  const [whatsappDeliveryStatus, setWhatsappDeliveryStatus] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStatuses = async () => {
+      try {
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/whatsapp_incoming?direction=eq.status&select=from_number,message_type,received_at&order=received_at.asc`,
+          { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+        );
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (cancelled) return;
+        // Keep only the latest status per phone number — statuses arrive
+        // sent -> delivered -> read over time, so the last row wins.
+        const latest = {};
+        for (const row of rows) latest[row.from_number] = row.message_type;
+        setWhatsappDeliveryStatus(latest);
+      } catch {
+        // Silent — this is a background refresh; a failed fetch just means
+        // checkmarks stay at whatever they were, not a user-facing error.
+      }
+    };
+    fetchStatuses();
+    const interval = setInterval(fetchStatuses, 15000); // refresh every 15s so checkmarks update live without a manual reload
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const sendAutomatedWhatsApp = async (group) => {
     if (!group.phone) {
@@ -5980,6 +6012,36 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     // individually as it goes rather than all appearing to hang at once.
     for (const group of groups) {
       await sendAutomatedWhatsApp(group);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  };
+
+  const sendAutomatedReminder = async (group) => {
+    if (!integrations.reminderFeatureUnlocked || !group.phone) {
+      setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
+      return;
+    }
+    setSendingWhatsAppIds((s) => new Set(s).add(group.id));
+    try {
+      await sendWhatsAppMessage({
+        to: group.phone,
+        templateName: WHATSAPP_REMINDER_TEMPLATE_NAME,
+        languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
+        variables: [group.members[0]?.name || group.lastName, coupleTitle, guestLink(group)],
+        headerImageUrl: og?.image || null,
+      });
+      setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
+    } catch {
+      setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
+    } finally {
+      setSendingWhatsAppIds((s) => { const next = new Set(s); next.delete(group.id); return next; });
+    }
+  };
+
+  const sendReminderToSelected = async () => {
+    const groups = guestGroups.filter((g) => selectedIds.has(g.id));
+    for (const group of groups) {
+      await sendAutomatedReminder(group);
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
   };
@@ -6165,6 +6227,17 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                 <Send size={12} /> Send WhatsApp Template ({selectedIds.size})
               </GhostButton>
             )}
+            {selectedIds.size > 0 && (
+              integrations.reminderFeatureUnlocked ? (
+                <GhostButton onClick={sendReminderToSelected}>
+                  <Send size={12} /> Send Reminder ({selectedIds.size})
+                </GhostButton>
+              ) : (
+                <GhostButton onClick={() => setShowReminderUnlockModal(true)}>
+                  <Lock size={12} /> Unlock Reminders — $10
+                </GhostButton>
+              )
+            )}
             <button onClick={addBlankRow} title="Add a blank row" className="flex h-7 w-7 items-center justify-center rounded-md" style={{ background: INK_3, color: GOLD_SOFT }}>
               <Plus size={14} />
             </button>
@@ -6339,6 +6412,20 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                             {whatsappResults[g.id] === "sent" ? <CheckCircle2 size={10} /> : whatsappResults[g.id] === "error" ? <XCircle size={10} /> : <Send size={10} />}
                           </button>
                         )}
+                        {g.phone && whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] && (
+                          <span
+                            title={
+                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "Read" :
+                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "delivered" ? "Delivered" :
+                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? "Failed to deliver" : "Sent"
+                            }
+                            className="flex h-5 w-5 items-center justify-center"
+                            style={{ color: whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "#53BDEB" : whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? "#E29B9B" : "rgba(147,166,155,0.7)" }}
+                          >
+                            {whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? <XCircle size={12} /> :
+                             whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "sent" ? <Check size={12} /> : <CheckCheck size={12} />}
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -6367,6 +6454,42 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         )}
       </div>
         </>
+      )}
+      {showReminderUnlockModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: "rgba(6,8,6,0.75)" }}>
+          <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: INK_2 }}>
+            <h3 className="mb-2 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Unlock Reminders</h3>
+            <p className="mb-4 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              A one-time $10 unlocks sending WhatsApp reminders to your guests, for this invitation, with no limit on how many times you use it afterward.
+            </p>
+            {integrations.reminderPaymentUrl ? (
+              <a
+                href={integrations.reminderPaymentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mb-3 flex w-full items-center justify-center rounded-full py-3 text-sm font-bold uppercase"
+                style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.05em" }}
+              >
+                Pay $10 to Unlock
+              </a>
+            ) : (
+              <p className="mb-3 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>No payment link has been set up yet — contact support.</p>
+            )}
+            <button onClick={() => setShowReminderUnlockModal(false)} className="mb-4 w-full text-center text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Cancel</button>
+            <div className="flex items-center gap-2">
+              <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.3)" }} />
+              <span className="text-[9px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>TEMPORARY — remove before going live</span>
+              <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.3)" }} />
+            </div>
+            <button
+              onClick={() => { updateIntegrations({ reminderFeatureUnlocked: true }); setShowReminderUnlockModal(false); }}
+              className="mt-2 w-full rounded-full py-2 text-[11px] font-semibold"
+              style={{ border: `1px dashed rgba(147,166,155,0.4)`, color: MUTED, fontFamily: FONT_BODY }}
+            >
+              Skip payment — unlock directly (testing only)
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -8137,6 +8260,7 @@ export default function InvitationBuilder() {
     networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
     livestreamUrl: "", livestreamButtonLabel: "Watch Live", livestreamHeading: "Join Us Live", livestreamSubtitle: "Can't be there in person? Watch the ceremony live, streamed just for you.",
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
+    reminderFeatureUnlocked: false, reminderPaymentUrl: "",
   });
   const updateIntegrations = (patch) => setIntegrations((i) => ({ ...i, ...patch }));
   const [users, setUsers] = useState(seedUsers);
@@ -8231,6 +8355,7 @@ export default function InvitationBuilder() {
       networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
       livestreamUrl: "", livestreamButtonLabel: "Watch Live", livestreamHeading: "Join Us Live", livestreamSubtitle: "Can't be there in person? Watch the ceremony live, streamed just for you.",
     livestreamPaid: false, livestreamPrice: "$10", livestreamPaymentUrl: "",
+    reminderFeatureUnlocked: false, reminderPaymentUrl: "",
     },
     intro: defaultIntroSettings,
     swipeDirection: "vertical", transitionStyle: "slide",
@@ -9928,6 +10053,7 @@ export default function InvitationBuilder() {
             deleteTable={deleteTable}
             assignGuestToTable={assignGuestToTable}
             integrations={integrations}
+            updateIntegrations={updateIntegrations}
             coupleTitle={`${c.cover.name1} & ${c.cover.name2}`}
             slug={slug}
             siteDomain={siteDomain}
