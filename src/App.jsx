@@ -7262,7 +7262,13 @@ function TemplateShopPage({ mode = "canva" }) {
                   <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
                   <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
                 </div>
-                <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
+                <p className="mb-3 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
+                <div className="mb-4 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
+                  <p className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+                    Paid by <strong>credit card via Stripe</strong> — not Whish. Of each purchase: <strong>80%</strong> to the design owner, <strong>15%</strong> platform fee, <strong>5%</strong> to an environmental charity, split automatically at checkout.
+                  </p>
+                  <p className="mt-1.5 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>Setup pending — checkout isn't live until a Stripe account is connected.</p>
+                </div>
                 <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
                 <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
                 {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
@@ -9988,7 +9994,7 @@ export default function InvitationBuilder() {
                       <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
                         <p className="text-[11px] font-semibold" style={{ color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>How each payment is split</p>
                         <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                          Paid Live payments are processed through <strong>Stripe</strong> (not Whish). Of each guest's payment: <strong>75%</strong> goes to you, <strong>20%</strong> is the platform fee, and <strong>5%</strong> goes to an environmental charity. The split happens automatically at checkout — you never need to send anything on manually.
+                          Paid Live payments are processed by <strong>credit card via Stripe</strong> — not Whish. Of each guest's payment: <strong>80%</strong> goes to you, <strong>15%</strong> is the platform fee, and <strong>5%</strong> goes to an environmental charity. The split happens automatically at checkout — you never need to send anything on manually.
                         </p>
                         <p className="mt-2 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>
                           Setup pending: this needs a connected Stripe account before it can actually process a real payment — checkout isn't live yet.
