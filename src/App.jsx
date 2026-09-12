@@ -4754,7 +4754,19 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
-    const update = () => setFsScale(el.offsetWidth / 292); // 292 = the fixed px width every layout/font size in this app was designed against
+    const update = () => {
+      // 292x600 is the fixed design every layout/font size in this app was
+      // built against. Scaling by width alone crops the design's top/bottom
+      // on any real device whose actual screen is proportionally shorter
+      // than 292:600 — taking the SMALLER of the width-based and
+      // height-based scale (like object-fit: contain) guarantees the whole
+      // design is always visible, at the cost of a thin letterbox strip on
+      // devices with a different aspect ratio, rather than silently
+      // cropping content off the top or bottom.
+      const widthScale = el.offsetWidth / 292;
+      const heightScale = el.offsetHeight / 600;
+      setFsScale(Math.min(widthScale, heightScale));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
