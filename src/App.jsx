@@ -4918,7 +4918,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: fsViewportHeight } : {}) }
+            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100dvh" } : {}) }
             : { width: 292, height: 600, background: "#000", borderRadius: 30, padding: 8, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
@@ -5072,14 +5072,14 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             on filling the full width. */}
         {started && (layoutEditMode ? (
           <>
-            <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center">
+            <div className="absolute inset-x-0 bottom-16 z-20 flex justify-center">
               <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.6)", backdropFilter: "blur(4px)" }}>
                 <Move size={11} color={GOLD_SOFT} />
                 <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
               </div>
             </div>
             {activeIndex < steps.length - 1 && (
-              <div className="absolute bottom-16 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+              <div className="absolute bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -5094,7 +5094,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
-              <button onClick={() => goDir(1)} className="absolute bottom-5 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
+              <button onClick={() => goDir(1)} className="absolute bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
