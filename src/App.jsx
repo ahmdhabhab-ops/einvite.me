@@ -612,6 +612,7 @@ const FONT_OPTIONS = [
   { key: "alexbrush", label: "Alex Brush (free substitute for Brittany — no license on file for the original)", value: "'Alex Brush', cursive" },
   { key: "moontime", label: "Moontime", value: "'Moontime', cursive" },
   { key: "lora", label: "Lora", value: "'Lora', serif" },
+  { key: "amiri", label: "Amiri (Arabic)", value: "'Amiri', serif" },
 ];
 const fontValue = (key) => FONT_OPTIONS.find((f) => f.key === key)?.value || null;
 
