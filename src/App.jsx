@@ -4542,24 +4542,14 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
             ) : (
               <>
                 {session.status === "error" && <p className="mt-3 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{session.error}</p>}
-                <p className="mt-4 text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.6)" : MUTED, fontFamily: FONT_BODY }}>Choose how to pay:</p>
-                <div className="mt-2 flex flex-col items-center gap-2">
-                  <button
-                    onClick={startPayment}
-                    disabled={starting}
-                    className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
-                    style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY, opacity: starting ? 0.7 : 1 }}
-                  >
-                    <Lock size={11} /> {starting ? "Starting…" : `Pay with Whish${price ? ` — ${price}` : ""}`}
-                  </button>
-                  <button
-                    onClick={() => setSession({ status: "error", error: "Credit card payment isn't set up yet — a Stripe account needs to be connected first." })}
-                    className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
-                    style={{ border: `1.5px solid ${light ? GOLD : EMERALD}`, color: light ? GOLD : EMERALD, letterSpacing: "0.1em", fontFamily: FONT_BODY }}
-                  >
-                    <Lock size={11} /> Pay by Credit Card{price ? ` — ${price}` : ""}
-                  </button>
-                </div>
+                <button
+                  onClick={() => setSession({ status: "error", error: "Credit card payment isn't set up yet — a Stripe account needs to be connected first." })}
+                  disabled={starting}
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
+                  style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY, opacity: starting ? 0.7 : 1 }}
+                >
+                  <Lock size={11} /> Pay by Credit Card{price ? ` — ${price}` : ""}
+                </button>
                 <div className="mt-4 flex items-center gap-2">
                   <div className="h-px flex-1" style={{ background: light ? "rgba(244,237,228,0.25)" : "rgba(147,166,155,0.3)" }} />
                   <span className="text-[9px]" style={{ color: light ? "rgba(244,237,228,0.5)" : MUTED, fontFamily: FONT_BODY }}>TEMPORARY — remove before going live</span>
@@ -7272,13 +7262,7 @@ function TemplateShopPage({ mode = "canva" }) {
                   <h2 className="text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>{selectedTemplate.name}</h2>
                   <button onClick={() => setSelectedTemplate(null)} style={{ color: MUTED }}><X size={18} /></button>
                 </div>
-                <p className="mb-3 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
-                <div className="mb-4 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
-                  <p className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                    Paying by <strong>credit card via Stripe</strong> splits automatically: <strong>80%</strong> to the design owner, <strong>15%</strong> platform fee, <strong>5%</strong> to an environmental charity. Paying via Whish doesn't split automatically.
-                  </p>
-                  <p className="mt-1.5 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>Credit card setup pending — not live until a Stripe account is connected.</p>
-                </div>
+                <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
                 <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
                 <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
                 {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
