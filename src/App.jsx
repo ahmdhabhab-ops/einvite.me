@@ -3630,7 +3630,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
               </div>
             </div>
           </DraggableBlock>
-          <DraggableBlock id="intro" pos={introStyle} editMode={editMode} onMove={(p) => onMoveBlock("intro", p)} onScale={(scale) => onMoveBlock("intro", { scale })} label="Intro" light={light} selected={selectedBlock === "intro"} onSelect={() => onSelectBlock("intro")}>
+          <DraggableBlock id="intro" pos={introStyle} editMode={editMode} onMove={(p) => onMoveBlock("intro", p)} onScale={(scale) => onMoveBlock("intro", { scale })} label="Intro" light={light} selected={selectedBlock === "intro"} onSelect={() => onSelectBlock("intro")} isEmpty={!content.intro}>
             <p className="text-center italic leading-relaxed" style={{ color: introStyle.color || (light ? "rgba(244,237,228,0.85)" : EMERALD), fontFamily: introStyle.fontFamily || fontDisplay, fontSize: introStyle.fontSize ? `${introStyle.fontSize}px` : 12.5 }}>
               {content.intro}
             </p>
@@ -3654,7 +3654,7 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
-          <DraggableBlock id="greeting" pos={gs} editMode={editMode} onMove={(p) => onMoveBlock("greeting", p)} label="Greeting" light={light} selected={selectedBlock === "greeting"} onSelect={() => onSelectBlock("greeting")}>
+          <DraggableBlock id="greeting" pos={gs} editMode={editMode} onMove={(p) => onMoveBlock("greeting", p)} label="Greeting" light={light} selected={selectedBlock === "greeting"} onSelect={() => onSelectBlock("greeting")} isEmpty={!content.greeting}>
             <div className="text-center">
               <p style={{ fontFamily: gs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: gs.fontSize ? `${gs.fontSize}px` : 16, color: gs.color || (light ? PAPER : EMERALD), lineHeight: 1.5 }}>{content.greeting}</p>
             </div>
@@ -3680,7 +3680,7 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
               })}
             </div>
           </DraggableBlock>
-          <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")}>
+          <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")} isEmpty={!content.side1Names && !content.side2Names}>
             <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
               {[{ names: content.side1Names, color: content.side1NamesColor }, { names: content.side2Names, color: content.side2NamesColor }].map((side, i) => (
                 <div key={i} className="text-center">
