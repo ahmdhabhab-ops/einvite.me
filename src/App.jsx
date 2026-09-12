@@ -4927,7 +4927,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
         .pv-fullscreen-card { max-width: 420px; aspect-ratio: 292 / 600; }
         @media (max-width: 420px) {
-          .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; height: 100dvh; }
+          .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; height: 100svh; }
         }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
@@ -4936,7 +4936,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: fsViewportHeight || "100dvh" } : {}) }
+            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100svh" } : {}) }
             : { width: 292, height: 600, background: "#000", borderRadius: 30, padding: 8, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
