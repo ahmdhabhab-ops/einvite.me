@@ -4765,7 +4765,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       // cropping content off the top or bottom.
       const widthScale = el.offsetWidth / 292;
       const heightScale = el.offsetHeight / 600;
-      setFsScale(Math.min(widthScale, heightScale));
+      setFsScale(Math.max(widthScale, heightScale)); // fills the whole screen (like cover) — a little may crop off top/bottom on devices with a different aspect ratio, rather than showing empty bars
     };
     update();
     const ro = new ResizeObserver(update);
