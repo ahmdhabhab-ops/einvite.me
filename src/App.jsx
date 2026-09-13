@@ -2046,25 +2046,11 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
           <div>
             <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Full screen</div>
-            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Covers the entire phone screen instead of a positioned block</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Covers the entire phone screen instead of a positioned block, showing the whole {current.type} with no cropping</div>
           </div>
           <SegmentedToggle
             value={current.fullScreen ? "on" : "off"}
-            onChange={(v) => onChangeStyle({ fullScreen: v === "on" })}
-            options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
-          />
-        </div>
-      )}
-
-      {current.fullScreen && (
-        <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
-          <div>
-            <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Show full {current.type === "video" ? "video" : "image"}</div>
-            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No cropping — adds empty bars above/below instead of cutting off part of it</div>
-          </div>
-          <SegmentedToggle
-            value={current.noCrop ? "on" : "off"}
-            onChange={(v) => onChangeStyle({ noCrop: v === "on" })}
+            onChange={(v) => onChangeStyle({ fullScreen: v === "on", noCrop: v === "on" })}
             options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
           />
         </div>
