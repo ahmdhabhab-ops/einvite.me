@@ -4725,6 +4725,21 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const [fsIsNarrow, setFsIsNarrow] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 420 : true));
 
   useEffect(() => {
+    // Preloads every page's background photo as soon as the invitation
+    // loads, so swiping to a page later never has to wait on that image —
+    // it's already decoded and sitting in the browser's cache. Without
+    // this, an image that hasn't loaded yet shows the fallback backdrop
+    // color first and then pops in once it finishes loading, which reads
+    // as a jarring flash during the swipe transition.
+    Object.values(data.pageBackgrounds || {}).forEach((bg) => {
+      if (bg?.mode === "photo" && bg.image) {
+        const img = new Image();
+        img.src = bg.image;
+      }
+    });
+  }, [data.pageBackgrounds]);
+
+  useEffect(() => {
     if (!fullscreen || typeof window === "undefined") return;
     // window.visualViewport tracks the ACTUALLY-visible area on mobile as the
     // browser's own address bar shrinks/grows — this is what makes the card's
@@ -4908,9 +4923,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   return (
     <>
       <style>{`
-        @keyframes slideUpIn { from { opacity: 0.3; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideDownIn { from { opacity: 0.3; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes stackIn { from { opacity: 0.3; transform: scale(0.94) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes slideUpIn { from { transform: translateY(24px); } to { transform: translateY(0); } }
+        @keyframes slideDownIn { from { transform: translateY(-24px); } to { transform: translateY(0); } }
+        @keyframes stackIn { from { transform: scale(0.96) translateY(10px); } to { transform: scale(1) translateY(0); } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes bounceLeft { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
@@ -9751,8 +9766,8 @@ export default function InvitationBuilder() {
   return (
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
       <style>{`
-        @keyframes slideUpIn { from { opacity: 0.3; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideDownIn { from { opacity: 0.3; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUpIn { from { transform: translateY(24px); } to { transform: translateY(0); } }
+        @keyframes slideDownIn { from { transform: translateY(-24px); } to { transform: translateY(0); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
