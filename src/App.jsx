@@ -4929,7 +4929,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         style={
           fullscreen
             ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100svh" } : {}) }
-            : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden", boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
+            : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
         {/* Samsung-style side buttons — volume rocker + power button, both on
