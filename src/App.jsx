@@ -9833,6 +9833,7 @@ export default function InvitationBuilder() {
         {view === "builder" && (
           <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_320px]">
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+              <PagesManager orderedAllSteps={orderedAllSteps} enabledSteps={enabledSteps} onToggle={toggleStepVisibility} onMove={moveStepOrder} />
               {editingShopDesignId && (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.3)` }}>
                   <span className="text-[12px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
@@ -10086,9 +10087,6 @@ export default function InvitationBuilder() {
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
               </GhostButton>
-              <div className="w-full">
-                <PagesManager orderedAllSteps={orderedAllSteps} enabledSteps={enabledSteps} onToggle={toggleStepVisibility} onMove={moveStepOrder} />
-              </div>
             </div>
           </div>
         )}
