@@ -4908,9 +4908,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   return (
     <>
       <style>{`
-        @keyframes slideUpIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideDownIn { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes stackIn { from { opacity: 0; transform: scale(0.88) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes slideUpIn { from { opacity: 0.3; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDownIn { from { opacity: 0.3; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes stackIn { from { opacity: 0.3; transform: scale(0.94) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes bounceLeft { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
@@ -4954,7 +4954,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.35s ease` }}>
+          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s ease` }}>
             {renderSlide(stepKey)}
           </div>
 
@@ -9751,8 +9751,8 @@ export default function InvitationBuilder() {
   return (
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
       <style>{`
-        @keyframes slideUpIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideDownIn { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUpIn { from { opacity: 0.3; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideDownIn { from { opacity: 0.3; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
