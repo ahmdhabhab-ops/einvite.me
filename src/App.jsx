@@ -9765,7 +9765,7 @@ export default function InvitationBuilder() {
         input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.7) sepia(1) saturate(3) hue-rotate(0deg); cursor: pointer; }
       `}</style>
 
-      <div className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-[1400px] px-3 py-6 sm:px-6 sm:py-10">
         <div className="mb-6 flex items-baseline justify-between">
           <div>
             <div className="text-[10px] font-semibold uppercase" style={{ color: GOLD, letterSpacing: "0.2em" }}>eInvite.me</div>
