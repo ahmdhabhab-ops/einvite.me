@@ -4971,24 +4971,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
           <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
             {renderSlide(stepKey)}
+            {started && (
+              <div className="absolute inset-0">
+                {customBlocks.map((block) => (
+                  <CustomTextBlock
+                    key={block.id}
+                    block={block}
+                    light={data.pageBackgrounds[stepKey].mode === "photo"}
+                    editMode={layoutEditMode}
+                    selected={selectedBlockId === `custom:${block.id}`}
+                    onSelect={() => onSelectBlock(`custom:${block.id}`)}
+                    onMove={(p) => onMoveCustomBlock(stepKey, block.id, p)}
+                    onDelete={() => onRemoveCustomBlock(stepKey, block.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-
-          {started && (
-            <div className="absolute inset-0">
-              {customBlocks.map((block) => (
-                <CustomTextBlock
-                  key={block.id}
-                  block={block}
-                  light={data.pageBackgrounds[stepKey].mode === "photo"}
-                  editMode={layoutEditMode}
-                  selected={selectedBlockId === `custom:${block.id}`}
-                  onSelect={() => onSelectBlock(`custom:${block.id}`)}
-                  onMove={(p) => onMoveCustomBlock(stepKey, block.id, p)}
-                  onDelete={() => onRemoveCustomBlock(stepKey, block.id)}
-                />
-              ))}
-            </div>
-          )}
 
           {(!started || gateClosing) && (
             <div className="absolute inset-0 z-40 overflow-hidden">
