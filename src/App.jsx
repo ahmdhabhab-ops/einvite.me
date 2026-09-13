@@ -4932,17 +4932,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
-        {/* Samsung-style side buttons — volume rocker + power button, both on
-            the right edge (unlike iPhone). Kept flush at the frame's own
-            edge (not sticking out past it) so the frame's overflow:hidden —
-            needed to clip the scrim/hint/icons to its rounded corners —
-            doesn't clip these away too. */}
-        {!fullscreen && (
-          <>
-            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
-            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
-          </>
-        )}
         <div
           className="relative overflow-hidden"
           style={
