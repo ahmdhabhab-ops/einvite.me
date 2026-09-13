@@ -4929,18 +4929,31 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         style={
           fullscreen
             ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100svh" } : {}) }
-            : { width: 292, height: 600, overflow: "hidden" }
+            : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden", boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
+        {/* Samsung-style side buttons — volume rocker + power button, both on
+            the right edge (unlike iPhone). Kept flush at the frame's own
+            edge (not sticking out past it) so the frame's overflow:hidden —
+            needed to clip the scrim/hint/icons to its rounded corners —
+            doesn't clip these away too. */}
+        {!fullscreen && (
+          <>
+            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#000", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }} />
+            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#000", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }} />
+          </>
+        )}
         <div
           className="relative overflow-hidden"
           style={
             fullscreen
               ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
-              : { touchAction: "none", background: PAPER, height: "100%", width: "100%" }
+              : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
         >
+          {/* Samsung-style centered punch-hole camera, instead of a wide notch/Dynamic Island */}
+          {!fullscreen && <div className="absolute left-1/2 top-2.5 z-30 h-2.5 w-2.5 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />}
 
           {started && !fullscreen && (
             <div className="absolute left-3 right-3 top-4 z-20 flex gap-1.5">
