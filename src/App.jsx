@@ -3415,7 +3415,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       return (
         <>
           <div
-            style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: block.noCrop ? "#000" : "transparent" }}
+            style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: "transparent" }}
             onClick={editMode ? (e) => { e.stopPropagation(); onSelect?.(); } : undefined}
           >
             <img
@@ -3449,7 +3449,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       return (
         <>
           <div
-            style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: block.noCrop ? "#000" : "transparent" }}
+            style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: "transparent" }}
             onClick={editMode ? (e) => { e.stopPropagation(); onSelect?.(); } : undefined}
           >
             <video
