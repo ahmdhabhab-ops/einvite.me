@@ -4939,8 +4939,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             doesn't clip these away too. */}
         {!fullscreen && (
           <>
-            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#000", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }} />
-            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#000", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }} />
+            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
+            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
           </>
         )}
         <div
