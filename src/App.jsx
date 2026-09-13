@@ -4929,15 +4929,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         style={
           fullscreen
             ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100svh" } : {}) }
-            : { width: 292, height: 600, background: "#000", borderRadius: 30, padding: 8, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
+            : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
+        {/* Samsung-style side buttons — volume rocker + power button, both on
+            the right edge (unlike iPhone, which splits them left/right) */}
+        {!fullscreen && (
+          <>
+            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#000", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }} />
+            <div className="absolute -right-[3px] z-10 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#000", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }} />
+          </>
+        )}
         <div
           className="relative overflow-hidden"
           style={
             fullscreen
               ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
-              : { touchAction: "none", borderRadius: 22, background: PAPER, height: "100%", width: "100%" }
+              : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
         >
