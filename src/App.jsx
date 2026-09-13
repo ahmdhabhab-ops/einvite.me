@@ -4760,21 +4760,27 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
-    const update = () => {
-      // 292x600 is the fixed design every layout/font size in this app was
-      // built against. Scaling by width alone crops the design's top/bottom
-      // on any real device whose actual screen is proportionally shorter
-      // than 292:600 — taking the SMALLER of the width-based and
-      // height-based scale (like object-fit: contain) guarantees the whole
-      // design is always visible, at the cost of a thin letterbox strip on
-      // devices with a different aspect ratio, rather than silently
-      // cropping content off the top or bottom.
-      const widthScale = el.offsetWidth / 292;
-      const heightScale = el.offsetHeight / 600;
-      setFsScale(Math.max(widthScale, heightScale)); // fills the whole screen (like cover) — a little may crop off top/bottom on devices with a different aspect ratio, rather than showing empty bars
-    };
+    // 292 is the fixed design width every layout/font size in this app was
+    // built against. Scale is deliberately based on WIDTH ONLY, and only
+    // reacts to width changes — a mobile browser's address bar showing or
+    // hiding changes the available HEIGHT, never the width, so tying scale
+    // to width alone guarantees it can never jump/reflow from that specific
+    // interaction. Any vertical mismatch between the 600px-tall design and
+    // the real device's height is handled by the container's overflow:hidden
+    // plus the content being centered, not by reacting to height here.
+    const update = () => setFsScale(el.offsetWidth / 292);
     update();
-    const ro = new ResizeObserver(update);
+    const ro = new ResizeObserver((entries) => {
+      // Only recompute if the width actually changed — ResizeObserver also
+      // fires on height-only changes, which is exactly what we're avoiding.
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w !== el.dataset.lastWidth) {
+          el.dataset.lastWidth = w;
+          update();
+        }
+      }
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
