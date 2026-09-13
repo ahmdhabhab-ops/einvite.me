@@ -5142,8 +5142,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           here lines up exactly with cardRef's real edges. */}
       {!fullscreen && (
         <>
-          <div className="absolute -right-[3px] z-50 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
-          <div className="absolute -right-[3px] z-50 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
+          <div className="absolute -right-[3px] z-50 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "linear-gradient(90deg, #050505 0%, #1c1c1c 55%, #050505 100%)", boxShadow: "0 0 0 0.5px rgba(255,255,255,0.15), 1px 0 2px rgba(0,0,0,0.5)" }} />
+          <div className="absolute -right-[3px] z-50 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "linear-gradient(90deg, #050505 0%, #1c1c1c 55%, #050505 100%)", boxShadow: "0 0 0 0.5px rgba(255,255,255,0.15), 1px 0 2px rgba(0,0,0,0.5)" }} />
         </>
       )}
 
