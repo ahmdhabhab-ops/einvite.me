@@ -4922,7 +4922,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; height: 100svh; }
         }
       `}</style>
-    <div className={fullscreen ? "flex flex-col items-center justify-center" : "flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
+    <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
         ref={cardRef}
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
@@ -4932,12 +4932,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden", boxShadow: "0 0 0 1px rgba(201,164,76,0.15)" }
         }
       >
-        {!fullscreen && (
-          <>
-            <div className="absolute right-0 z-50 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
-            <div className="absolute right-0 z-50 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
-          </>
-        )}
         <div
           className="relative overflow-hidden"
           style={
@@ -5138,6 +5132,20 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           </>
         ))}
       </div>
+
+      {/* Samsung-style side buttons — volume rocker + power button, both on
+          the right edge. True siblings of cardRef (not children), so they
+          stick out past its edge without being clipped by its necessary
+          overflow:hidden (needed to clip the scrim/hint/icons to its
+          rounded corners). The outer wrapper now shrinks to cardRef's own
+          292px width (inline-flex + relative), so right/-right positioning
+          here lines up exactly with cardRef's real edges. */}
+      {!fullscreen && (
+        <>
+          <div className="absolute -right-[3px] z-50 rounded-l-sm" style={{ top: 130, width: 3, height: 34, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
+          <div className="absolute -right-[3px] z-50 rounded-l-sm" style={{ top: 172, width: 3, height: 58, background: "#3a3a3a", boxShadow: "0 0 0 1px rgba(201,164,76,0.3)" }} />
+        </>
+      )}
 
       {data.music.url && <audio ref={audioRef} src={data.music.url} loop />}
 
