@@ -5920,6 +5920,8 @@ function NetworkingApprovalPanel({ slug }) {
 function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDeleteTable, onAssignGuest }) {
   const [newTableName, setNewTableName] = useState("");
   const [newTableCapacity, setNewTableCapacity] = useState(8);
+  const [newTableShape, setNewTableShape] = useState("round");
+  const [view, setView] = useState("list"); // "list" | "floorplan"
 
   const confirmedGroups = guestGroups.filter(groupIsConfirmed);
   const unassigned = confirmedGroups.filter((g) => !g.tableId || !tables.some((t) => t.id === g.tableId));
@@ -5927,9 +5929,10 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
   const totalConfirmed = confirmedGroups.reduce((sum, g) => sum + groupHeadcount(g), 0);
 
   const submitAddTable = () => {
-    onAddTable(newTableName, newTableCapacity);
+    onAddTable(newTableName, newTableCapacity, newTableShape);
     setNewTableName("");
     setNewTableCapacity(8);
+    setNewTableShape("round");
   };
 
   return (
@@ -5941,6 +5944,11 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <TextInput value={newTableName} onChange={setNewTableName} placeholder="New table name" />
+          <SegmentedToggle
+            value={newTableShape}
+            onChange={setNewTableShape}
+            options={[{ value: "round", label: "Round" }, { value: "square", label: "Square" }, { value: "long", label: "Long" }]}
+          />
           <div className="flex items-center gap-1.5 rounded-lg px-2 py-1.5" style={{ background: INK_3 }}>
             <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Seats</span>
             <input
@@ -5952,6 +5960,16 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
           <GoldButton onClick={submitAddTable}><Plus size={14} /> Add table</GoldButton>
         </div>
       </div>
+
+      {tables.length > 0 && (
+        <div className="mb-4">
+          <SegmentedToggle
+            value={view}
+            onChange={setView}
+            options={[{ value: "list", label: "List" }, { value: "floorplan", label: "Floor Plan" }]}
+          />
+        </div>
+      )}
 
       {unassigned.length > 0 && (
         <div className="mb-5 rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(228,206,149,0.25)` }}>
@@ -5990,6 +6008,8 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
 
       {tables.length === 0 ? (
         <p className="py-10 text-center text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No tables yet — add one above to start seating guests.</p>
+      ) : view === "floorplan" ? (
+        <FloorPlanCanvas tables={tables} confirmedGroups={confirmedGroups} onUpdateTable={onUpdateTable} onAssignGuest={onAssignGuest} />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {tables.map((t) => (
@@ -6001,6 +6021,124 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// A visual floor plan — each table renders as its actual shape (round,
+// square, or long/banquet) at a draggable x/y position. Clicking a table
+// selects it and opens a side panel to assign confirmed guests to it or
+// see who's already seated there.
+function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest }) {
+  const [selectedId, setSelectedId] = useState(tables[0]?.id || null);
+  const canvasRef = useRef(null);
+  const dragState = useRef(null); // { id, startX, startY, origX, origY }
+
+  const selected = tables.find((t) => t.id === selectedId) || null;
+  const seatedAt = (tableId) => confirmedGroups.filter((g) => g.tableId === tableId);
+  const unassigned = confirmedGroups.filter((g) => !g.tableId || !tables.some((t) => t.id === g.tableId));
+
+  const shapeSize = (table) => {
+    if (table.shape === "long") return { width: 140, height: 44 };
+    if (table.shape === "square") return { width: 64, height: 64 };
+    return { width: 64, height: 64 }; // round — same box, border-radius makes it a circle
+  };
+
+  const onPointerDown = (e, table) => {
+    e.stopPropagation();
+    setSelectedId(table.id);
+    dragState.current = { id: table.id, startX: e.clientX, startY: e.clientY, origX: table.x || 0, origY: table.y || 0 };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    const d = dragState.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    const canvasEl = canvasRef.current;
+    const maxX = canvasEl ? canvasEl.clientWidth - 70 : 600;
+    const maxY = canvasEl ? canvasEl.clientHeight - 70 : 400;
+    const newX = Math.min(Math.max(0, d.origX + dx), maxX);
+    const newY = Math.min(Math.max(0, d.origY + dy), maxY);
+    onUpdateTable(d.id, { x: newX, y: newY });
+  };
+  const onPointerUp = () => { dragState.current = null; };
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
+      <div
+        ref={canvasRef}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onClick={() => setSelectedId(null)}
+        className="relative overflow-hidden rounded-2xl"
+        style={{ background: INK_3, height: 480, touchAction: "none", backgroundImage: "radial-gradient(rgba(201,164,76,0.12) 1px, transparent 1px)", backgroundSize: "24px 24px" }}
+      >
+        {tables.map((t) => {
+          const size = shapeSize(t);
+          const count = seatedAt(t.id).reduce((sum, g) => sum + groupHeadcount(g), 0);
+          const over = count > t.capacity;
+          return (
+            <div
+              key={t.id}
+              onPointerDown={(e) => onPointerDown(e, t)}
+              className="absolute flex flex-col items-center justify-center text-center"
+              style={{
+                left: t.x || 0, top: t.y || 0, width: size.width, height: size.height,
+                borderRadius: t.shape === "round" ? "50%" : 10,
+                background: selectedId === t.id ? "rgba(201,164,76,0.25)" : INK_2,
+                border: `2px solid ${selectedId === t.id ? GOLD : over ? "#E29B9B" : "rgba(201,164,76,0.3)"}`,
+                cursor: "grab", userSelect: "none", padding: 4,
+              }}
+            >
+              <span className="truncate text-[10.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY, maxWidth: size.width - 10 }}>{t.name}</span>
+              <span className="text-[9px]" style={{ color: over ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>{count}/{t.capacity}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+        {selected ? (
+          <>
+            <h4 className="mb-1 text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{selected.name}</h4>
+            <p className="mb-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              {selected.shape === "round" ? "Round" : selected.shape === "square" ? "Square" : "Long / Banquet"} · {selected.capacity} seats
+            </p>
+            <div className="mb-3 space-y-1.5">
+              {seatedAt(selected.id).length === 0 ? (
+                <p className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No one seated here yet.</p>
+              ) : (
+                seatedAt(selected.id).map((g) => (
+                  <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: INK_3 }}>
+                    <span className="truncate text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+                      {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest"}
+                    </span>
+                    <button onClick={() => onAssignGuest(g.id, null)} title="Remove from this table" style={{ color: "#E29B9B", flexShrink: 0 }}><X size={12} /></button>
+                  </div>
+                ))
+              )}
+            </div>
+            {unassigned.length > 0 && (
+              <select
+                defaultValue=""
+                onChange={(e) => e.target.value && onAssignGuest(e.target.value, selected.id)}
+                className="w-full rounded-md px-2 py-1.5 text-[11px] outline-none"
+                style={{ background: INK_3, color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}
+              >
+                <option value="" disabled style={{ background: INK_2, color: MUTED }}>Assign a guest…</option>
+                {unassigned.map((g) => (
+                  <option key={g.id} value={g.id} style={{ background: INK_2, color: IVORY }}>
+                    {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest"}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
+        ) : (
+          <p className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Tap a table on the floor plan to see or assign its guests. Drag tables to arrange the room.</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -9460,7 +9598,8 @@ export default function InvitationBuilder() {
 
   const updateRsvpSettings = (patch) => setRsvpSettings((s) => ({ ...s, ...patch }));
 
-  const addTable = (name, capacity) => setTables((list) => [...list, { id: uid(), name: name.trim() || "New table", capacity: Math.max(1, capacity || 8) }]);
+  const addTable = (name, capacity, shape = "round") =>
+    setTables((list) => [...list, { id: uid(), name: name.trim() || "New table", capacity: Math.max(1, capacity || 8), shape, x: 60 + (list.length % 5) * 90, y: 60 + Math.floor(list.length / 5) * 110 }]);
   const updateTable = (id, patch) => setTables((list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   const deleteTable = (id) => {
     setTables((list) => list.filter((t) => t.id !== id));
@@ -10501,7 +10640,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} integrations={integrations} updateIntegrations={updateIntegrations} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
