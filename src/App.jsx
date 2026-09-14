@@ -8016,6 +8016,138 @@ function GuestLanguageSwitcher({ current, options, onChange }) {
   );
 }
 
+// A minimal, single-screen RSVP page — separate from the full swipeable
+// invitation experience. Shows a photo, a short greeting, and a Yes/No
+// choice; picking Yes saves immediately to Supabase and shows the
+// check-in QR code right there, no other pages to look at. Built for
+// sharing a link straight to this via WhatsApp, when the couple wants
+// guests to RSVP in one tap rather than browse the whole invitation.
+function QuickRsvpPage({ slug }) {
+  const [state, setState] = useState(null); // null=loading, false=not found, { snapshot, matchedUserId }
+  const [name, setName] = useState("");
+  const [choice, setChoice] = useState(null); // null | "yes" | "no"
+  const [submitting, setSubmitting] = useState(false);
+  const [checkinToken, setCheckinToken] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const draftRes = await persistentStorage.get("einvite:draft-core", false);
+        const draft = draftRes?.value ? JSON.parse(draftRes.value) : { users: [] };
+        const matchedUser = (draft.users || []).find((u) => u.invitationSlug === slug);
+        if (!matchedUser) { setState(false); return; }
+
+        const snapRes = await persistentStorage.get(`einvite:invitation-${matchedUser.id}`, false);
+        const snapshot = snapRes?.value ? JSON.parse(snapRes.value) : freshInvitationSnapshot();
+        setState({ snapshot, matchedUserId: matchedUser.id });
+      } catch (err) {
+        console.error("QuickRsvpPage: failed to load invitation:", err);
+        setState(false);
+      }
+    })();
+  }, [slug]);
+
+  const submit = async (status) => {
+    if (!state) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const cleanName = name.trim() || "Guest";
+      const key = `einvite:invitation-${state.matchedUserId}`;
+      const res = await persistentStorage.get(key, false);
+      const latest = res?.value ? JSON.parse(res.value) : state.snapshot;
+      const newGroup = {
+        id: uid(), lastName: "", members: [{ id: uid(), name: cleanName, status }],
+        additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
+      };
+      const updated = { ...latest, guestGroups: [newGroup, ...(latest.guestGroups || [])] };
+      const saveResult = await persistentStorage.set(key, JSON.stringify(updated), false);
+      if (!saveResult) throw new Error("Couldn't save your response — please try again.");
+
+      setChoice(status);
+      if (status === "yes") {
+        const token = await createCheckinToken(slug, newGroup.id, cleanName);
+        setCheckinToken(token);
+      }
+    } catch (err) {
+      setError(err.message || "Something went wrong — please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (state === null) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>Loading…</p>
+      </div>
+    );
+  }
+  if (state === false) {
+    return (
+      <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>This invitation link couldn't be found.</p>
+      </div>
+    );
+  }
+
+  const c = state.snapshot.content?.cover || {};
+  const photo = state.snapshot.og?.image || (state.snapshot.pageBackgrounds?.cover?.mode === "photo" ? state.snapshot.pageBackgrounds.cover.image : null);
+  const coupleNames = [c.name1, c.name2].filter(Boolean).join(" & ");
+
+  return (
+    <div style={{ minHeight: "100vh", background: INK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 340, textAlign: "center" }}>
+        {photo && (
+          <img src={photo} alt="" style={{ width: 140, height: 140, borderRadius: "50%", objectFit: "cover", margin: "0 auto 20px", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }} />
+        )}
+        <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 24, color: IVORY, marginBottom: 8 }}>{coupleNames || "You're Invited"}</h1>
+        <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13, marginBottom: 28 }}>
+          {c.intro || "We'd love for you to join us — will you be attending?"}
+        </p>
+
+        {choice === "yes" && checkinToken ? (
+          <div>
+            <CheckCircle2 size={36} color={CHART_COLORS.yes} style={{ margin: "0 auto 10px" }} />
+            <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14, marginBottom: 16 }}>You're confirmed — see you there!</p>
+            <div style={{ background: PAPER, borderRadius: 16, padding: 16, display: "inline-block" }}>
+              <img src={qrCodeImageUrl(`https://${window.location.host}/checkin/${checkinToken}`, 160)} alt="Check-in QR code" style={{ display: "block" }} />
+            </div>
+            <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 10.5, marginTop: 10 }}>Show this code at the entrance</p>
+          </div>
+        ) : choice === "no" ? (
+          <div>
+            <XCircle size={36} color="#E29B9B" style={{ margin: "0 auto 10px" }} />
+            <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14 }}>Thanks for letting us know — you'll be missed!</p>
+          </div>
+        ) : (
+          <>
+            <TextInput value={name} onChange={setName} placeholder="Your name" />
+            {error && <p style={{ color: "#E29B9B", fontFamily: FONT_BODY, fontSize: 11.5, marginTop: 8 }}>{error}</p>}
+            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              <button
+                onClick={() => submit("no")}
+                disabled={submitting}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 999, border: `1.5px solid rgba(226,155,155,0.5)`, color: "#E29B9B", fontFamily: FONT_BODY, fontWeight: 600, background: "transparent", opacity: submitting ? 0.6 : 1 }}
+              >
+                Not Attending
+              </button>
+              <button
+                onClick={() => submit("yes")}
+                disabled={submitting}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 999, border: "none", color: INK, fontFamily: FONT_BODY, fontWeight: 700, background: GOLD, opacity: submitting ? 0.6 : 1 }}
+              >
+                {submitting ? "Saving…" : "Attending"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CheckinPage({ token }) {
   const [checkin, setCheckin] = useState(null); // null=loading, false=invalid, {...}=result
   const [busy, setBusy] = useState(false);
@@ -9646,6 +9778,7 @@ export default function InvitationBuilder() {
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
   const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
   const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
+  const [quickRsvpSlug, setQuickRsvpSlug] = useState(null); // null = checking, false = not a quick-RSVP link, string = the slug
   const [isAdminPath, setIsAdminPath] = useState(null); // null = checking, true/false = resolved
   const [isShopPath, setIsShopPath] = useState(null); // null = checking, true/false = resolved
   const [isDesignsPath, setIsDesignsPath] = useState(null); // null = checking, true/false = resolved — /designs shows only website-built (editOnWebsite) designs, separate from /shop's real Canva designs
@@ -9675,6 +9808,11 @@ export default function InvitationBuilder() {
   useEffect(() => {
     const match = window.location.pathname.match(/^\/checkin\/([^/]+)\/?$/);
     setCheckinTokenFromUrl(match ? decodeURIComponent(match[1]) : false);
+  }, []);
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/quick\/([^/]+)\/?$/);
+    setQuickRsvpSlug(match ? decodeURIComponent(match[1]) : false);
   }, []);
 
   useEffect(() => {
@@ -9912,6 +10050,13 @@ export default function InvitationBuilder() {
   }
   if (checkinToken) {
     return <CheckinPage token={checkinToken} />;
+  }
+
+  if (quickRsvpSlug === null) {
+    return <AppLoadingScreen />; // still checking the URL
+  }
+  if (quickRsvpSlug) {
+    return <QuickRsvpPage slug={quickRsvpSlug} />;
   }
 
   if (guestView === null) {
