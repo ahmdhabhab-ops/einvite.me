@@ -2169,6 +2169,15 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
             </div>
           </div>
 
+          <div className="mt-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+            <FieldLabel>Bold</FieldLabel>
+            <SegmentedToggle
+              value={current.fontWeight === 700 ? "on" : "off"}
+              onChange={(v) => onChangeStyle({ fontWeight: v === "on" ? 700 : null })}
+              options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+            />
+          </div>
+
           <div className="mt-3 flex items-center gap-3">
             <FieldLabel>Color</FieldLabel>
           </div>
@@ -2184,7 +2193,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        {!isImage && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null })}>Reset style</GhostButton>}
+        {!isImage && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null })}>Reset style</GhostButton>}
         {isCustom && (
           <GhostButton danger onClick={onDelete}>
             <Trash2 size={12} /> Delete
@@ -3580,6 +3589,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             fontFamily: block.fontFamily || FONT_BODY,
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
+            fontWeight: block.fontWeight || 400,
             lineHeight: 1.4,
             background: "rgba(0,0,0,0.25)",
             borderRadius: 6,
@@ -3592,6 +3602,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             fontFamily: block.fontFamily || (light ? FONT_BODY : FONT_BODY),
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
+            fontWeight: block.fontWeight || 400,
             lineHeight: 1.4,
           }}
         >
@@ -5990,7 +6001,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
   );
 }
 
-function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og }) {
+function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -6000,6 +6011,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   const [addGuestsCount, setAddGuestsCount] = useState(0);
   const [addGuestError, setAddGuestError] = useState("");
   const [showReminderUnlockModal, setShowReminderUnlockModal] = useState(false);
+  const [newLinkLabel, setNewLinkLabel] = useState("");
+  const [newLinkMax, setNewLinkMax] = useState("5");
+  const [copiedBatchId, setCopiedBatchId] = useState(null);
   const [phone, setPhone] = useState("");
   const [copiedOpenLink, setCopiedOpenLink] = useState(false);
   const [copiedRowId, setCopiedRowId] = useState(null);
@@ -6040,6 +6054,15 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     setCopiedOpenLink(ok);
     setTimeout(() => setCopiedOpenLink(false), 2000);
   };
+
+  const batchLink = (link) => `https://${siteDomain}/e/${slug}?batch=${link.id}`;
+  const copyBatchLink = async (link) => {
+    const ok = await copyToClipboard(batchLink(link));
+    setCopiedBatchId(ok ? link.id : null);
+    setTimeout(() => setCopiedBatchId(null), 2000);
+  };
+  const batchAttendingCount = (linkId) =>
+    flattenMembers(guestGroups.filter((g) => g.inviteBatchId === linkId)).filter((m) => m.status === "yes").length;
 
   const guestLink = (group) => `https://${siteDomain}/e/${slug}?g=${group.id}`;
   const copyGuestLink = async (group) => {
@@ -8459,6 +8482,12 @@ export default function InvitationBuilder() {
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
   const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true });
+  const [openInviteLinks, setOpenInviteLinks] = useState([]); // [{ id, label, maxGuests }] — each is its own separately-tracked open invitation link, independent of the single shared one and of each other
+  const addOpenInviteLink = (label, maxGuests) => {
+    const newLink = { id: uid(), label: label.trim() || "Untitled link", maxGuests: Number(maxGuests) || 0 };
+    setOpenInviteLinks((links) => [...links, newLink]);
+  };
+  const deleteOpenInviteLink = (id) => setOpenInviteLinks((links) => links.filter((l) => l.id !== id));
   const [integrations, setIntegrations] = useState({
     djUrl: "", djButtonLabel: "Request a Song", djHeading: "Song Requests", djSubtitle: "Have a song you want to hear tonight? Send it straight to the DJ.",
     networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
@@ -8554,6 +8583,7 @@ export default function InvitationBuilder() {
     defaultLang: "en", enabledLanguages: LANGS, layouts: DEFAULT_LAYOUTS, customBlocks: emptyCustomBlocks(),
     og: { image: null, title: "", description: "" }, guestGroups: [], tables: [],
     rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true },
+    openInviteLinks: [],
     integrations: {
       djUrl: "", djButtonLabel: "Request a Song", djHeading: "Song Requests", djSubtitle: "Have a song you want to hear tonight? Send it straight to the DJ.",
       networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
@@ -8568,7 +8598,7 @@ export default function InvitationBuilder() {
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
-    swipeDirection, transitionStyle,
+    swipeDirection, transitionStyle, openInviteLinks,
   });
 
   const applySnapshot = (snap) => {
@@ -8579,6 +8609,7 @@ export default function InvitationBuilder() {
     setOg(snap.og); setGuestGroups(snap.guestGroups); setTables(snap.tables || []); setRsvpSettings(snap.rsvpSettings);
     setIntegrations(snap.integrations); setIntro(snap.intro);
     setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
+    setOpenInviteLinks(snap.openInviteLinks || []);
     setActiveIndex(0); setVisited(new Set([0])); setStarted(false); setSelectedBlockId(null); setLayoutEditMode(false);
   };
 
@@ -8727,6 +8758,7 @@ export default function InvitationBuilder() {
         if (d.enabledLanguages) setEnabledLanguages(d.enabledLanguages);
         if (d.layouts) setLayouts(mergeLayoutsWithDefaults(d.layouts));
         if (d.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(d.customBlocks));
+        if (d.openInviteLinks) setOpenInviteLinks(d.openInviteLinks);
         if (d.guestGroups) setGuestGroups(d.guestGroups);
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
@@ -8762,6 +8794,7 @@ export default function InvitationBuilder() {
             if (activeSnapshot) {
               if (activeSnapshot.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
               if (activeSnapshot.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(activeSnapshot.customBlocks));
+              if (activeSnapshot.openInviteLinks) setOpenInviteLinks(activeSnapshot.openInviteLinks);
               if (activeSnapshot.content) setContent(activeSnapshot.content);
               if (activeSnapshot.pageBackgrounds) setPageBackgrounds(activeSnapshot.pageBackgrounds);
               if (activeSnapshot.layouts) setLayouts(mergeLayoutsWithDefaults(activeSnapshot.layouts));
@@ -9253,7 +9286,7 @@ export default function InvitationBuilder() {
   // though both land in the same guest list. `names` may contain zero, one, or
   // several people (from the "Who's joining us?" modal); anyone not named counts
   // toward additionalGuests as an unnamed slot, same as guests added manually.
-  const submitGuestRsvp = async ({ names, status, additionalGuests, existingGroupId }) => {
+  const submitGuestRsvp = async ({ names, status, additionalGuests, existingGroupId, batchId }) => {
     const cleanNames = (names || []).filter((n) => n && n.trim());
     const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : [{ id: uid(), name: "Guest", status }];
     const existing = existingGroupId ? guestGroups.find((g) => g.id === existingGroupId) : null;
@@ -9293,6 +9326,7 @@ export default function InvitationBuilder() {
       phone: "",
       invitationSent: false, // we don't know if this was reached via a sent link or the open one
       invitationViewed: true, // they just viewed it — they're submitting from the page itself
+      inviteBatchId: batchId || null,
       updatedAt: Date.now(),
     });
     if (status !== "yes") return null;
@@ -9624,12 +9658,13 @@ export default function InvitationBuilder() {
     const params = new URLSearchParams(window.location.search);
     const groupId = params.get("g");
     const guestNameParam = params.get("guest");
+    const batchId = params.get("batch");
     let cancelled = false;
 
     // This device's own currently-loaded invitation matches directly —
     // reuse the live state, no snapshot lookup needed.
     if (urlSlug === slug) {
-      setGuestView({ found: true, ownSlug: true, slug: urlSlug, snapshotGuestGroups: guestGroups, groupId, guestNameParam });
+      setGuestView({ found: true, ownSlug: true, slug: urlSlug, snapshotGuestGroups: guestGroups, groupId, guestNameParam, batchId });
       return;
     }
     // Otherwise, find which client this slug actually belongs to. Don't
@@ -9646,7 +9681,7 @@ export default function InvitationBuilder() {
     }
     const cached = invitationsStore[matchedUser.id];
     if (cached) {
-      setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot: cached, snapshotGuestGroups: cached.guestGroups || [], groupId, guestNameParam, packageTier: matchedUser.packageTier || null });
+      setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot: cached, snapshotGuestGroups: cached.guestGroups || [], groupId, guestNameParam, batchId, packageTier: matchedUser.packageTier || null });
       return;
     }
     // THE ACTUAL FIX for "shows default names first, then the real edits
@@ -9673,7 +9708,7 @@ export default function InvitationBuilder() {
       if (cancelled) return;
       const finalSnapshot = snapshot || freshInvitationSnapshot();
       if (snapshot) setInvitationsStore((store) => ({ ...store, [matchedUser.id]: snapshot })); // cache it, so this doesn't need to be re-fetched again this session
-      setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot: finalSnapshot, snapshotGuestGroups: finalSnapshot.guestGroups || [], groupId, guestNameParam, packageTier: matchedUser.packageTier || null });
+      setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: matchedUser.id, snapshot: finalSnapshot, snapshotGuestGroups: finalSnapshot.guestGroups || [], groupId, guestNameParam, batchId, packageTier: matchedUser.packageTier || null });
     })();
 
     return () => { cancelled = true; };
@@ -9685,7 +9720,24 @@ export default function InvitationBuilder() {
   }, [slug, users, invitationsStore, coreDataLoaded]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
-    ? { ...guestView.snapshot, totalAttending: flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes").length }
+    ? (() => {
+        const allYes = flattenMembers(guestView.snapshotGuestGroups).filter((m) => m.status === "yes");
+        if (guestView.batchId) {
+          // Scoped to just this one open-invite link — both the count and
+          // the cap it's checked against only consider guests who used
+          // this same link, completely independent of any other link or
+          // the single shared "Open Invitation" link's own total.
+          const batchGroups = guestView.snapshotGuestGroups.filter((g) => g.inviteBatchId === guestView.batchId);
+          const batchTotalAttending = flattenMembers(batchGroups).filter((m) => m.status === "yes").length;
+          const matchingBatch = (guestView.snapshot.openInviteLinks || []).find((l) => l.id === guestView.batchId);
+          return {
+            ...guestView.snapshot,
+            totalAttending: batchTotalAttending,
+            rsvpSettings: { ...guestView.snapshot.rsvpSettings, maxTotalRsvps: matchingBatch ? matchingBatch.maxGuests : guestView.snapshot.rsvpSettings.maxTotalRsvps },
+          };
+        }
+        return { ...guestView.snapshot, totalAttending: allYes.length };
+      })()
     : null;
   const guestData = guestView && guestView.found ? (guestView.ownSlug ? data : guestSnapshotData) : null;
   const guestSteps = guestView && guestView.found
@@ -9718,7 +9770,7 @@ export default function InvitationBuilder() {
   const submitGuestViewRsvp = async ({ names, status, additionalGuests }) => {
     if (!guestView?.found) return null;
     if (guestView.ownSlug) {
-      return await submitGuestRsvp({ names, status, additionalGuests, existingGroupId: guestView.groupId });
+      return await submitGuestRsvp({ names, status, additionalGuests, existingGroupId: guestView.groupId, batchId: guestView.batchId });
     }
     const cleanNames = (names || []).filter((n) => n && n.trim());
     const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : [{ id: uid(), name: "Guest", status }];
@@ -9748,7 +9800,7 @@ export default function InvitationBuilder() {
         resultGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
         latest = { ...latest, guestGroups: existingGroups.map((g) => (g.id === existing.id ? resultGroup : g)) };
       } else {
-        resultGroup = { id: uid(), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now() };
+        resultGroup = { id: uid(), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: guestView.batchId || null, updatedAt: Date.now() };
         latest = { ...latest, guestGroups: [resultGroup, ...existingGroups] };
       }
 
@@ -10272,6 +10324,9 @@ export default function InvitationBuilder() {
             slug={slug}
             siteDomain={siteDomain}
             og={og}
+            openInviteLinks={openInviteLinks}
+            addOpenInviteLink={addOpenInviteLink}
+            deleteOpenInviteLink={deleteOpenInviteLink}
           />
         )}
 
