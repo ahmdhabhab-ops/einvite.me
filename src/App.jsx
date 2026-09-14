@@ -7,7 +7,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -6032,8 +6032,8 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
 // square, or long/banquet) at a draggable x/y position. Clicking a table
 // selects it and opens a side panel to assign confirmed guests to it or
 // see who's already seated there.
-const VENUE_ELEMENT_ICONS = { stage: Music2, danceFloor: Disc3, entrance: DoorOpen, lounge: Sofa };
-const VENUE_ELEMENT_DEFAULTS_LABELS = { stage: "Stage", danceFloor: "Dance Floor", entrance: "Entrance", lounge: "Lounge" };
+const VENUE_ELEMENT_ICONS = { stage: Music2, danceFloor: Disc3, entrance: DoorOpen, lounge: Sofa, ac: Wind, staff: Users };
+const VENUE_ELEMENT_DEFAULTS_LABELS = { stage: "Stage", danceFloor: "Dance Floor", entrance: "Entrance", lounge: "Lounge", ac: "A/C Unit", staff: "Staff Station" };
 
 function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable, onAssignGuest, venueElements, onAddVenueElement, onUpdateVenueElement, onDeleteVenueElement }) {
   const [selectedId, setSelectedId] = useState(null); // "table:<id>" | "venue:<id>" | null
@@ -6050,7 +6050,8 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
 
   const shapeSize = (table) => {
     const scale = table.scale || 1;
-    const base = table.shape === "long" ? { width: 150, height: 50 } : { width: 66, height: 66 };
+    let base = table.shape === "long" ? { width: 150, height: 50 } : { width: 66, height: 66 };
+    if (table.shape === "long" && table.rotation === 90) base = { width: base.height, height: base.width };
     return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
   };
 
@@ -9820,6 +9821,8 @@ export default function InvitationBuilder() {
     danceFloor: { label: "Dance Floor", width: 130, height: 130 },
     entrance: { label: "Entrance", width: 90, height: 40 },
     lounge: { label: "Lounge", width: 100, height: 60 },
+    ac: { label: "A/C Unit", width: 60, height: 40 },
+    staff: { label: "Staff Station", width: 80, height: 50 },
   };
   const addVenueElement = (type) => {
     const preset = VENUE_ELEMENT_DEFAULTS[type] || VENUE_ELEMENT_DEFAULTS.lounge;
