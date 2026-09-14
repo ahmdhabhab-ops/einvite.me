@@ -6343,6 +6343,55 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       </div>
 
       <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+        <h3 className="mb-1 text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Multiple Open Invite Links</h3>
+        <p className="mb-3 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          Create separate open links for different groups (e.g. "Family side", "Friends"), each with its own guest limit — independent of the single shared "Open Invitation" link and of each other.
+        </p>
+        <div className="mb-3 flex flex-wrap items-end gap-2">
+          <div className="flex-1" style={{ minWidth: 140 }}>
+            <FieldLabel>Label</FieldLabel>
+            <TextInput value={newLinkLabel} onChange={setNewLinkLabel} placeholder="Family side" />
+          </div>
+          <div style={{ width: 90 }}>
+            <FieldLabel>Max guests</FieldLabel>
+            <TextInput type="number" value={newLinkMax} onChange={setNewLinkMax} placeholder="5" />
+          </div>
+          <GoldButton
+            onClick={() => { addOpenInviteLink(newLinkLabel, newLinkMax); setNewLinkLabel(""); setNewLinkMax("5"); }}
+            disabled={!newLinkLabel.trim()}
+          >
+            <Plus size={14} /> Create link
+          </GoldButton>
+        </div>
+        {openInviteLinks.length > 0 && (
+          <div className="space-y-2">
+            {openInviteLinks.map((link) => {
+              const count = batchAttendingCount(link.id);
+              const full = link.maxGuests > 0 && count >= link.maxGuests;
+              return (
+                <div key={link.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg p-2.5" style={{ background: INK_3 }}>
+                  <div>
+                    <div className="text-[12.5px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>{link.label}</div>
+                    <div className="text-[10.5px]" style={{ color: full ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>
+                      {count} / {link.maxGuests || "∞"} confirmed{full ? " — full" : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <GhostButton onClick={() => copyBatchLink(link)}>
+                      <Copy size={11} /> {copiedBatchId === link.id ? "Copied!" : "Copy link"}
+                    </GhostButton>
+                    <button onClick={() => deleteOpenInviteLink(link.id)} title="Delete this link" className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "#E29B9B" }}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Guest List</h3>
           <div className="flex items-center gap-2">
