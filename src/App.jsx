@@ -502,20 +502,24 @@ function applyTemplateToSnapshot(snapshot, template) {
   // Only touches layouts.cover when the snapshot actually has one AND the
   // template specifies at least one of these overrides — leaves position,
   // size, and any field not explicitly set by this template untouched.
+  // Applied to every language's own cover layout, since a shop template's
+  // font/color choices should look the same regardless of which language a
+  // guest is viewing.
   let layouts = snapshot.layouts;
-  if (layouts?.cover) {
-    const hasNameOverrides = template.coverNameFont || template.coverNameColor
-      || template.coverName1Font || template.coverAmpersandFont || template.coverName2Font;
-    const hasIntroOverride = template.coverIntroFont || template.coverIntroColor;
-    const hasDateOverride = template.coverDateFont || template.coverDateColor;
-    if (hasNameOverrides || hasIntroOverride || hasDateOverride) {
-      layouts = {
-        ...layouts,
+  const hasNameOverrides = template.coverNameFont || template.coverNameColor
+    || template.coverName1Font || template.coverAmpersandFont || template.coverName2Font;
+  const hasIntroOverride = template.coverIntroFont || template.coverIntroColor;
+  const hasDateOverride = template.coverDateFont || template.coverDateColor;
+  if (layouts && (hasNameOverrides || hasIntroOverride || hasDateOverride)) {
+    const overrideOneLangCover = (langLayouts) => {
+      if (!langLayouts?.cover) return langLayouts;
+      return {
+        ...langLayouts,
         cover: {
-          ...layouts.cover,
-          ...(hasNameOverrides && layouts.cover.names ? {
+          ...langLayouts.cover,
+          ...(hasNameOverrides && langLayouts.cover.names ? {
             names: {
-              ...layouts.cover.names,
+              ...langLayouts.cover.names,
               ...(template.coverNameFont ? { fontFamily: template.coverNameFont } : {}),
               ...(template.coverNameColor ? { color: template.coverNameColor } : {}),
               ...(template.coverName1Font ? { name1FontFamily: template.coverName1Font } : {}),
@@ -523,23 +527,24 @@ function applyTemplateToSnapshot(snapshot, template) {
               ...(template.coverName2Font ? { name2FontFamily: template.coverName2Font } : {}),
             },
           } : {}),
-          ...(hasIntroOverride && layouts.cover.intro ? {
+          ...(hasIntroOverride && langLayouts.cover.intro ? {
             intro: {
-              ...layouts.cover.intro,
+              ...langLayouts.cover.intro,
               ...(template.coverIntroFont ? { fontFamily: template.coverIntroFont } : {}),
               ...(template.coverIntroColor ? { color: template.coverIntroColor } : {}),
             },
           } : {}),
-          ...(hasDateOverride && layouts.cover.date ? {
+          ...(hasDateOverride && langLayouts.cover.date ? {
             date: {
-              ...layouts.cover.date,
+              ...langLayouts.cover.date,
               ...(template.coverDateFont ? { fontFamily: template.coverDateFont } : {}),
               ...(template.coverDateColor ? { color: template.coverDateColor } : {}),
             },
           } : {}),
         },
       };
-    }
+    };
+    layouts = Object.fromEntries(LANGS.map((l) => [l, overrideOneLangCover(layouts[l])]));
   }
   return {
     ...snapshot,
@@ -1567,16 +1572,61 @@ const DEFAULT_LAYOUTS = {
  * every load path that sets layouts from saved data, not just one of them.
  */
 function mergeLayoutsWithDefaults(savedLayouts) {
-  const merged = {};
-  for (const pageKey of Object.keys(DEFAULT_LAYOUTS)) {
-    merged[pageKey] = { ...DEFAULT_LAYOUTS[pageKey], ...(savedLayouts?.[pageKey] || {}) };
+  const mergeOnePageSet = (pageSet) => {
+    const merged = {};
+    for (const pageKey of Object.keys(DEFAULT_LAYOUTS)) {
+      merged[pageKey] = { ...DEFAULT_LAYOUTS[pageKey], ...(pageSet?.[pageKey] || {}) };
+    }
+    for (const pageKey of Object.keys(pageSet || {})) {
+      if (!merged[pageKey]) merged[pageKey] = pageSet[pageKey];
+    }
+    return merged;
+  };
+
+  // Old saves (before per-language positions) stored page keys directly at
+  // the top level: { cover: {...}, family: {...} }. New saves are keyed by
+  // language first: { en: { cover: {...} }, ar: { cover: {...} } }. Detect
+  // which shape this is by checking whether the top-level keys look like
+  // language codes.
+  const topKeys = Object.keys(savedLayouts || {});
+  const looksPerLanguage = topKeys.length > 0 && topKeys.every((k) => LANGS.includes(k));
+
+  const result = {};
+  if (looksPerLanguage) {
+    for (const lang of LANGS) result[lang] = mergeOnePageSet(savedLayouts[lang]);
+  } else {
+    // Old flat structure (or empty/new invitation) — migrate by copying the
+    // same positions into every language, so nothing already positioned is
+    // lost. Each language's positions become independent from this point on.
+    const migrated = mergeOnePageSet(savedLayouts);
+    for (const lang of LANGS) result[lang] = migrated;
   }
-  // Preserve any page key saved data has that defaults don't (forward
-  // compatibility with a newer save loaded by an older code version).
-  for (const pageKey of Object.keys(savedLayouts || {})) {
-    if (!merged[pageKey]) merged[pageKey] = savedLayouts[pageKey];
+  return result;
+}
+
+// Same backward-compatibility pattern as mergeLayoutsWithDefaults, for
+// custom blocks (uploaded images/videos/text/icons/dividers added via
+// "Position text"). Old saves stored these flat, shared across every
+// language: { cover: [...], family: [...] }. New saves are keyed by
+// language first: { en: { cover: [...] }, ar: { cover: [...] } }.
+function mergeCustomBlocksWithDefaults(saved) {
+  const topKeys = Object.keys(saved || {});
+  const looksPerLanguage = topKeys.length > 0 && topKeys.every((k) => LANGS.includes(k));
+
+  const fillMissingSteps = (pageSet) => ({ ...emptyCustomBlocks(), ...(pageSet || {}) });
+
+  const result = {};
+  if (looksPerLanguage) {
+    for (const lang of LANGS) result[lang] = fillMissingSteps(saved[lang]);
+  } else {
+    // Old flat structure (or empty/new invitation) — migrate by copying the
+    // same custom blocks into every language, so nothing already placed is
+    // lost. Each language's custom blocks become independent from this
+    // point on (editing one language no longer affects the others).
+    const migrated = fillMissingSteps(saved);
+    for (const lang of LANGS) result[lang] = migrated;
   }
-  return merged;
+  return result;
 }
 
 const seedGuestGroups = () => {
@@ -4837,7 +4887,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     setTimeout(() => (wheelLockRef.current = false), 550);
   };
 
-  const layout = data.layouts[stepKey];
+  const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
   const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || data.pageBackgrounds.cover.image;
@@ -4859,10 +4909,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }
   // More bottom-right actions (share, like, etc.) can be appended to this array the same way.
 
-  const customBlocks = data.customBlocks[stepKey] || [];
+  const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
 
   const renderSlide = (key) => {
-    const layout = data.layouts[key] || DEFAULT_LAYOUTS[key];
+    const layout = data.layouts[lang]?.[key] || DEFAULT_LAYOUTS[key];
     const bg = data.pageBackgrounds[key];
     const onMove = (id, p) => onMoveBlock(key, id, p);
     const common = { editMode: layoutEditMode, selectedBlock: selectedBlockId, onSelectBlock };
@@ -7495,6 +7545,65 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loggedInUser, setLoggedInUser] = useState(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Sends the browser to Google's own sign-in screen via Supabase's OAuth
+  // endpoint. redirectTo brings them straight back to this same page —
+  // Supabase appends the session as a URL fragment (#access_token=...),
+  // which the effect below picks up.
+  const continueWithGoogle = () => {
+    const redirectTo = window.location.origin + window.location.pathname;
+    window.location.href = `${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+  };
+
+  // Runs once on mount — checks whether we just landed back here after a
+  // Google sign-in (Supabase puts the session in the URL's hash fragment,
+  // not a query param). If so, fetches the Google account's email/name,
+  // then either logs into an existing matching account or creates a new
+  // one automatically (no password needed — Google already verified them).
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.includes("access_token")) return;
+    const params = new URLSearchParams(hash.slice(1));
+    const accessToken = params.get("access_token");
+    if (!accessToken) return;
+
+    setGoogleLoading(true);
+    // Clean the token out of the visible URL right away — it's sensitive
+    // and shouldn't linger in the address bar or browser history.
+    window.history.replaceState(null, "", window.location.pathname);
+
+    (async () => {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
+        });
+        if (!res.ok) throw new Error("Couldn't verify the Google account.");
+        const googleUser = await res.json();
+        const email = googleUser.email;
+        const name = googleUser.user_metadata?.full_name || googleUser.user_metadata?.name || email.split("@")[0];
+        if (!email) throw new Error("Google didn't share an email address.");
+
+        const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+        if (existing) {
+          if (!dataLoaded) throw new Error("Still loading accounts — please try again in a moment.");
+          if (existing.status !== "active") { setError("Your account is still waiting on approval."); setGoogleLoading(false); return; }
+          onEnterBuilderAs(existing);
+        } else {
+          const newUser = onSignUp({ name, email, phone: "", password: `google-oauth-${uid()}` }); // no real password — this account can only ever sign in via Google
+          if (skipApproval && newUser) {
+            onEnterBuilderAs(newUser);
+          } else {
+            setScreen("pendingNotice");
+          }
+        }
+      } catch (err) {
+        setError(err.message || "Something went wrong signing in with Google — please try again.");
+      } finally {
+        setGoogleLoading(false);
+      }
+    })();
+  }, []);
 
   const submitSignUp = (e) => {
     e.preventDefault();
@@ -7567,6 +7676,21 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
           <>
             <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Create your account</h2>
             <p className="mb-5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Anyone can sign up — an owner reviews and approves new accounts before you can log in.</p>
+            <button
+              type="button"
+              onClick={continueWithGoogle}
+              disabled={googleLoading}
+              className="mb-4 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[13px] font-medium"
+              style={{ background: "#FFFFFF", color: "#1F1F1F", fontFamily: FONT_BODY, opacity: googleLoading ? 0.6 : 1 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.5 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.5-.4-3.5z" /><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 5.5 29.6 3 24 3 16.3 3 9.7 7.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.1-5.1l-6.5-5.5C29.4 36 26.9 37 24 37c-5.3 0-9.7-3.1-11.3-7.5l-6.6 5.1C9.6 40.6 16.3 45 24 45z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.5 5.5C41.5 36.4 45 30.8 45 24c0-1.4-.1-2.5-.4-3.5z" /></svg>
+              {googleLoading ? "Signing in…" : "Continue with Google"}
+            </button>
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.2)" }} />
+              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>OR</span>
+              <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.2)" }} />
+            </div>
             <form onSubmit={submitSignUp} className="space-y-3">
               <div>
                 <FieldLabel>Full name</FieldLabel>
@@ -7626,6 +7750,21 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
           <>
             <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Log in</h2>
             <p className="mb-5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Welcome back — enter the details from your account.</p>
+            <button
+              type="button"
+              onClick={continueWithGoogle}
+              disabled={googleLoading}
+              className="mb-4 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[13px] font-medium"
+              style={{ background: "#FFFFFF", color: "#1F1F1F", fontFamily: FONT_BODY, opacity: googleLoading ? 0.6 : 1 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.5 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.5-.4-3.5z" /><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.5 5.5 29.6 3 24 3 16.3 3 9.7 7.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 45c5.5 0 10.4-1.9 14.1-5.1l-6.5-5.5C29.4 36 26.9 37 24 37c-5.3 0-9.7-3.1-11.3-7.5l-6.6 5.1C9.6 40.6 16.3 45 24 45z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.2 5.6l6.5 5.5C41.5 36.4 45 30.8 45 24c0-1.4-.1-2.5-.4-3.5z" /></svg>
+              {googleLoading ? "Signing in…" : "Continue with Google"}
+            </button>
+            <div className="mb-4 flex items-center gap-2">
+              <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.2)" }} />
+              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>OR</span>
+              <div className="h-px flex-1" style={{ background: "rgba(147,166,155,0.2)" }} />
+            </div>
             <form onSubmit={submitLogin} className="space-y-3">
               <div>
                 <FieldLabel>Email</FieldLabel>
@@ -8292,8 +8431,8 @@ export default function InvitationBuilder() {
   const [enabledLanguages, setEnabledLanguages] = useState(LANGS);
   const toggleLanguage = (lang, on) => setEnabledLanguages((list) => (on ? [...list, lang] : list.filter((l) => l !== lang)));
   const [activeLang, setActiveLang] = useState("en");
-  const [layouts, setLayouts] = useState(DEFAULT_LAYOUTS);
-  const [customBlocks, setCustomBlocks] = useState(emptyCustomBlocks);
+  const [layouts, setLayouts] = useState(() => Object.fromEntries(LANGS.map((l) => [l, DEFAULT_LAYOUTS])));
+  const [customBlocks, setCustomBlocks] = useState(() => Object.fromEntries(LANGS.map((l) => [l, emptyCustomBlocks()])));
   // Admin-managed library of Intro-background options (photos/videos) —
   // set once, shared across every client, who each pick which one (if
   // any) they want as THEIR OWN intro background. Never copied into a
@@ -8436,7 +8575,7 @@ export default function InvitationBuilder() {
     setContent(snap.content); setTimeline(snap.timeline); setLocations(snap.locations);
     setPageBackgrounds(snap.pageBackgrounds); setMusic(snap.music); setRsvpSchedule(snap.rsvpSchedule);
     setRegistry(snap.registry); setEnabledSteps(snap.enabledSteps); setPageOrder(snap.pageOrder);
-    setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(snap.customBlocks);
+    setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(mergeCustomBlocksWithDefaults(snap.customBlocks));
     setOg(snap.og); setGuestGroups(snap.guestGroups); setTables(snap.tables || []); setRsvpSettings(snap.rsvpSettings);
     setIntegrations(snap.integrations); setIntro(snap.intro);
     setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
@@ -8549,15 +8688,15 @@ export default function InvitationBuilder() {
   const setBgFor = (stepKey) => (bg) => { userChangedBackgroundsRef.current = true; setPageBackgrounds((p) => ({ ...p, [stepKey]: bg })); };
 
   const moveBlock = (stepKey, blockId, pos) =>
-    setLayouts((l) => ({ ...l, [stepKey]: { ...l[stepKey], [blockId]: { ...l[stepKey][blockId], ...pos } } }));
+    setLayouts((l) => ({ ...l, [activeLang]: { ...l[activeLang], [stepKey]: { ...l[activeLang][stepKey], [blockId]: { ...l[activeLang][stepKey][blockId], ...pos } } } }));
 
   const updateBlockStyle = (stepKey, blockId, patch) =>
-    setLayouts((l) => ({ ...l, [stepKey]: { ...l[stepKey], [blockId]: { ...l[stepKey][blockId], ...patch } } }));
+    setLayouts((l) => ({ ...l, [activeLang]: { ...l[activeLang], [stepKey]: { ...l[activeLang][stepKey], [blockId]: { ...l[activeLang][stepKey][blockId], ...patch } } } }));
 
   const resetLayout = () => {
     const key = steps[safeIndex].key;
-    setLayouts((l) => ({ ...l, [key]: { ...DEFAULT_LAYOUTS[key] } }));
-    setCustomBlocks((c) => ({ ...c, [key]: [] }));
+    setLayouts((l) => ({ ...l, [activeLang]: { ...l[activeLang], [key]: { ...DEFAULT_LAYOUTS[key] } } }));
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [key]: [] } }));
     setSelectedBlockId(null);
   };
 
@@ -8587,6 +8726,7 @@ export default function InvitationBuilder() {
         if (d.defaultLang) setDefaultLang(d.defaultLang);
         if (d.enabledLanguages) setEnabledLanguages(d.enabledLanguages);
         if (d.layouts) setLayouts(mergeLayoutsWithDefaults(d.layouts));
+        if (d.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(d.customBlocks));
         if (d.guestGroups) setGuestGroups(d.guestGroups);
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
@@ -8621,7 +8761,7 @@ export default function InvitationBuilder() {
             const activeSnapshot = restoredStore[d.activeInvitationId];
             if (activeSnapshot) {
               if (activeSnapshot.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
-              if (activeSnapshot.customBlocks) setCustomBlocks(activeSnapshot.customBlocks);
+              if (activeSnapshot.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(activeSnapshot.customBlocks));
               if (activeSnapshot.content) setContent(activeSnapshot.content);
               if (activeSnapshot.pageBackgrounds) setPageBackgrounds(activeSnapshot.pageBackgrounds);
               if (activeSnapshot.layouts) setLayouts(mergeLayoutsWithDefaults(activeSnapshot.layouts));
@@ -8786,7 +8926,7 @@ export default function InvitationBuilder() {
   const addCustomText = () => {
     const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "text", text: "New text", x: 50, y: 50, fontFamily: null, color: null, fontSize: 16 };
-    setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
   const addCustomImage = async (e) => {
@@ -8794,10 +8934,10 @@ export default function InvitationBuilder() {
     if (!file) return;
     const stepKey = steps[safeIndex].key;
     const addBlock = (url) => {
-      const existingImages = customBlocks[stepKey].filter((b) => b.type === "image").length;
+      const existingImages = customBlocks[activeLang][stepKey].filter((b) => b.type === "image").length;
       const offset = (existingImages % 4) * 8; // small staggered offset so new images don't land exactly on top of existing ones
       const newBlock = { id: uid(), type: "image", url, x: 50 + offset, y: 50 + offset, width: 40 };
-      setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+      setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
       setSelectedBlockId(`custom:${newBlock.id}`);
     };
     try {
@@ -8968,20 +9108,20 @@ export default function InvitationBuilder() {
     });
     userChangedBackgroundsRef.current = true;
     if (design.coverNameFont || design.coverName1Font || design.coverNameColor) {
-      setLayouts((l) => ({
-        ...l,
+      setLayouts((l) => Object.fromEntries(LANGS.map((lg) => [lg, {
+        ...l[lg],
         cover: {
-          ...l.cover,
+          ...l[lg]?.cover,
           names: {
-            ...l.cover?.names,
-            fontFamily: design.coverNameFont || l.cover?.names?.fontFamily,
-            name1FontFamily: design.coverName1Font || l.cover?.names?.name1FontFamily,
-            name2FontFamily: design.coverName2Font || l.cover?.names?.name2FontFamily,
-            ampersandFontFamily: design.coverAmpersandFont || l.cover?.names?.ampersandFontFamily,
-            color: design.coverNameColor || l.cover?.names?.color,
+            ...l[lg]?.cover?.names,
+            fontFamily: design.coverNameFont || l[lg]?.cover?.names?.fontFamily,
+            name1FontFamily: design.coverName1Font || l[lg]?.cover?.names?.name1FontFamily,
+            name2FontFamily: design.coverName2Font || l[lg]?.cover?.names?.name2FontFamily,
+            ampersandFontFamily: design.coverAmpersandFont || l[lg]?.cover?.names?.ampersandFontFamily,
+            color: design.coverNameColor || l[lg]?.cover?.names?.color,
           },
         },
-      }));
+      }])));
     }
     setIntro((i) => ({ ...i, animationStyle: design.gateAnimationStyle || i.animationStyle, icon: design.gateIcon || i.icon }));
     setEditingShopDesignId(design.id);
@@ -8993,10 +9133,10 @@ export default function InvitationBuilder() {
     const stepKey = steps[safeIndex].key;
     try {
       const url = await uploadVideoToStorage(file);
-      const existingVideos = customBlocks[stepKey].filter((b) => b.type === "video").length;
+      const existingVideos = customBlocks[activeLang][stepKey].filter((b) => b.type === "video").length;
       const offset = (existingVideos % 4) * 8; // small staggered offset so new videos don't land exactly on top of existing ones
       const newBlock = { id: uid(), type: "video", url, x: 50 + offset, y: 50 + offset, width: 80 };
-      setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+      setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
       setSelectedBlockId(`custom:${newBlock.id}`);
     } catch (err) {
       alert(err.message || "Couldn't upload the video — please try again.");
@@ -9005,20 +9145,20 @@ export default function InvitationBuilder() {
   const addCustomIcon = (iconKey) => {
     const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "icon", icon: iconKey, x: 50, y: 50, iconSize: 32, color: null };
-    setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
   const addCustomDivider = (orientation = "horizontal") => {
     const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "divider", orientation, x: 50, y: 50, width: 40, color: null };
-    setCustomBlocks((c) => ({ ...c, [stepKey]: [...c[stepKey], newBlock] }));
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
   const updateCustomBlock = (stepKey, id, patch) =>
-    setCustomBlocks((c) => ({ ...c, [stepKey]: c[stepKey].map((b) => (b.id === id ? { ...b, ...patch } : b)) }));
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: c[activeLang][stepKey].map((b) => (b.id === id ? { ...b, ...patch } : b)) } }));
   const moveCustomBlock = (stepKey, id, pos) => updateCustomBlock(stepKey, id, pos);
   const removeCustomBlock = (stepKey, id) => {
-    setCustomBlocks((c) => ({ ...c, [stepKey]: c[stepKey].filter((b) => b.id !== id) }));
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: c[activeLang][stepKey].filter((b) => b.id !== id) } }));
     setSelectedBlockId((sel) => (sel === `custom:${id}` ? null : sel));
   };
 
@@ -9945,8 +10085,8 @@ export default function InvitationBuilder() {
                 const isCustom = selectedBlockId.startsWith("custom:");
                 const customId = isCustom ? selectedBlockId.slice(7) : null;
                 const current = isCustom
-                  ? customBlocks[stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
-                  : layouts[stepKey][selectedBlockId] || { fontFamily: null, color: null, fontSize: null };
+                  ? customBlocks[activeLang][stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
+                  : layouts[activeLang]?.[stepKey]?.[selectedBlockId] || { fontFamily: null, color: null, fontSize: null };
                 return (
                   <BlockStylePanel
                     isCustom={isCustom}
