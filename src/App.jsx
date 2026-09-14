@@ -6032,7 +6032,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
 // square, or long/banquet) at a draggable x/y position. Clicking a table
 // selects it and opens a side panel to assign confirmed guests to it or
 // see who's already seated there.
-const VENUE_ELEMENT_ICONS = { stage: Music2, danceFloor: Disc3, entrance: DoorOpen, lounge: Sofa, ac: Wind, staff: Users };
+const VENUE_ELEMENT_ICONS = { stage: Music2, danceFloor: Disc3, entrance: DoorOpen, lounge: Sofa, ac: Wind, staff: Handshake };
 const VENUE_ELEMENT_DEFAULTS_LABELS = { stage: "Stage", danceFloor: "Dance Floor", entrance: "Entrance", lounge: "Lounge", ac: "A/C Unit", staff: "Staff Station" };
 
 function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable, onAssignGuest, venueElements, onAddVenueElement, onUpdateVenueElement, onDeleteVenueElement }) {
@@ -6070,13 +6070,19 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
         chairs.push({ x: size.width / 2 + radius * Math.cos(angle) - 6, y: size.height / 2 + radius * Math.sin(angle) - 6 });
       }
     } else if (table.shape === "long") {
+      const vertical = table.rotation === 90;
       const perSide = Math.ceil(n / 2);
       for (let i = 0; i < n; i++) {
-        const onTop = i < perSide;
-        const sideIndex = onTop ? i : i - perSide;
-        const sideCount = onTop ? perSide : n - perSide;
-        const x = sideCount > 1 ? (sideIndex / (sideCount - 1)) * (size.width - 16) + 8 : size.width / 2;
-        chairs.push({ x: x - 6, y: onTop ? -gap : size.height + gap - 12 });
+        const onFirstSide = i < perSide;
+        const sideIndex = onFirstSide ? i : i - perSide;
+        const sideCount = onFirstSide ? perSide : n - perSide;
+        if (vertical) {
+          const y = sideCount > 1 ? (sideIndex / (sideCount - 1)) * (size.height - 16) + 8 : size.height / 2;
+          chairs.push({ x: onFirstSide ? -gap : size.width + gap - 12, y: y - 6 });
+        } else {
+          const x = sideCount > 1 ? (sideIndex / (sideCount - 1)) * (size.width - 16) + 8 : size.width / 2;
+          chairs.push({ x: x - 6, y: onFirstSide ? -gap : size.height + gap - 12 });
+        }
       }
     } else {
       // square — one chair per side, extra chairs beyond 4 stack along the longer sides
@@ -6133,8 +6139,8 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
       return;
     }
     if (d.kind === "venue-resize") {
-      const newWidth = Math.min(320, Math.max(50, d.origWidth + dx));
-      const newHeight = Math.min(320, Math.max(40, d.origHeight + dy));
+      const newWidth = Math.min(320, Math.max(28, d.origWidth + dx));
+      const newHeight = Math.min(320, Math.max(20, d.origHeight + dy));
       onUpdateVenueElement(d.id, { width: newWidth, height: newHeight });
       return;
     }
@@ -6181,6 +6187,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
               <div
                 key={el.id}
                 onPointerDown={(e) => onVenuePointerDown(e, el)}
+                onClick={(e) => e.stopPropagation()}
                 className="absolute flex flex-col items-center justify-center gap-1"
                 style={{
                   left: el.x || 0, top: el.y || 0, width: el.width, height: el.height,
@@ -6216,6 +6223,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
                 ))}
                 <div
                   onPointerDown={(e) => onTablePointerDown(e, t)}
+                  onClick={(e) => e.stopPropagation()}
                   className="absolute flex h-full w-full flex-col items-center justify-center text-center"
                   style={{
                     borderRadius: t.shape === "round" ? "50%" : 8,
@@ -6270,6 +6278,16 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
                   </div>
                 </div>
                 <p className="mt-2 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Drag the gold square at the table's corner to resize it.</p>
+                {selectedTable.shape === "long" && (
+                  <div className="mt-2 flex items-center justify-between">
+                    <FieldLabel>Orientation</FieldLabel>
+                    <SegmentedToggle
+                      value={selectedTable.rotation === 90 ? "vertical" : "horizontal"}
+                      onChange={(v) => onUpdateTable(selectedTable.id, { rotation: v === "vertical" ? 90 : 0 })}
+                      options={[{ value: "horizontal", label: "Horizontal" }, { value: "vertical", label: "Vertical" }]}
+                    />
+                  </div>
+                )}
 
                 <Divider />
 
@@ -9821,7 +9839,7 @@ export default function InvitationBuilder() {
     danceFloor: { label: "Dance Floor", width: 130, height: 130 },
     entrance: { label: "Entrance", width: 90, height: 40 },
     lounge: { label: "Lounge", width: 100, height: 60 },
-    ac: { label: "A/C Unit", width: 60, height: 40 },
+    ac: { label: "A/C Unit", width: 44, height: 24 },
     staff: { label: "Staff Station", width: 80, height: 50 },
   };
   const addVenueElement = (type) => {
