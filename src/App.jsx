@@ -6010,7 +6010,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
         <p className="py-10 text-center text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No tables yet — add one above to start seating guests.</p>
       ) : view === "floorplan" ? (
         <FloorPlanCanvas
-          tables={tables} confirmedGroups={confirmedGroups} onUpdateTable={onUpdateTable} onAssignGuest={onAssignGuest}
+          tables={tables} confirmedGroups={confirmedGroups} onUpdateTable={onUpdateTable} onDeleteTable={onDeleteTable} onAssignGuest={onAssignGuest}
           venueElements={venueElements} onAddVenueElement={onAddVenueElement} onUpdateVenueElement={onUpdateVenueElement} onDeleteVenueElement={onDeleteVenueElement}
         />
       ) : (
@@ -6035,7 +6035,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
 const VENUE_ELEMENT_ICONS = { stage: Music2, danceFloor: Disc3, entrance: DoorOpen, lounge: Sofa };
 const VENUE_ELEMENT_DEFAULTS_LABELS = { stage: "Stage", danceFloor: "Dance Floor", entrance: "Entrance", lounge: "Lounge" };
 
-function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest, venueElements, onAddVenueElement, onUpdateVenueElement, onDeleteVenueElement }) {
+function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable, onAssignGuest, venueElements, onAddVenueElement, onUpdateVenueElement, onDeleteVenueElement }) {
   const [selectedId, setSelectedId] = useState(null); // "table:<id>" | "venue:<id>" | null
   const canvasRef = useRef(null);
   const dragState = useRef(null); // { kind: 'table'|'venue', id, startX, startY, origX, origY }
@@ -6049,8 +6049,9 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
   const guestLabel = (g) => g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest";
 
   const shapeSize = (table) => {
-    if (table.shape === "long") return { width: 150, height: 50 };
-    return { width: 66, height: 66 }; // round and square share a box; border-radius tells them apart
+    const scale = table.scale || 1;
+    const base = table.shape === "long" ? { width: 150, height: 50 } : { width: 66, height: 66 };
+    return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
   };
 
   // Positions chairs around a table's actual perimeter — evenly spaced
@@ -6109,11 +6110,34 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
     dragState.current = { kind: "venue", id: el.id, startX: e.clientX, startY: e.clientY, origX: el.x || 0, origY: el.y || 0 };
     e.target.setPointerCapture?.(e.pointerId);
   };
+  const onTableResizePointerDown = (e, table) => {
+    e.stopPropagation();
+    dragState.current = { kind: "table-resize", id: table.id, startX: e.clientX, startY: e.clientY, origScale: table.scale || 1 };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+  const onVenueResizePointerDown = (e, el) => {
+    e.stopPropagation();
+    dragState.current = { kind: "venue-resize", id: el.id, startX: e.clientX, startY: e.clientY, origWidth: el.width, origHeight: el.height };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
   const onPointerMove = (e) => {
     const d = dragState.current;
     if (!d) return;
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
+
+    if (d.kind === "table-resize") {
+      const newScale = Math.min(2.5, Math.max(0.5, d.origScale + dx / 100));
+      onUpdateTable(d.id, { scale: Math.round(newScale * 100) / 100 });
+      return;
+    }
+    if (d.kind === "venue-resize") {
+      const newWidth = Math.min(320, Math.max(50, d.origWidth + dx));
+      const newHeight = Math.min(320, Math.max(40, d.origHeight + dy));
+      onUpdateVenueElement(d.id, { width: newWidth, height: newHeight });
+      return;
+    }
+
     const canvasEl = canvasRef.current;
     const maxX = canvasEl ? canvasEl.clientWidth - 60 : 700;
     const maxY = canvasEl ? canvasEl.clientHeight - 60 : 520;
@@ -6166,6 +6190,14 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
               >
                 <Icon size={16} color={MUTED} />
                 <span className="text-[9.5px] font-medium uppercase" style={{ color: MUTED, letterSpacing: "0.05em", fontFamily: FONT_BODY }}>{el.label}</span>
+                {isSel && (
+                  <div
+                    onPointerDown={(e) => onVenueResizePointerDown(e, el)}
+                    className="absolute rounded-sm"
+                    style={{ right: -5, bottom: -5, width: 12, height: 12, background: PAPER, border: `1.5px solid ${GOLD}`, cursor: "nwse-resize" }}
+                    title="Drag to resize"
+                  />
+                )}
               </div>
             );
           })}
@@ -6194,6 +6226,14 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
                   <span className="truncate text-[10.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY, maxWidth: size.width - 10 }}>{t.name}</span>
                   <span className="text-[9px]" style={{ color: over ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>{count}/{t.capacity}</span>
                 </div>
+                {isSel && (
+                  <div
+                    onPointerDown={(e) => onTableResizePointerDown(e, t)}
+                    className="absolute rounded-sm"
+                    style={{ right: -5, bottom: -5, width: 12, height: 12, background: PAPER, border: `1.5px solid ${GOLD}`, cursor: "nwse-resize", zIndex: 5 }}
+                    title="Drag to resize"
+                  />
+                )}
               </div>
             );
           })}
@@ -6204,12 +6244,34 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
             {selectedTable ? (
               <>
                 <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{selectedTable.name}</h4>
+                  <h4 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Table settings</h4>
                   <button onClick={() => setSelectedId(null)} style={{ color: MUTED }}><X size={14} /></button>
                 </div>
-                <p className="mb-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                  {selectedTable.shape === "round" ? "Round" : selectedTable.shape === "square" ? "Square" : "Long / Banquet"} · {selectedTable.capacity} seats
-                </p>
+                <FieldLabel>Name</FieldLabel>
+                <TextInput value={selectedTable.name} onChange={(v) => onUpdateTable(selectedTable.id, { name: v })} placeholder="Table name" />
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <FieldLabel>Shape</FieldLabel>
+                    <SegmentedToggle
+                      value={selectedTable.shape}
+                      onChange={(v) => onUpdateTable(selectedTable.id, { shape: v })}
+                      options={[{ value: "round", label: "Round" }, { value: "square", label: "Square" }, { value: "long", label: "Long" }]}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Seats</FieldLabel>
+                    <input
+                      type="number" min={1} value={selectedTable.capacity}
+                      onChange={(e) => onUpdateTable(selectedTable.id, { capacity: Math.max(1, Number(e.target.value) || 1) })}
+                      className="w-full rounded-lg px-2.5 py-1.5 text-[12px] outline-none"
+                      style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}
+                    />
+                  </div>
+                </div>
+                <p className="mt-2 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Drag the gold square at the table's corner to resize it.</p>
+
+                <Divider />
+
                 <div className="mb-3 space-y-1.5">
                   {seatedAt(selectedTable.id).length === 0 ? (
                     <p className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No one seated here yet.</p>
@@ -6226,7 +6288,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
                   <select
                     defaultValue=""
                     onChange={(e) => e.target.value && onAssignGuest(e.target.value, selectedTable.id)}
-                    className="w-full rounded-md px-2 py-1.5 text-[11px] outline-none"
+                    className="mb-3 w-full rounded-md px-2 py-1.5 text-[11px] outline-none"
                     style={{ background: INK_3, color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}
                   >
                     <option value="" disabled style={{ background: INK_2, color: MUTED }}>Assign a guest…</option>
@@ -6235,13 +6297,21 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
                     ))}
                   </select>
                 )}
+                <GhostButton onClick={() => { onDeleteTable(selectedTable.id); setSelectedId(null); }}><Trash2 size={12} /> Delete table</GhostButton>
               </>
             ) : selectedKind === "venue" ? (
               <>
                 <div className="mb-2 flex items-center justify-between">
-                  <h4 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{venueElements.find((v) => v.id === selectedRealId)?.label}</h4>
+                  <h4 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Room element</h4>
                   <button onClick={() => setSelectedId(null)} style={{ color: MUTED }}><X size={14} /></button>
                 </div>
+                <FieldLabel>Label</FieldLabel>
+                <TextInput
+                  value={venueElements.find((v) => v.id === selectedRealId)?.label || ""}
+                  onChange={(v) => onUpdateVenueElement(selectedRealId, { label: v })}
+                  placeholder="Label"
+                />
+                <p className="mb-3 mt-2 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Drag the gold square at its corner to resize.</p>
                 <GhostButton onClick={() => { onDeleteVenueElement(selectedRealId); setSelectedId(null); }}><Trash2 size={12} /> Remove from room</GhostButton>
               </>
             ) : (
