@@ -5258,7 +5258,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, integrations, updateIntegrations }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, integrations, updateIntegrations, isAdmin }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -5287,27 +5287,31 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
 
   return (
     <div className="mx-auto max-w-2xl rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
-      <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Site domain</h2>
-      <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Every link this app generates (Copy Open Invitation, guest links, share previews, user invitation links) is built from this domain. It defaults to a placeholder — once you've actually deployed (e.g. to Vercel), replace it with your real domain, such as <code style={{ color: GOLD_SOFT }}>your-project.vercel.app</code> or a custom domain, so the links people actually receive point somewhere real.
-      </p>
-      <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: INK_3 }}>
-        <span className="text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>https://</span>
-        <input
-          value={siteDomain}
-          onChange={(e) => setSiteDomain(e.target.value.replace(/^https?:\/\//, "").replace(/\/$/, ""))}
-          placeholder="your-project.vercel.app"
-          className="flex-1 bg-transparent text-[13px] outline-none"
-          style={{ color: IVORY, fontFamily: FONT_BODY }}
-        />
-      </div>
-      {siteDomain === "einvite.me" && (
-        <p className="mt-2 text-[10.5px]" style={{ color: "#E4CE95", fontFamily: FONT_BODY }}>
-          This is still the placeholder domain — links won't work for real guests until you update it to wherever this app is actually deployed.
-        </p>
-      )}
+      {isAdmin && (
+        <>
+          <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Site domain</h2>
+          <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Every link this app generates (Copy Open Invitation, guest links, share previews, user invitation links) is built from this domain. It defaults to a placeholder — once you've actually deployed (e.g. to Vercel), replace it with your real domain, such as <code style={{ color: GOLD_SOFT }}>your-project.vercel.app</code> or a custom domain, so the links people actually receive point somewhere real.
+          </p>
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: INK_3 }}>
+            <span className="text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>https://</span>
+            <input
+              value={siteDomain}
+              onChange={(e) => setSiteDomain(e.target.value.replace(/^https?:\/\//, "").replace(/\/$/, ""))}
+              placeholder="your-project.vercel.app"
+              className="flex-1 bg-transparent text-[13px] outline-none"
+              style={{ color: IVORY, fontFamily: FONT_BODY }}
+            />
+          </div>
+          {siteDomain === "einvite.me" && (
+            <p className="mt-2 text-[10.5px]" style={{ color: "#E4CE95", fontFamily: FONT_BODY }}>
+              This is still the placeholder domain — links won't work for real guests until you update it to wherever this app is actually deployed.
+            </p>
+          )}
 
-      <Divider />
+          <Divider />
+        </>
+      )}
 
       <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Navigation style</h2>
       <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
@@ -8678,7 +8682,7 @@ export default function InvitationBuilder() {
   });
   const updateIntegrations = (patch) => setIntegrations((i) => ({ ...i, ...patch }));
   const [users, setUsers] = useState(seedUsers);
-  const [siteDomain, setSiteDomain] = useState("einvite.me");
+  const [siteDomain, setSiteDomain] = useState("core.einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
   const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
   const [coreDataLoaded, setCoreDataLoaded] = useState(false);
@@ -9005,7 +9009,9 @@ export default function InvitationBuilder() {
         // see SHOP_DESIGNS_KEY — since /shop (a completely separate page
         // mount) needs to fetch the exact same data independently, without
         // loading this whole draft.
-        if (d.siteDomain) setSiteDomain(d.siteDomain);
+        // siteDomain is intentionally no longer loaded from saved data —
+        // it's fixed to core.einvite.me (set in useState above) so an old
+        // save from before that was the default can't override it.
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
         if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
