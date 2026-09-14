@@ -8034,15 +8034,12 @@ function QuickRsvpPage({ slug }) {
     (async () => {
       try {
         const draftRes = await persistentStorage.get("einvite:draft-core", false);
-        console.log("QuickRsvpPage DEBUG — draftRes:", draftRes ? "got a value" : "NULL/empty");
         const draft = draftRes?.value ? JSON.parse(draftRes.value) : { users: [] };
-        console.log("QuickRsvpPage DEBUG — users count:", (draft.users || []).length, "slugs:", (draft.users || []).map((u) => u.invitationSlug));
         const matchedUser = (draft.users || []).find((u) => u.invitationSlug === slug);
-        console.log("QuickRsvpPage DEBUG — looking for slug:", JSON.stringify(slug), "matched:", matchedUser ? matchedUser.id : "NONE");
         if (!matchedUser) { setState(false); return; }
 
         const snapRes = await persistentStorage.get(`einvite:invitation-${matchedUser.id}`, false);
-        const snapshot = snapRes?.value ? JSON.parse(snapRes.value) : freshInvitationSnapshot();
+        const snapshot = snapRes?.value ? JSON.parse(snapRes.value) : { content: { cover: {} }, og: {}, pageBackgrounds: { cover: {} }, guestGroups: [] };
         setState({ snapshot, matchedUserId: matchedUser.id });
       } catch (err) {
         console.error("QuickRsvpPage: failed to load invitation:", err);
