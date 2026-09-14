@@ -7,7 +7,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -5917,7 +5917,7 @@ function NetworkingApprovalPanel({ slug }) {
   );
 }
 
-function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDeleteTable, onAssignGuest }) {
+function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDeleteTable, onAssignGuest, venueElements, onAddVenueElement, onUpdateVenueElement, onDeleteVenueElement }) {
   const [newTableName, setNewTableName] = useState("");
   const [newTableCapacity, setNewTableCapacity] = useState(8);
   const [newTableShape, setNewTableShape] = useState("round");
@@ -6009,7 +6009,10 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
       {tables.length === 0 ? (
         <p className="py-10 text-center text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No tables yet — add one above to start seating guests.</p>
       ) : view === "floorplan" ? (
-        <FloorPlanCanvas tables={tables} confirmedGroups={confirmedGroups} onUpdateTable={onUpdateTable} onAssignGuest={onAssignGuest} />
+        <FloorPlanCanvas
+          tables={tables} confirmedGroups={confirmedGroups} onUpdateTable={onUpdateTable} onAssignGuest={onAssignGuest}
+          venueElements={venueElements} onAddVenueElement={onAddVenueElement} onUpdateVenueElement={onUpdateVenueElement} onDeleteVenueElement={onDeleteVenueElement}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {tables.map((t) => (
@@ -6029,25 +6032,81 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
 // square, or long/banquet) at a draggable x/y position. Clicking a table
 // selects it and opens a side panel to assign confirmed guests to it or
 // see who's already seated there.
-function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest }) {
-  const [selectedId, setSelectedId] = useState(tables[0]?.id || null);
-  const canvasRef = useRef(null);
-  const dragState = useRef(null); // { id, startX, startY, origX, origY }
+const VENUE_ELEMENT_ICONS = { stage: Music2, danceFloor: Disc3, entrance: DoorOpen, lounge: Sofa };
+const VENUE_ELEMENT_DEFAULTS_LABELS = { stage: "Stage", danceFloor: "Dance Floor", entrance: "Entrance", lounge: "Lounge" };
 
-  const selected = tables.find((t) => t.id === selectedId) || null;
+function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest, venueElements, onAddVenueElement, onUpdateVenueElement, onDeleteVenueElement }) {
+  const [selectedId, setSelectedId] = useState(null); // "table:<id>" | "venue:<id>" | null
+  const canvasRef = useRef(null);
+  const dragState = useRef(null); // { kind: 'table'|'venue', id, startX, startY, origX, origY }
+
+  const selectedKind = selectedId?.split(":")[0] || null;
+  const selectedRealId = selectedId?.split(":")[1] || null;
+  const selectedTable = selectedKind === "table" ? tables.find((t) => t.id === selectedRealId) : null;
+
   const seatedAt = (tableId) => confirmedGroups.filter((g) => g.tableId === tableId);
   const unassigned = confirmedGroups.filter((g) => !g.tableId || !tables.some((t) => t.id === g.tableId));
+  const guestLabel = (g) => g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest";
 
   const shapeSize = (table) => {
-    if (table.shape === "long") return { width: 140, height: 44 };
-    if (table.shape === "square") return { width: 64, height: 64 };
-    return { width: 64, height: 64 }; // round — same box, border-radius makes it a circle
+    if (table.shape === "long") return { width: 150, height: 50 };
+    return { width: 66, height: 66 }; // round and square share a box; border-radius tells them apart
   };
 
-  const onPointerDown = (e, table) => {
+  // Positions chairs around a table's actual perimeter — evenly spaced
+  // around the circle for round tables, one per side for square, and
+  // split between the two long edges for a banquet table. This is what
+  // makes the plan read as a real room instead of bare shapes.
+  const chairPositions = (table, size) => {
+    const n = Math.max(1, table.capacity);
+    const gap = 14; // distance from the table's edge to each chair
+    const chairs = [];
+    if (table.shape === "round") {
+      const radius = size.width / 2 + gap;
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+        chairs.push({ x: size.width / 2 + radius * Math.cos(angle) - 6, y: size.height / 2 + radius * Math.sin(angle) - 6 });
+      }
+    } else if (table.shape === "long") {
+      const perSide = Math.ceil(n / 2);
+      for (let i = 0; i < n; i++) {
+        const onTop = i < perSide;
+        const sideIndex = onTop ? i : i - perSide;
+        const sideCount = onTop ? perSide : n - perSide;
+        const x = sideCount > 1 ? (sideIndex / (sideCount - 1)) * (size.width - 16) + 8 : size.width / 2;
+        chairs.push({ x: x - 6, y: onTop ? -gap : size.height + gap - 12 });
+      }
+    } else {
+      // square — one chair per side, extra chairs beyond 4 stack along the longer sides
+      const perSide = Math.max(1, Math.ceil(n / 4));
+      let placed = 0;
+      const sides = [
+        { edge: "top", fixed: -gap, axis: "x" },
+        { edge: "right", fixed: size.width + gap - 12, axis: "y" },
+        { edge: "bottom", fixed: size.height + gap - 12, axis: "x" },
+        { edge: "left", fixed: -gap, axis: "y" },
+      ];
+      for (const side of sides) {
+        for (let i = 0; i < perSide && placed < n; i++, placed++) {
+          const t = perSide > 1 ? (i / (perSide - 1)) * (size.width - 16) + 8 : size.width / 2;
+          if (side.axis === "x") chairs.push({ x: t - 6, y: side.fixed });
+          else chairs.push({ x: side.fixed, y: t - 6 });
+        }
+      }
+    }
+    return chairs;
+  };
+
+  const onTablePointerDown = (e, table) => {
     e.stopPropagation();
-    setSelectedId(table.id);
-    dragState.current = { id: table.id, startX: e.clientX, startY: e.clientY, origX: table.x || 0, origY: table.y || 0 };
+    setSelectedId(`table:${table.id}`);
+    dragState.current = { kind: "table", id: table.id, startX: e.clientX, startY: e.clientY, origX: table.x || 0, origY: table.y || 0 };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+  const onVenuePointerDown = (e, el) => {
+    e.stopPropagation();
+    setSelectedId(`venue:${el.id}`);
+    dragState.current = { kind: "venue", id: el.id, startX: e.clientX, startY: e.clientY, origX: el.x || 0, origY: el.y || 0 };
     e.target.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e) => {
@@ -6056,94 +6115,167 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onAssignGuest
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
     const canvasEl = canvasRef.current;
-    const maxX = canvasEl ? canvasEl.clientWidth - 70 : 600;
-    const maxY = canvasEl ? canvasEl.clientHeight - 70 : 400;
-    const newX = Math.min(Math.max(0, d.origX + dx), maxX);
-    const newY = Math.min(Math.max(0, d.origY + dy), maxY);
-    onUpdateTable(d.id, { x: newX, y: newY });
+    const maxX = canvasEl ? canvasEl.clientWidth - 60 : 700;
+    const maxY = canvasEl ? canvasEl.clientHeight - 60 : 520;
+    const newX = Math.min(Math.max(20, d.origX + dx), maxX);
+    const newY = Math.min(Math.max(20, d.origY + dy), maxY);
+    if (d.kind === "table") onUpdateTable(d.id, { x: newX, y: newY });
+    else onUpdateVenueElement(d.id, { x: newX, y: newY });
   };
   const onPointerUp = () => { dragState.current = null; };
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_280px]">
-      <div
-        ref={canvasRef}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onClick={() => setSelectedId(null)}
-        className="relative overflow-hidden rounded-2xl"
-        style={{ background: INK_3, height: 480, touchAction: "none", backgroundImage: "radial-gradient(rgba(201,164,76,0.12) 1px, transparent 1px)", backgroundSize: "24px 24px" }}
-      >
-        {tables.map((t) => {
-          const size = shapeSize(t);
-          const count = seatedAt(t.id).reduce((sum, g) => sum + groupHeadcount(g), 0);
-          const over = count > t.capacity;
-          return (
-            <div
-              key={t.id}
-              onPointerDown={(e) => onPointerDown(e, t)}
-              className="absolute flex flex-col items-center justify-center text-center"
-              style={{
-                left: t.x || 0, top: t.y || 0, width: size.width, height: size.height,
-                borderRadius: t.shape === "round" ? "50%" : 10,
-                background: selectedId === t.id ? "rgba(201,164,76,0.25)" : INK_2,
-                border: `2px solid ${selectedId === t.id ? GOLD : over ? "#E29B9B" : "rgba(201,164,76,0.3)"}`,
-                cursor: "grab", userSelect: "none", padding: 4,
-              }}
-            >
-              <span className="truncate text-[10.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY, maxWidth: size.width - 10 }}>{t.name}</span>
-              <span className="text-[9px]" style={{ color: over ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>{count}/{t.capacity}</span>
-            </div>
-          );
-        })}
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="text-[10.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Add to room:</span>
+        {Object.entries(VENUE_ELEMENT_ICONS).map(([type, Icon]) => (
+          <button
+            key={type}
+            onClick={() => onAddVenueElement(type)}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium"
+            style={{ border: `1px solid rgba(201,164,76,0.3)`, color: GOLD_SOFT, fontFamily: FONT_BODY }}
+          >
+            <Icon size={12} /> {VENUE_ELEMENT_DEFAULTS_LABELS[type]}
+          </button>
+        ))}
       </div>
 
-      <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
-        {selected ? (
-          <>
-            <h4 className="mb-1 text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{selected.name}</h4>
-            <p className="mb-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-              {selected.shape === "round" ? "Round" : selected.shape === "square" ? "Square" : "Long / Banquet"} · {selected.capacity} seats
-            </p>
-            <div className="mb-3 space-y-1.5">
-              {seatedAt(selected.id).length === 0 ? (
-                <p className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No one seated here yet.</p>
-              ) : (
-                seatedAt(selected.id).map((g) => (
-                  <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: INK_3 }}>
-                    <span className="truncate text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
-                      {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest"}
-                    </span>
-                    <button onClick={() => onAssignGuest(g.id, null)} title="Remove from this table" style={{ color: "#E29B9B", flexShrink: 0 }}><X size={12} /></button>
-                  </div>
-                ))
-              )}
-            </div>
-            {unassigned.length > 0 && (
-              <select
-                defaultValue=""
-                onChange={(e) => e.target.value && onAssignGuest(e.target.value, selected.id)}
-                className="w-full rounded-md px-2 py-1.5 text-[11px] outline-none"
-                style={{ background: INK_3, color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
+        <div
+          ref={canvasRef}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onClick={() => setSelectedId(null)}
+          className="relative overflow-hidden rounded-2xl"
+          style={{ background: "#1a2420", height: 520, touchAction: "none", backgroundImage: "radial-gradient(rgba(201,164,76,0.14) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+        >
+          {venueElements.map((el) => {
+            const Icon = VENUE_ELEMENT_ICONS[el.type] || Sofa;
+            const isSel = selectedId === `venue:${el.id}`;
+            return (
+              <div
+                key={el.id}
+                onPointerDown={(e) => onVenuePointerDown(e, el)}
+                className="absolute flex flex-col items-center justify-center gap-1"
+                style={{
+                  left: el.x || 0, top: el.y || 0, width: el.width, height: el.height,
+                  borderRadius: 10, background: isSel ? "rgba(147,166,155,0.25)" : "rgba(147,166,155,0.12)",
+                  border: `1.5px dashed ${isSel ? PAPER : "rgba(147,166,155,0.45)"}`,
+                  cursor: "grab", userSelect: "none",
+                }}
               >
-                <option value="" disabled style={{ background: INK_2, color: MUTED }}>Assign a guest…</option>
-                {unassigned.map((g) => (
-                  <option key={g.id} value={g.id} style={{ background: INK_2, color: IVORY }}>
-                    {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest"}
-                  </option>
+                <Icon size={16} color={MUTED} />
+                <span className="text-[9.5px] font-medium uppercase" style={{ color: MUTED, letterSpacing: "0.05em", fontFamily: FONT_BODY }}>{el.label}</span>
+              </div>
+            );
+          })}
+
+          {tables.map((t) => {
+            const size = shapeSize(t);
+            const count = seatedAt(t.id).reduce((sum, g) => sum + groupHeadcount(g), 0);
+            const over = count > t.capacity;
+            const isSel = selectedId === `table:${t.id}`;
+            return (
+              <div key={t.id} className="absolute" style={{ left: t.x || 0, top: t.y || 0, width: size.width, height: size.height }}>
+                {/* Chairs drawn around the table's actual perimeter */}
+                {chairPositions(t, size).map((c, i) => (
+                  <div key={i} className="absolute rounded-full" style={{ left: c.x, top: c.y, width: 12, height: 12, background: "#0d1512", border: `1.5px solid ${isSel ? GOLD : "rgba(201,164,76,0.35)"}` }} />
                 ))}
-              </select>
+                <div
+                  onPointerDown={(e) => onTablePointerDown(e, t)}
+                  className="absolute flex h-full w-full flex-col items-center justify-center text-center"
+                  style={{
+                    borderRadius: t.shape === "round" ? "50%" : 8,
+                    background: isSel ? "rgba(201,164,76,0.28)" : INK_2,
+                    border: `2px solid ${isSel ? GOLD : over ? "#E29B9B" : "rgba(201,164,76,0.35)"}`,
+                    cursor: "grab", userSelect: "none", padding: 4, boxShadow: "0 4px 10px -4px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  <span className="truncate text-[10.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY, maxWidth: size.width - 10 }}>{t.name}</span>
+                  <span className="text-[9px]" style={{ color: over ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>{count}/{t.capacity}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+            {selectedTable ? (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <h4 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{selectedTable.name}</h4>
+                  <button onClick={() => setSelectedId(null)} style={{ color: MUTED }}><X size={14} /></button>
+                </div>
+                <p className="mb-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                  {selectedTable.shape === "round" ? "Round" : selectedTable.shape === "square" ? "Square" : "Long / Banquet"} · {selectedTable.capacity} seats
+                </p>
+                <div className="mb-3 space-y-1.5">
+                  {seatedAt(selectedTable.id).length === 0 ? (
+                    <p className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No one seated here yet.</p>
+                  ) : (
+                    seatedAt(selectedTable.id).map((g) => (
+                      <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: INK_3 }}>
+                        <span className="truncate text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{guestLabel(g)}</span>
+                        <button onClick={() => onAssignGuest(g.id, null)} title="Remove from this table" style={{ color: "#E29B9B", flexShrink: 0 }}><X size={12} /></button>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {unassigned.length > 0 && (
+                  <select
+                    defaultValue=""
+                    onChange={(e) => e.target.value && onAssignGuest(e.target.value, selectedTable.id)}
+                    className="w-full rounded-md px-2 py-1.5 text-[11px] outline-none"
+                    style={{ background: INK_3, color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}
+                  >
+                    <option value="" disabled style={{ background: INK_2, color: MUTED }}>Assign a guest…</option>
+                    {unassigned.map((g) => (
+                      <option key={g.id} value={g.id} style={{ background: INK_2, color: IVORY }}>{guestLabel(g)}</option>
+                    ))}
+                  </select>
+                )}
+              </>
+            ) : selectedKind === "venue" ? (
+              <>
+                <div className="mb-2 flex items-center justify-between">
+                  <h4 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{venueElements.find((v) => v.id === selectedRealId)?.label}</h4>
+                  <button onClick={() => setSelectedId(null)} style={{ color: MUTED }}><X size={14} /></button>
+                </div>
+                <GhostButton onClick={() => { onDeleteVenueElement(selectedRealId); setSelectedId(null); }}><Trash2 size={12} /> Remove from room</GhostButton>
+              </>
+            ) : (
+              <p className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Tap a table to assign guests, or drag anything to arrange the room.</p>
             )}
-          </>
-        ) : (
-          <p className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Tap a table on the floor plan to see or assign its guests. Drag tables to arrange the room.</p>
-        )}
+          </div>
+
+          <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)`, maxHeight: 320, overflowY: "auto" }}>
+            <h4 className="mb-2 text-[12px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+              Confirmed Guests <span style={{ color: MUTED, fontWeight: 400 }}>({confirmedGroups.length})</span>
+            </h4>
+            <div className="space-y-1.5">
+              {confirmedGroups.map((g) => {
+                const assignedTable = tables.find((t) => t.id === g.tableId);
+                return (
+                  <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: INK_3 }}>
+                    <span className="truncate text-[11px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{guestLabel(g)}</span>
+                    {assignedTable ? (
+                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "rgba(143,191,163,0.15)", color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>{assignedTable.name}</span>
+                    ) : (
+                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "rgba(226,155,155,0.15)", color: "#E29B9B", fontFamily: FONT_BODY }}>Unassigned</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink }) {
+function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -6438,6 +6570,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         <SeatingManager
           guestGroups={guestGroups} tables={tables}
           onAddTable={addTable} onUpdateTable={updateTable} onDeleteTable={deleteTable} onAssignGuest={assignGuestToTable}
+          venueElements={venueElements} onAddVenueElement={addVenueElement} onUpdateVenueElement={updateVenueElement} onDeleteVenueElement={deleteVenueElement}
         />
       ) : subTab === "voice" ? (
         <VoiceMessagesPanel slug={slug} />
@@ -8804,6 +8937,7 @@ export default function InvitationBuilder() {
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
+  const [venueElements, setVenueElements] = useState([]); // [{ id, type: 'stage'|'danceFloor'|'entrance'|'lounge', x, y, width, height, label }]
   const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true });
   const [openInviteLinks, setOpenInviteLinks] = useState([]); // [{ id, label, maxGuests }] — each is its own separately-tracked open invitation link, independent of the single shared one and of each other
   const addOpenInviteLink = (label, maxGuests) => {
@@ -8907,6 +9041,7 @@ export default function InvitationBuilder() {
     og: { image: null, title: "", description: "" }, guestGroups: [], tables: [],
     rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true },
     openInviteLinks: [],
+    venueElements: [],
     integrations: {
       djUrl: "", djButtonLabel: "Request a Song", djHeading: "Song Requests", djSubtitle: "Have a song you want to hear tonight? Send it straight to the DJ.",
       networkingUrl: "", networkingButtonLabel: "Open Guest Networking", networkingHeading: "Meet the Other Guests", networkingSubtitle: "Discover guests who share your interests, and connect right from your phone.",
@@ -8921,7 +9056,7 @@ export default function InvitationBuilder() {
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
-    swipeDirection, transitionStyle, openInviteLinks,
+    swipeDirection, transitionStyle, openInviteLinks, venueElements,
   });
 
   const applySnapshot = (snap) => {
@@ -8933,6 +9068,7 @@ export default function InvitationBuilder() {
     setIntegrations(snap.integrations); setIntro(snap.intro);
     setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
     setOpenInviteLinks(snap.openInviteLinks || []);
+    setVenueElements(snap.venueElements || []);
     setActiveIndex(0); setVisited(new Set([0])); setStarted(false); setSelectedBlockId(null); setLayoutEditMode(false);
   };
 
@@ -9082,6 +9218,7 @@ export default function InvitationBuilder() {
         if (d.layouts) setLayouts(mergeLayoutsWithDefaults(d.layouts));
         if (d.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(d.customBlocks));
         if (d.openInviteLinks) setOpenInviteLinks(d.openInviteLinks);
+        if (d.venueElements) setVenueElements(d.venueElements);
         if (d.guestGroups) setGuestGroups(d.guestGroups);
         if (d.tables) setTables(d.tables);
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
@@ -9118,6 +9255,7 @@ export default function InvitationBuilder() {
               if (activeSnapshot.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
               if (activeSnapshot.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(activeSnapshot.customBlocks));
               if (activeSnapshot.openInviteLinks) setOpenInviteLinks(activeSnapshot.openInviteLinks);
+              if (activeSnapshot.venueElements) setVenueElements(activeSnapshot.venueElements);
               if (activeSnapshot.content) setContent(activeSnapshot.content);
               if (activeSnapshot.pageBackgrounds) setPageBackgrounds(activeSnapshot.pageBackgrounds);
               if (activeSnapshot.layouts) setLayouts(mergeLayoutsWithDefaults(activeSnapshot.layouts));
@@ -9606,6 +9744,19 @@ export default function InvitationBuilder() {
     setGuestGroups((list) => list.map((g) => (g.tableId === id ? { ...g, tableId: null } : g)));
   };
   const assignGuestToTable = (groupId, tableId) => setGuestGroups((list) => list.map((g) => (g.id === groupId ? { ...g, tableId } : g)));
+
+  const VENUE_ELEMENT_DEFAULTS = {
+    stage: { label: "Stage", width: 140, height: 60 },
+    danceFloor: { label: "Dance Floor", width: 130, height: 130 },
+    entrance: { label: "Entrance", width: 90, height: 40 },
+    lounge: { label: "Lounge", width: 100, height: 60 },
+  };
+  const addVenueElement = (type) => {
+    const preset = VENUE_ELEMENT_DEFAULTS[type] || VENUE_ELEMENT_DEFAULTS.lounge;
+    setVenueElements((list) => [...list, { id: uid(), type, label: preset.label, width: preset.width, height: preset.height, x: 40 + (list.length % 4) * 40, y: 20 + Math.floor(list.length / 4) * 40 }]);
+  };
+  const updateVenueElement = (id, patch) => setVenueElements((list) => list.map((el) => (el.id === id ? { ...el, ...patch } : el)));
+  const deleteVenueElement = (id) => setVenueElements((list) => list.filter((el) => el.id !== id));
 
   // What a guest submits through the actual RSVP form on the invitation itself —
   // separate from the owner's manual "Add a guest family" tool in the Dashboard,
@@ -10657,6 +10808,10 @@ export default function InvitationBuilder() {
             updateTable={updateTable}
             deleteTable={deleteTable}
             assignGuestToTable={assignGuestToTable}
+            venueElements={venueElements}
+            addVenueElement={addVenueElement}
+            updateVenueElement={updateVenueElement}
+            deleteVenueElement={deleteVenueElement}
             integrations={integrations}
             updateIntegrations={updateIntegrations}
             coupleTitle={`${c.cover.name1} & ${c.cover.name2}`}
