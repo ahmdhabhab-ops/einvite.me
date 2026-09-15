@@ -8,7 +8,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -3229,17 +3229,23 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
   };
 
   // Mouse / stylus via Pointer Events.
+  const downPointRef = useRef(null); // { x, y } where the pointer went down — a simple click/select shouldn't move the block at all, only a real drag past a small threshold should
+  const MOVE_THRESHOLD = 4; // px
+
   const handleDown = (e) => {
     if (!editMode || e.pointerType === "touch" || isEditingText) return;
     e.stopPropagation();
     onSelect?.();
     draggingRef.current = true;
+    downPointRef.current = { x: e.clientX, y: e.clientY };
     setIsDraggingNow(true);
     onDragStateChange?.(true);
     e.target.setPointerCapture?.(e.pointerId);
   };
   const handleMove = (e) => {
     if (!editMode || !draggingRef.current || e.pointerType === "touch") return;
+    const d = downPointRef.current;
+    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < MOVE_THRESHOLD) return; // hasn't moved enough yet to count as an actual drag
     const next = computeFromPoint(e.clientX, e.clientY);
     if (next) onMove(next);
   };
@@ -3247,6 +3253,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     if (e.pointerType === "touch") return;
     setCenterSnap({ x: false, y: false }); // guides only show WHILE actively dragging, not once released
     draggingRef.current = false;
+    downPointRef.current = null;
     setIsDraggingNow(false);
     onDragStateChange?.(false);
     e.target.releasePointerCapture?.(e.pointerId);
@@ -3300,6 +3307,8 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
       e.stopPropagation();
       onSelectRef.current?.();
       draggingRef.current = true;
+      const t0 = e.touches[0];
+      downPointRef.current = t0 ? { x: t0.clientX, y: t0.clientY } : null;
       setIsDraggingNow(true);
       onDragStateChange?.(true);
     };
@@ -3308,10 +3317,12 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
       e.preventDefault();
       const t = e.touches[0];
       if (!t) return;
+      const d = downPointRef.current;
+      if (d && Math.hypot(t.clientX - d.x, t.clientY - d.y) < MOVE_THRESHOLD) return;
       const next = computeFromPoint(t.clientX, t.clientY);
       if (next) onMoveRef.current(next);
     };
-    const onEnd = () => { draggingRef.current = false; setIsDraggingNow(false); onDragStateChange?.(false); setCenterSnap({ x: false, y: false }); };
+    const onEnd = () => { draggingRef.current = false; downPointRef.current = null; setIsDraggingNow(false); onDragStateChange?.(false); setCenterSnap({ x: false, y: false }); };
     el.addEventListener("touchstart", onStart, { passive: false });
     el.addEventListener("touchmove", onMoveTouch, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: false });
@@ -3375,7 +3386,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
         touchAction: editMode ? "none" : "auto",
-        outline: editMode && !isTrulyEmpty && !isDraggingNow ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
+        outline: editMode && selected && !isTrulyEmpty && !isDraggingNow ? `2px solid ${GOLD}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
@@ -3605,7 +3616,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             />
           </div>
           {editMode && (
-            <div className="absolute left-1/2 top-16 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
+            <div className="absolute left-1/2 top-16 -translate-x-1/2" style={{ zIndex: 500 }} onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
               {toolbar}
             </div>
           )}
@@ -3642,7 +3653,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             />
           </div>
           {editMode && (
-            <div className="absolute left-1/2 top-16 z-20 -translate-x-1/2" onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
+            <div className="absolute left-1/2 top-16 -translate-x-1/2" style={{ zIndex: 500 }} onClick={(e) => { e.stopPropagation(); onSelect?.(); }}>
               {toolbar}
             </div>
           )}
@@ -9144,6 +9155,32 @@ export default function InvitationBuilder() {
   const [activeLang, setActiveLang] = useState("en");
   const [layouts, setLayouts] = useState(() => Object.fromEntries(LANGS.map((l) => [l, DEFAULT_LAYOUTS])));
   const [customBlocks, setCustomBlocks] = useState(() => Object.fromEntries(LANGS.map((l) => [l, emptyCustomBlocks()])));
+
+  // Undo for position/layout edits (dragging, resizing, adding/removing
+  // custom blocks). A checkpoint is captured a moment after layouts or
+  // customBlocks stop changing — so one whole drag becomes one undo step,
+  // not one step per pixel moved. isRestoringRef prevents the undo itself
+  // from being captured as a new checkpoint.
+  const layoutHistoryRef = useRef([]);
+  const isRestoringRef = useRef(false);
+  const layoutHistoryTimerRef = useRef(null);
+  useEffect(() => {
+    if (isRestoringRef.current) { isRestoringRef.current = false; return; }
+    if (layoutHistoryTimerRef.current) clearTimeout(layoutHistoryTimerRef.current);
+    layoutHistoryTimerRef.current = setTimeout(() => {
+      layoutHistoryRef.current = [...layoutHistoryRef.current, { layouts, customBlocks }].slice(-20); // cap so this can't grow unbounded over a long session
+    }, 500);
+    return () => clearTimeout(layoutHistoryTimerRef.current);
+  }, [layouts, customBlocks]);
+  const undoLayoutChange = () => {
+    const history = layoutHistoryRef.current;
+    if (history.length < 2) return; // nothing meaningfully earlier to go back to
+    const target = history[history.length - 2]; // the last entry matches current state, so the one before it is the actual "previous" step
+    layoutHistoryRef.current = history.slice(0, -1);
+    isRestoringRef.current = true;
+    setLayouts(target.layouts);
+    setCustomBlocks(target.customBlocks);
+  };
   // Admin-managed library of Intro-background options (photos/videos) —
   // set once, shared across every client, who each pick which one (if
   // any) they want as THEIR OWN intro background. Never copied into a
@@ -9203,6 +9240,7 @@ export default function InvitationBuilder() {
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
   const [templateSwitching, setTemplateSwitching] = useState(false); // drives the fade overlay during a template switch
   const [swipeDirection, setSwipeDirection] = useState("vertical"); // "vertical" (swipe up) or "horizontal" (swipe left)
@@ -10873,6 +10911,54 @@ export default function InvitationBuilder() {
                 <div className="flex flex-wrap items-center gap-2">
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
+                  {layoutEditMode && (
+                    <div className="relative">
+                      <GhostButton onClick={() => setLibraryPickerOpen((o) => !o)}><ImagePlus size={13} /> Library</GhostButton>
+                      {libraryPickerOpen && (
+                        <div className="absolute left-0 top-full z-50 mt-1 rounded-lg p-2" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, width: 220 }}>
+                          <div className="mb-1.5 flex items-center justify-between px-1">
+                            <span className="text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>From our library</span>
+                            {isAdminPath && !actingAsUser && (
+                              <label className="cursor-pointer text-[10px] underline" style={{ color: GOLD_SOFT }}>
+                                + Upload
+                                <input type="file" accept="image/*" className="hidden" onChange={addGlobalAssetItem} />
+                              </label>
+                            )}
+                          </div>
+                          {globalAssets.length === 0 ? (
+                            <p className="px-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                              {isAdminPath && !actingAsUser ? "No images uploaded yet — use \"+ Upload\" above." : "No library images yet."}
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {globalAssets.map((asset) => (
+                                <div key={asset.id} className="group relative">
+                                  <button
+                                    onClick={() => { addGlobalAssetToPage(asset.url); setLibraryPickerOpen(false); }}
+                                    className="block h-14 w-full overflow-hidden rounded-md"
+                                    style={{ border: `1px solid rgba(147,166,155,0.25)` }}
+                                    title={asset.label}
+                                  >
+                                    <img src={asset.url} alt={asset.label} className="h-full w-full object-cover" />
+                                  </button>
+                                  {isAdminPath && !actingAsUser && (
+                                    <button
+                                      onClick={() => deleteGlobalAsset(asset.id)}
+                                      title="Remove from library"
+                                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full"
+                                      style={{ background: INK, color: "#E29B9B", border: `1px solid rgba(226,155,155,0.4)` }}
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {layoutEditMode && <GhostUploadButton accept="video/*" onChange={addCustomVideo}><Film size={13} /> Add video</GhostUploadButton>}
                   {layoutEditMode && (
                     <div className="relative">
@@ -10932,50 +11018,11 @@ export default function InvitationBuilder() {
                               <div style={{ width: 2, height: 20, background: MUTED }} />
                             </button>
                           </div>
-
-                          <div className="mb-1.5 mt-3 flex items-center justify-between px-1">
-                            <span className="text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>From our library</span>
-                            {isAdminPath && !actingAsUser && (
-                              <label className="cursor-pointer text-[10px] underline" style={{ color: GOLD_SOFT }}>
-                                + Upload
-                                <input type="file" accept="image/*" className="hidden" onChange={addGlobalAssetItem} />
-                              </label>
-                            )}
-                          </div>
-                          {globalAssets.length === 0 ? (
-                            <p className="px-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                              {isAdminPath && !actingAsUser ? "No images uploaded yet — use \"+ Upload\" above." : "No library images yet."}
-                            </p>
-                          ) : (
-                            <div className="grid grid-cols-3 gap-1.5">
-                              {globalAssets.map((asset) => (
-                                <div key={asset.id} className="group relative">
-                                  <button
-                                    onClick={() => { addGlobalAssetToPage(asset.url); setIconPickerOpen(false); }}
-                                    className="block h-14 w-full overflow-hidden rounded-md"
-                                    style={{ border: `1px solid rgba(147,166,155,0.25)` }}
-                                    title={asset.label}
-                                  >
-                                    <img src={asset.url} alt={asset.label} className="h-full w-full object-cover" />
-                                  </button>
-                                  {isAdminPath && !actingAsUser && (
-                                    <button
-                                      onClick={() => deleteGlobalAsset(asset.id)}
-                                      title="Remove from library"
-                                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full"
-                                      style={{ background: INK, color: "#E29B9B", border: `1px solid rgba(226,155,155,0.4)` }}
-                                    >
-                                      <X size={10} />
-                                    </button>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
                   )}
+                  {layoutEditMode && <GhostButton onClick={undoLayoutChange}><Undo2 size={12} /> Undo</GhostButton>}
                   {layoutEditMode && <GhostButton onClick={resetLayout}>Reset layout</GhostButton>}
                   <GhostButton active={layoutEditMode} onClick={toggleLayoutEditMode}>
                     <Move size={13} /> {layoutEditMode ? "Done positioning" : "Position text"}
