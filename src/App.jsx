@@ -3393,6 +3393,22 @@ function useCountdown(date, time) {
 function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, onDelete }) {
   const [editingText, setEditingText] = useState(false);
   const [draft, setDraft] = useState(block.text || "");
+  const editRef = useRef(null);
+
+  useEffect(() => {
+    if (!editingText || !editRef.current) return;
+    const el = editRef.current;
+    el.focus();
+    // Place the cursor at the end of the existing text, rather than the
+    // start — matches what people expect when re-opening a text box to
+    // keep editing it.
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }, [editingText]);
 
   const bump = (field, delta, min, max, base) => {
     const current = block[field] ?? base;
@@ -3572,20 +3588,23 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     );
   }
   return (
-    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect}>
+    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect} noMaxWidth={block.type === "text"}>
       {toolbar}
       {editingText ? (
-        <textarea
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+        <div
+          ref={editRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={(e) => setDraft(e.currentTarget.textContent || "")}
           onBlur={commitText}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(); } }}
           onPointerDown={(e) => e.stopPropagation()}
-          className="resize-none text-center outline-none"
-          rows={2}
+          className="text-center outline-none"
           style={{
-            width: 140,
+            display: "inline-block",
+            minWidth: 20,
+            maxWidth: "none",
+            whiteSpace: "pre",
             fontFamily: block.fontFamily || FONT_BODY,
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
@@ -3593,12 +3612,16 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             lineHeight: 1.4,
             background: "rgba(0,0,0,0.25)",
             borderRadius: 6,
+            padding: "2px 6px",
           }}
-        />
+        >
+          {block.text || ""}
+        </div>
       ) : (
         <p
           className="text-center"
           style={{
+            whiteSpace: "pre",
             fontFamily: block.fontFamily || (light ? FONT_BODY : FONT_BODY),
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
