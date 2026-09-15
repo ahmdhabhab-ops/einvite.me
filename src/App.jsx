@@ -2047,14 +2047,59 @@ function BackgroundPicker({ bg, onChange }) {
 function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect, onReorder }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
+  const isLine = current.type === "line";
   return (
     <div className="mb-5 rounded-xl p-4" style={{ background: INK_3, border: `1px solid rgba(201,164,76,0.3)` }}>
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
-          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
+          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isLine ? "Line" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
         </span>
         <button onClick={onDeselect} style={{ color: MUTED }}><X size={14} /></button>
       </div>
+
+      {isLine && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Length (px)</FieldLabel>
+              <input
+                type="number" min={10} max={400} value={current.length || 100}
+                onChange={(e) => onChangeStyle({ length: Math.max(10, Number(e.target.value) || 100) })}
+                className="w-full rounded-lg px-2.5 py-1.5 text-[12px] outline-none"
+                style={{ background: INK_2, color: IVORY, fontFamily: FONT_BODY }}
+              />
+            </div>
+            <div>
+              <FieldLabel>Thickness (px)</FieldLabel>
+              <input
+                type="number" min={1} max={40} value={current.thickness || 2}
+                onChange={(e) => onChangeStyle({ thickness: Math.max(1, Number(e.target.value) || 2) })}
+                className="w-full rounded-lg px-2.5 py-1.5 text-[12px] outline-none"
+                style={{ background: INK_2, color: IVORY, fontFamily: FONT_BODY }}
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+            <FieldLabel>Orientation</FieldLabel>
+            <SegmentedToggle
+              value={current.orientation || "horizontal"}
+              onChange={(v) => onChangeStyle({ orientation: v })}
+              options={[{ value: "horizontal", label: "Horizontal" }, { value: "vertical", label: "Vertical" }]}
+            />
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <FieldLabel>Color</FieldLabel>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="color" value={current.color || "#F4EDE4"} onChange={(e) => onChangeStyle({ color: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+            {current.color && (
+              <button onClick={() => onChangeStyle({ color: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                Reset to default
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {isImage && (
         <div className="mb-3 overflow-hidden rounded-lg" style={{ background: INK_2, maxHeight: 100 }}>
@@ -2066,7 +2111,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </div>
       )}
 
-      {isCustom && !isImage && (
+      {isCustom && !isImage && !isLine && (
         <div className="mb-3">
           <FieldLabel>Text content</FieldLabel>
           <TextArea value={current.text} onChange={onChangeText} rows={2} />
@@ -2139,7 +2184,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
       </p>
       )}
 
-      {isImage && !current.fullScreen ? (
+      {isLine ? null : isImage && !current.fullScreen ? (
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
             <FieldLabel>Size (% of screen width)</FieldLabel>
@@ -2223,7 +2268,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        {!isImage && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null })}>Reset style</GhostButton>}
+        {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null })}>Reset style</GhostButton>}
         {isCustom && (
           <GhostButton danger onClick={onDelete}>
             <Trash2 size={12} /> Delete
@@ -3136,7 +3181,7 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 /* Draggable text block (Canva-style)                                      */
 /* ---------------------------------------------------------------------- */
 
-function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex }) {
+function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
@@ -3187,6 +3232,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     e.stopPropagation();
     onSelect?.();
     draggingRef.current = true;
+    onDragStateChange?.(true);
     e.target.setPointerCapture?.(e.pointerId);
   };
   const handleMove = (e) => {
@@ -3198,6 +3244,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     if (e.pointerType === "touch") return;
     setCenterSnap({ x: false, y: false }); // guides only show WHILE actively dragging, not once released
     draggingRef.current = false;
+    onDragStateChange?.(false);
     e.target.releasePointerCapture?.(e.pointerId);
   };
 
@@ -3467,7 +3514,9 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     setEditingText(false);
   };
 
-  const toolbar = editMode && selected && (
+  const [isDragging, setIsDragging] = useState(false);
+
+  const toolbar = editMode && selected && !isDragging && (
     <div
       className="absolute left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1"
       style={{ bottom: "calc(100% + 16px)", background: INK, border: `1px solid ${GOLD}` }}
@@ -3551,7 +3600,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       );
     }
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         {!editMode && normalizedLinkUrl ? (
           <a href={normalizedLinkUrl} target="_blank" rel="noreferrer">{img}</a>
@@ -3588,7 +3637,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       );
     }
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         <video
           src={block.url}
@@ -3605,9 +3654,21 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   if (block.type === "icon") {
     const Icon = DECORATIVE_ICONS[block.icon]?.icon || Sparkles;
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         <Icon size={block.iconSize || 32} color={block.color || (light ? PAPER : EMERALD)} />
+      </DraggableBlock>
+    );
+  }
+  if (block.type === "line") {
+    const lineColor = block.color || (light ? PAPER : EMERALD);
+    const isVertical = block.orientation === "vertical";
+    const length = block.length || 100;
+    const thickness = block.thickness || 2;
+    return (
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Line" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+        {toolbar}
+        <div style={{ width: isVertical ? thickness : length, height: isVertical ? length : thickness, background: lineColor }} />
       </DraggableBlock>
     );
   }
@@ -3615,7 +3676,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     const dividerColor = block.color || (light ? "rgba(244,237,228,0.55)" : "rgba(201,164,76,0.55)");
     const isVertical = block.orientation === "vertical";
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Divider" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Divider" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         {isVertical ? (
           <div style={{ width: 1, height: `${(block.width || 40) * 4}px`, background: `linear-gradient(to bottom, transparent, ${dividerColor}, transparent)` }} />
@@ -3630,7 +3691,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     );
   }
   return (
-    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect} noMaxWidth={block.type === "text"} layerIndex={layerIndex}>
+    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect} noMaxWidth={block.type === "text"} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
       {toolbar}
       {editingText ? (
         <div
@@ -9081,6 +9142,48 @@ export default function InvitationBuilder() {
   // stored in Supabase instead of hardcoded in this file, so a new one
   // shows up on /shop immediately without editing any code.
   const [shopDesigns, setShopDesigns] = useState([]);
+  const [globalAssets, setGlobalAssets] = useState([]); // [{ id, url, label }] — admin-uploaded images available to every client, own dedicated key like shopDesigns
+  const GLOBAL_ASSETS_KEY = "einvite:global-assets";
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await persistentStorage.get(GLOBAL_ASSETS_KEY, false);
+        if (res?.value) setGlobalAssets(JSON.parse(res.value));
+      } catch {}
+    })();
+  }, []);
+  const saveGlobalAssets = async (nextList) => {
+    setGlobalAssets(nextList);
+    try {
+      await persistentStorage.set(GLOBAL_ASSETS_KEY, JSON.stringify(nextList), false);
+    } catch (err) {
+      console.error("Failed to save global assets:", err);
+    }
+  };
+  const addGlobalAsset = async (url, label) => {
+    await saveGlobalAssets([...globalAssets, { id: uid(), url, label: label || "Untitled" }]);
+  };
+  const deleteGlobalAsset = async (id) => {
+    await saveGlobalAssets(globalAssets.filter((a) => a.id !== id));
+  };
+  const addGlobalAssetItem = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadImageToStorage(file, "global-assets");
+      await addGlobalAsset(url, file.name);
+    } catch (err) {
+      alert(err.message || "Couldn't upload — please try again.");
+    }
+  };
+  const addGlobalAssetToPage = (url) => {
+    const stepKey = steps[safeIndex].key;
+    const existingImages = customBlocks[activeLang][stepKey].filter((b) => b.type === "image").length;
+    const offset = (existingImages % 4) * 8;
+    const newBlock = { id: uid(), type: "image", url, x: 50 + offset, y: 50 + offset, width: 40 };
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
+    setSelectedBlockId(`custom:${newBlock.id}`);
+  };
   const [showSaveAsShopDesign, setShowSaveAsShopDesign] = useState(false);
   const [editingShopDesignId, setEditingShopDesignId] = useState(null); // set while the admin is editing an existing shop design's styling directly in the Builder
   const [layoutEditMode, setLayoutEditMode] = useState(false);
@@ -9804,6 +9907,12 @@ export default function InvitationBuilder() {
   const addCustomDivider = (orientation = "horizontal") => {
     const stepKey = steps[safeIndex].key;
     const newBlock = { id: uid(), type: "divider", orientation, x: 50, y: 50, width: 40, color: null };
+    setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
+    setSelectedBlockId(`custom:${newBlock.id}`);
+  };
+  const addCustomLine = (orientation = "horizontal") => {
+    const stepKey = steps[safeIndex].key;
+    const newBlock = { id: uid(), type: "line", orientation, x: 50, y: 50, length: 100, thickness: 2, color: null };
     setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
@@ -10789,6 +10898,66 @@ export default function InvitationBuilder() {
                               <Minus size={16} style={{ transform: "rotate(90deg)" }} />
                             </button>
                           </div>
+
+                          <div className="mb-1.5 mt-3 px-1 text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>Lines</div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              onClick={() => { addCustomLine("horizontal"); setIconPickerOpen(false); }}
+                              className="flex h-9 items-center justify-center rounded-md"
+                              style={{ color: MUTED, border: `1px solid rgba(147,166,155,0.25)` }}
+                              title="Horizontal line"
+                            >
+                              <div style={{ width: 20, height: 2, background: MUTED }} />
+                            </button>
+                            <button
+                              onClick={() => { addCustomLine("vertical"); setIconPickerOpen(false); }}
+                              className="flex h-9 items-center justify-center rounded-md"
+                              style={{ color: MUTED, border: `1px solid rgba(147,166,155,0.25)` }}
+                              title="Vertical line"
+                            >
+                              <div style={{ width: 2, height: 20, background: MUTED }} />
+                            </button>
+                          </div>
+
+                          <div className="mb-1.5 mt-3 flex items-center justify-between px-1">
+                            <span className="text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>From our library</span>
+                            {isAdminPath && !actingAsUser && (
+                              <label className="cursor-pointer text-[10px] underline" style={{ color: GOLD_SOFT }}>
+                                + Upload
+                                <input type="file" accept="image/*" className="hidden" onChange={addGlobalAssetItem} />
+                              </label>
+                            )}
+                          </div>
+                          {globalAssets.length === 0 ? (
+                            <p className="px-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                              {isAdminPath && !actingAsUser ? "No images uploaded yet — use \"+ Upload\" above." : "No library images yet."}
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {globalAssets.map((asset) => (
+                                <div key={asset.id} className="group relative">
+                                  <button
+                                    onClick={() => { addGlobalAssetToPage(asset.url); setIconPickerOpen(false); }}
+                                    className="block h-14 w-full overflow-hidden rounded-md"
+                                    style={{ border: `1px solid rgba(147,166,155,0.25)` }}
+                                    title={asset.label}
+                                  >
+                                    <img src={asset.url} alt={asset.label} className="h-full w-full object-cover" />
+                                  </button>
+                                  {isAdminPath && !actingAsUser && (
+                                    <button
+                                      onClick={() => deleteGlobalAsset(asset.id)}
+                                      title="Remove from library"
+                                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full"
+                                      style={{ background: INK, color: "#E29B9B", border: `1px solid rgba(226,155,155,0.4)` }}
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
