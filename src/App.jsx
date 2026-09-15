@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   Heart, Users, Clock, MapPin, CalendarClock, ChevronUp, ChevronDown,
   Plus, Trash2, Upload, Navigation2,
@@ -3184,6 +3185,7 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
+  const [isDraggingNow, setIsDraggingNow] = useState(false);
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
   const [isEditingText, setIsEditingText] = useState(false);
   const textRef = useRef(null);
@@ -3232,6 +3234,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     e.stopPropagation();
     onSelect?.();
     draggingRef.current = true;
+    setIsDraggingNow(true);
     onDragStateChange?.(true);
     e.target.setPointerCapture?.(e.pointerId);
   };
@@ -3244,6 +3247,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     if (e.pointerType === "touch") return;
     setCenterSnap({ x: false, y: false }); // guides only show WHILE actively dragging, not once released
     draggingRef.current = false;
+    setIsDraggingNow(false);
     onDragStateChange?.(false);
     e.target.releasePointerCapture?.(e.pointerId);
   };
@@ -3296,6 +3300,8 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
       e.stopPropagation();
       onSelectRef.current?.();
       draggingRef.current = true;
+      setIsDraggingNow(true);
+      onDragStateChange?.(true);
     };
     const onMoveTouch = (e) => {
       if (!draggingRef.current) return;
@@ -3305,7 +3311,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
       const next = computeFromPoint(t.clientX, t.clientY);
       if (next) onMoveRef.current(next);
     };
-    const onEnd = () => { draggingRef.current = false; setCenterSnap({ x: false, y: false }); };
+    const onEnd = () => { draggingRef.current = false; setIsDraggingNow(false); onDragStateChange?.(false); setCenterSnap({ x: false, y: false }); };
     el.addEventListener("touchstart", onStart, { passive: false });
     el.addEventListener("touchmove", onMoveTouch, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: false });
@@ -3369,7 +3375,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
         touchAction: editMode ? "none" : "auto",
-        outline: editMode && !isTrulyEmpty ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
+        outline: editMode && !isTrulyEmpty && !isDraggingNow ? `${selected ? 2 : 1.5}px ${selected ? "solid" : "dashed"} ${selected ? GOLD : light ? "rgba(244,237,228,0.65)" : "rgba(36,70,61,0.5)"}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
@@ -3377,7 +3383,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         zIndex: layerIndex !== undefined ? 30 + layerIndex : editMode ? (selected ? 31 : 30) : 1,
       }}
     >
-      {editMode && selected && !isTrulyEmpty && (
+      {editMode && selected && !isTrulyEmpty && !isDraggingNow && (
         <div className="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
           <Move size={8} /> {label}{onTextEdit ? " · double-tap to edit text" : ""}
         </div>
@@ -3398,7 +3404,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
           children
         )}
       </div>
-      {editMode && selected && onScale && !isTrulyEmpty && (
+      {editMode && selected && onScale && !isTrulyEmpty && !isDraggingNow && (
         <>
           {[
             { bottom: -5, right: -5, cursor: "nwse-resize" },
@@ -3426,33 +3432,40 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
           ))}
         </>
       )}
-      {frameRect && centerSnap.x && (
-        <div
-          className="pointer-events-none fixed"
-          style={{
-            left: frameRect.left + frameRect.width / 2 - 0.5,
-            top: frameRect.top,
-            width: 1,
-            height: frameRect.height,
-            background: "repeating-linear-gradient(to bottom, #FF3D8A 0, #FF3D8A 6px, transparent 6px, transparent 11px)",
-            boxShadow: "0 0 4px rgba(255,61,138,0.6)",
-            zIndex: 200,
-          }}
-        />
-      )}
-      {frameRect && centerSnap.y && (
-        <div
-          className="pointer-events-none fixed"
-          style={{
-            left: frameRect.left,
-            top: frameRect.top + frameRect.height / 2 - 0.5,
-            width: frameRect.width,
-            height: 1,
-            background: "repeating-linear-gradient(to right, #FF3D8A 0, #FF3D8A 6px, transparent 6px, transparent 11px)",
-            boxShadow: "0 0 4px rgba(255,61,138,0.6)",
-            zIndex: 200,
-          }}
-        />
+      {ref.current?.parentElement && (centerSnap.x || centerSnap.y) && createPortal(
+        <>
+          {centerSnap.x && (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: "50%",
+                top: 0,
+                width: 1,
+                height: "100%",
+                transform: "translateX(-0.5px)",
+                background: "repeating-linear-gradient(to bottom, #FF3D8A 0, #FF3D8A 6px, transparent 6px, transparent 11px)",
+                boxShadow: "0 0 4px rgba(255,61,138,0.6)",
+                zIndex: 200,
+              }}
+            />
+          )}
+          {centerSnap.y && (
+            <div
+              className="pointer-events-none absolute"
+              style={{
+                left: 0,
+                top: "50%",
+                width: "100%",
+                height: 1,
+                transform: "translateY(-0.5px)",
+                background: "repeating-linear-gradient(to right, #FF3D8A 0, #FF3D8A 6px, transparent 6px, transparent 11px)",
+                boxShadow: "0 0 4px rgba(255,61,138,0.6)",
+                zIndex: 200,
+              }}
+            />
+          )}
+        </>,
+        ref.current.parentElement
       )}
     </div>
   );
@@ -3663,10 +3676,11 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   if (block.type === "line") {
     const lineColor = block.color || (light ? PAPER : EMERALD);
     const isVertical = block.orientation === "vertical";
-    const length = block.length || 100;
-    const thickness = block.thickness || 2;
+    const scale = block.scale || 1;
+    const length = (block.length || 100) * scale;
+    const thickness = Math.max(1, (block.thickness || 2) * scale);
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Line" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(s) => onMove({ scale: s })} label="Line" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         <div style={{ width: isVertical ? thickness : length, height: isVertical ? length : thickness, background: lineColor }} />
       </DraggableBlock>
