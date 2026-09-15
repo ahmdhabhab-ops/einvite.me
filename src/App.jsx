@@ -7,7 +7,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -1311,6 +1311,15 @@ function qrCodeImageUrl(data, size = 220) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 }
 
+// Builds a layered neon-style text-shadow: a few tight, bright layers close
+// to the letters plus wider, softer layers further out — this reads as a
+// glow rather than a flat drop shadow. Returns undefined when no glow
+// color is set, so it can be spread straight into a style object.
+function glowTextShadow(color) {
+  if (!color) return undefined;
+  return `0 0 4px ${color}, 0 0 11px ${color}, 0 0 19px ${color}, 0 0 40px ${color}`;
+}
+
 // navigator.clipboard.writeText() is async — a plain try/catch around the call
 // (without awaiting it) never actually catches a rejection, so failures were
 // silent. This awaits it properly and falls back to the older execCommand
@@ -2035,7 +2044,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect }) {
+function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect, onReorder }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   return (
@@ -2178,6 +2187,27 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
             />
           </div>
 
+          <div className="mt-3 rounded-lg p-3" style={{ background: INK_2 }}>
+            <div className="flex items-center justify-between">
+              <FieldLabel>Glow</FieldLabel>
+              <SegmentedToggle
+                value={current.glow ? "on" : "off"}
+                onChange={(v) => onChangeStyle({ glow: v === "on" ? (current.glowColor || "#F4C95D") : null })}
+                options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+              />
+            </div>
+            {current.glow && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Glow color</span>
+                <input
+                  type="color" value={current.glow}
+                  onChange={(e) => onChangeStyle({ glow: e.target.value })}
+                  className="h-7 w-10 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="mt-3 flex items-center gap-3">
             <FieldLabel>Color</FieldLabel>
           </div>
@@ -2193,13 +2223,25 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        {!isImage && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null })}>Reset style</GhostButton>}
+        {!isImage && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null })}>Reset style</GhostButton>}
         {isCustom && (
           <GhostButton danger onClick={onDelete}>
             <Trash2 size={12} /> Delete
           </GhostButton>
         )}
       </div>
+
+      {isCustom && onReorder && (
+        <div className="mt-3">
+          <FieldLabel>Layer order</FieldLabel>
+          <div className="mt-1.5 grid grid-cols-2 gap-2">
+            <GhostButton onClick={() => onReorder("front")}><ChevronsUp size={12} /> Bring to front</GhostButton>
+            <GhostButton onClick={() => onReorder("back")}><ChevronsDown size={12} /> Send to back</GhostButton>
+            <GhostButton onClick={() => onReorder("forward")}><ChevronUp size={12} /> Bring forward</GhostButton>
+            <GhostButton onClick={() => onReorder("backward")}><ChevronDown size={12} /> Send backward</GhostButton>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3609,6 +3651,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
             fontWeight: block.fontWeight || 400,
+            textShadow: glowTextShadow(block.glow),
             lineHeight: 1.4,
             background: "rgba(0,0,0,0.25)",
             borderRadius: 6,
@@ -3626,6 +3669,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
             fontWeight: block.fontWeight || 400,
+            textShadow: glowTextShadow(block.glow),
             lineHeight: 1.4,
           }}
         >
@@ -3690,7 +3734,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                 />
               )}
               <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, zIndex: 1 }}>
-                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.3 }}>
+                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow), lineHeight: 1.3 }}>
                   {content.name1 || ""}
                 </div>
                 {content.name2 ? (
@@ -3700,7 +3744,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                         {ampersandText}
                       </div>
                     )}
-                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), lineHeight: 1.3 }}>
+                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow), lineHeight: 1.3 }}>
                       {content.name2}
                     </div>
                   </>
@@ -9769,6 +9813,24 @@ export default function InvitationBuilder() {
     setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: c[activeLang][stepKey].filter((b) => b.id !== id) } }));
     setSelectedBlockId((sel) => (sel === `custom:${id}` ? null : sel));
   };
+  // Custom blocks render in array order (later = drawn on top), so
+  // reordering the array IS the layer control. "front"/"back" move the
+  // block all the way to one end; "forward"/"backward" swap it one step
+  // with its neighbor.
+  const reorderCustomBlock = (stepKey, id, action) => {
+    setCustomBlocks((c) => {
+      const list = c[activeLang][stepKey];
+      const index = list.findIndex((b) => b.id === id);
+      if (index === -1) return c;
+      const reordered = [...list];
+      const [item] = reordered.splice(index, 1);
+      if (action === "front") reordered.push(item);
+      else if (action === "back") reordered.unshift(item);
+      else if (action === "forward") reordered.splice(Math.min(index + 1, reordered.length), 0, item);
+      else if (action === "backward") reordered.splice(Math.max(index - 1, 0), 0, item);
+      return { ...c, [activeLang]: { ...c[activeLang], [stepKey]: reordered } };
+    });
+  };
 
   const toggleLayoutEditMode = () => setLayoutEditMode((v) => { if (v) setSelectedBlockId(null); return !v; });
 
@@ -10751,6 +10813,7 @@ export default function InvitationBuilder() {
                     onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
                     onDelete={() => removeCustomBlock(stepKey, customId)}
                     onDeselect={() => setSelectedBlockId(null)}
+                    onReorder={isCustom ? (action) => reorderCustomBlock(stepKey, customId, action) : undefined}
                   />
                 );
               })()}
