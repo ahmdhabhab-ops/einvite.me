@@ -3136,7 +3136,7 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 /* Draggable text block (Canva-style)                                      */
 /* ---------------------------------------------------------------------- */
 
-function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty }) {
+function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
@@ -3327,7 +3327,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
         borderRadius: 10,
         padding: editMode ? 4 : 0,
         userSelect: editMode && !isEditingText ? "none" : "auto",
-        zIndex: editMode ? (selected ? 31 : 30) : 1,
+        zIndex: layerIndex !== undefined ? 30 + layerIndex : editMode ? (selected ? 31 : 30) : 1,
       }}
     >
       {editMode && selected && !isTrulyEmpty && (
@@ -3432,7 +3432,7 @@ function useCountdown(date, time) {
   return { days: Math.floor(s / 86400), hours: Math.floor((s % 86400) / 3600), mins: Math.floor((s % 3600) / 60), secs: s % 60, passed: diff <= 0 };
 }
 
-function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, onDelete }) {
+function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, onDelete, layerIndex }) {
   const [editingText, setEditingText] = useState(false);
   const [draft, setDraft] = useState(block.text || "");
   const editRef = useRef(null);
@@ -3551,7 +3551,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       );
     }
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex}>
         {toolbar}
         {!editMode && normalizedLinkUrl ? (
           <a href={normalizedLinkUrl} target="_blank" rel="noreferrer">{img}</a>
@@ -3588,7 +3588,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       );
     }
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex}>
         {toolbar}
         <video
           src={block.url}
@@ -3605,7 +3605,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   if (block.type === "icon") {
     const Icon = DECORATIVE_ICONS[block.icon]?.icon || Sparkles;
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex}>
         {toolbar}
         <Icon size={block.iconSize || 32} color={block.color || (light ? PAPER : EMERALD)} />
       </DraggableBlock>
@@ -3615,7 +3615,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     const dividerColor = block.color || (light ? "rgba(244,237,228,0.55)" : "rgba(201,164,76,0.55)");
     const isVertical = block.orientation === "vertical";
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Divider" light={light} selected={selected} onSelect={onSelect} noMaxWidth>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Divider" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex}>
         {toolbar}
         {isVertical ? (
           <div style={{ width: 1, height: `${(block.width || 40) * 4}px`, background: `linear-gradient(to bottom, transparent, ${dividerColor}, transparent)` }} />
@@ -3630,7 +3630,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     );
   }
   return (
-    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect} noMaxWidth={block.type === "text"}>
+    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect} noMaxWidth={block.type === "text"} layerIndex={layerIndex}>
       {toolbar}
       {editingText ? (
         <div
@@ -5101,10 +5101,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             {renderSlide(stepKey)}
             {started && (
               <div className="absolute inset-0">
-                {customBlocks.map((block) => (
+                {customBlocks.map((block, index) => (
                   <CustomTextBlock
                     key={block.id}
                     block={block}
+                    layerIndex={index}
                     light={data.pageBackgrounds[stepKey].mode === "photo"}
                     editMode={layoutEditMode}
                     selected={selectedBlockId === `custom:${block.id}`}
