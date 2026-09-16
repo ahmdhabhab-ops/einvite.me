@@ -8,7 +8,7 @@ import {
   ChevronsUp, ChevronsLeft, Volume2, VolumeX, Share2, Disc3, Headphones, Feather, MessageCircle, Send,
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
-  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2,
+  Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -9156,16 +9156,19 @@ export default function InvitationBuilder() {
   const [layouts, setLayouts] = useState(() => Object.fromEntries(LANGS.map((l) => [l, DEFAULT_LAYOUTS])));
   const [customBlocks, setCustomBlocks] = useState(() => Object.fromEntries(LANGS.map((l) => [l, emptyCustomBlocks()])));
 
-  // Undo for position/layout edits (dragging, resizing, adding/removing
-  // custom blocks). A checkpoint is captured a moment after layouts or
-  // customBlocks stop changing — so one whole drag becomes one undo step,
-  // not one step per pixel moved. isRestoringRef prevents the undo itself
-  // from being captured as a new checkpoint.
+  // Undo/redo for position/layout edits (dragging, resizing, adding/
+  // removing custom blocks). A checkpoint is captured a moment after
+  // layouts or customBlocks stop changing — so one whole drag becomes one
+  // undo step, not one step per pixel moved. isRestoringRef prevents an
+  // undo/redo itself from being captured as a new checkpoint or clearing
+  // the redo stack.
   const layoutHistoryRef = useRef([]);
+  const layoutRedoRef = useRef([]);
   const isRestoringRef = useRef(false);
   const layoutHistoryTimerRef = useRef(null);
   useEffect(() => {
     if (isRestoringRef.current) { isRestoringRef.current = false; return; }
+    layoutRedoRef.current = []; // any real new change invalidates whatever redo history existed
     if (layoutHistoryTimerRef.current) clearTimeout(layoutHistoryTimerRef.current);
     layoutHistoryTimerRef.current = setTimeout(() => {
       layoutHistoryRef.current = [...layoutHistoryRef.current, { layouts, customBlocks }].slice(-20); // cap so this can't grow unbounded over a long session
@@ -9175,8 +9178,20 @@ export default function InvitationBuilder() {
   const undoLayoutChange = () => {
     const history = layoutHistoryRef.current;
     if (history.length < 2) return; // nothing meaningfully earlier to go back to
+    const current = history[history.length - 1];
     const target = history[history.length - 2]; // the last entry matches current state, so the one before it is the actual "previous" step
     layoutHistoryRef.current = history.slice(0, -1);
+    layoutRedoRef.current = [...layoutRedoRef.current, current].slice(-20);
+    isRestoringRef.current = true;
+    setLayouts(target.layouts);
+    setCustomBlocks(target.customBlocks);
+  };
+  const redoLayoutChange = () => {
+    const redoStack = layoutRedoRef.current;
+    if (redoStack.length === 0) return;
+    const target = redoStack[redoStack.length - 1];
+    layoutRedoRef.current = redoStack.slice(0, -1);
+    layoutHistoryRef.current = [...layoutHistoryRef.current, target].slice(-20);
     isRestoringRef.current = true;
     setLayouts(target.layouts);
     setCustomBlocks(target.customBlocks);
@@ -11023,6 +11038,7 @@ export default function InvitationBuilder() {
                     </div>
                   )}
                   {layoutEditMode && <GhostButton onClick={undoLayoutChange}><Undo2 size={12} /> Undo</GhostButton>}
+                  {layoutEditMode && <GhostButton onClick={redoLayoutChange}><Redo2 size={12} /> Redo</GhostButton>}
                   {layoutEditMode && <GhostButton onClick={resetLayout}>Reset layout</GhostButton>}
                   <GhostButton active={layoutEditMode} onClick={toggleLayoutEditMode}>
                     <Move size={13} /> {layoutEditMode ? "Done positioning" : "Position text"}
