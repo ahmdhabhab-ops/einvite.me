@@ -1981,11 +1981,16 @@ function BackgroundPicker({ bg, onChange }) {
     if (!file) return;
     try {
       const dataUrl = await readImageCompressed(file);
-      onChange({ ...bg, mode: "photo", image: dataUrl });
+      // Functional form: merges onto whatever bg is current when this
+      // (async) compression finishes, not the `bg` prop from when the
+      // upload started — otherwise clicking a preset swatch or another
+      // control right after starting the upload would get silently
+      // reverted once the upload's own stale-bg write lands.
+      onChange((current) => ({ ...current, mode: "photo", image: dataUrl }));
     } catch {
       // If compression fails for any reason, fall back to the raw file.
       const reader = new FileReader();
-      reader.onload = () => onChange({ ...bg, mode: "photo", image: reader.result });
+      reader.onload = () => onChange((current) => ({ ...current, mode: "photo", image: reader.result }));
       reader.readAsDataURL(file);
     }
   };
@@ -8154,17 +8159,13 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   );
 }
 
-function AuthPreview({ users, onSignUp, onChangePassword, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "", skipApproval = false }) {
+function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "", skipApproval = false }) {
   const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
   const [form, setForm] = useState({ name: "", email: prefillEmail, phone: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [showChangePw, setShowChangePw] = useState(false);
-  const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
-  const [pwError, setPwError] = useState("");
-  const [pwSuccess, setPwSuccess] = useState(false);
 
   // Sends the browser to Google's own sign-in screen via Supabase's OAuth
   // endpoint. redirectTo brings them straight back to this same page —
@@ -8247,26 +8248,6 @@ function AuthPreview({ users, onSignUp, onChangePassword, onExit, onEnterBuilder
     }
   };
 
-  // Shared by the explicit submit (button/Enter) and the live auto-login
-  // effect below. Returns true once `match` is logged in or a terminal
-  // status error was shown; false means "not resolved yet" (caller decides
-  // whether that's worth surfacing as an error).
-  const attemptLogin = (match) => {
-    if (!match) return false;
-    if (match.status === "pending") {
-      setError("This account is still awaiting the owner's approval — check back once you get the approval email.");
-      return true;
-    }
-    if (match.status === "inactive") {
-      setError("This account has been frozen. Contact the site owner for help.");
-      return true;
-    }
-    setError("");
-    setLoggedInUser(match);
-    setScreen("welcome");
-    return true;
-  };
-
   const submitLogin = (e) => {
     e.preventDefault();
     setError("");
@@ -8284,35 +8265,16 @@ function AuthPreview({ users, onSignUp, onChangePassword, onExit, onEnterBuilder
       setError("Incorrect email or password.");
       return;
     }
-    attemptLogin(match);
-  };
-
-  // Logs in the instant a correct password is typed for a known email — no
-  // Enter key or "Log in" click needed. Only acts on a full, exact match;
-  // a wrong-so-far password while still typing is silently ignored here
-  // (the explicit submitLogin above is what shows "Incorrect email or
-  // password" once they give up and hit Enter/click Log in).
-  useEffect(() => {
-    if (screen !== "login" || !dataLoaded || !form.email || !form.password) return;
-    const match = users.find((u) => u.email.toLowerCase() === form.email.toLowerCase());
-    if (match && match.password === form.password) attemptLogin(match);
-  }, [form.email, form.password, screen, dataLoaded, users]);
-
-  const submitChangePassword = (e) => {
-    e.preventDefault();
-    setPwError("");
-    setPwSuccess(false);
-    if (pwForm.next !== pwForm.confirm) {
-      setPwError("New password and confirmation don't match.");
+    if (match.status === "pending") {
+      setError("This account is still awaiting the owner's approval — check back once you get the approval email.");
       return;
     }
-    const result = onChangePassword(loggedInUser.id, pwForm.current, pwForm.next);
-    if (!result.ok) {
-      setPwError(result.error);
+    if (match.status === "inactive") {
+      setError("This account has been frozen. Contact the site owner for help.");
       return;
     }
-    setPwSuccess(true);
-    setPwForm({ current: "", next: "", confirm: "" });
+    setLoggedInUser(match);
+    setScreen("welcome");
   };
 
   const shell = (children) => (
@@ -8466,36 +8428,6 @@ function AuthPreview({ users, onSignUp, onChangePassword, onExit, onEnterBuilder
               <p className="text-[11.5px] italic" style={{ color: MUTED, fontFamily: FONT_BODY }}>
                 Ask the owner to grant design access to unlock the Builder.
               </p>
-            )}
-
-            <button
-              onClick={() => { setShowChangePw((v) => !v); setPwError(""); setPwSuccess(false); }}
-              className="mt-4 text-[12px] underline"
-              style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}
-            >
-              {showChangePw ? "Hide" : "Change my password"}
-            </button>
-
-            {showChangePw && (
-              <form onSubmit={submitChangePassword} className="mt-4 space-y-3 text-left">
-                <div>
-                  <FieldLabel>Current password</FieldLabel>
-                  <TextInput type="password" value={pwForm.current} onChange={(v) => setPwForm((f) => ({ ...f, current: v }))} placeholder="••••••••" />
-                </div>
-                <div>
-                  <FieldLabel>New password</FieldLabel>
-                  <TextInput type="password" value={pwForm.next} onChange={(v) => setPwForm((f) => ({ ...f, next: v }))} placeholder="At least 6 characters" />
-                </div>
-                <div>
-                  <FieldLabel>Confirm new password</FieldLabel>
-                  <TextInput type="password" value={pwForm.confirm} onChange={(v) => setPwForm((f) => ({ ...f, confirm: v }))} placeholder="••••••••" />
-                </div>
-                {pwError && <p className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{pwError}</p>}
-                {pwSuccess && <p className="text-[11.5px]" style={{ color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>Password updated.</p>}
-                <GoldButton type="submit" onClick={submitChangePassword}>
-                  <ShieldCheck size={14} /> Update password
-                </GoldButton>
-              </form>
             )}
           </div>
         )}
@@ -9609,7 +9541,17 @@ export default function InvitationBuilder() {
     }
   };
 
-  const setBgFor = (stepKey) => (bg) => { userChangedBackgroundsRef.current = true; setPageBackgrounds((p) => ({ ...p, [stepKey]: bg })); };
+  // Accepts either a next bg object or an updater fn (currentBg) => nextBg
+  // — BackgroundPicker's upload needs the updater form so it merges onto
+  // whatever bg is current when the (async, possibly slow) upload finishes,
+  // not the bg from whenever the upload started.
+  const setBgFor = (stepKey) => (bgOrUpdater) => {
+    userChangedBackgroundsRef.current = true;
+    setPageBackgrounds((p) => ({
+      ...p,
+      [stepKey]: typeof bgOrUpdater === "function" ? bgOrUpdater(p[stepKey]) : bgOrUpdater,
+    }));
+  };
 
   const moveBlock = (stepKey, blockId, pos) =>
     setLayouts((l) => ({ ...l, [activeLang]: { ...l[activeLang], [stepKey]: { ...l[activeLang][stepKey], [blockId]: { ...l[activeLang][stepKey][blockId], ...pos } } } }));
@@ -10320,15 +10262,6 @@ export default function InvitationBuilder() {
   const toggleDashboardAccess = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, dashboardAccess: !u.dashboardAccess } : u)));
   const toggleCanDesign = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
   const updateUserEmail = (id, email) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
-  // Self-service: any logged-in user can change their own password, as
-  // long as they can still prove they know the current one.
-  const changeOwnPassword = (id, currentPassword, newPassword) => {
-    const target = users.find((u) => u.id === id);
-    if (!target || target.password !== currentPassword) return { ok: false, error: "Current password is incorrect." };
-    if (newPassword.length < 6) return { ok: false, error: "New password must be at least 6 characters." };
-    saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, password: newPassword } : u)));
-    return { ok: true };
-  };
   const signUpUser = (params) => {
     // Shop-purchase signups skip the normal pending-approval wait — the
     // client already paid, so making them wait for a separate manual
@@ -10917,7 +10850,7 @@ export default function InvitationBuilder() {
   if (!isAdminPath && !actingAsUser) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
-        <AuthPreview users={users} onSignUp={signUpUser} onChangePassword={changeOwnPassword} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} prefillEmail={prefillSignupEmail} skipApproval={!!pendingShopTemplate} />
+        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} prefillEmail={prefillSignupEmail} skipApproval={!!pendingShopTemplate} />
       </div>
     );
   }
@@ -10967,7 +10900,7 @@ export default function InvitationBuilder() {
         {!showAuthPreview && <ChatSupportWidget context="builder" onFillForm={applyAiFormData} />}
 
         {showAuthPreview ? (
-          <AuthPreview users={users} onSignUp={signUpUser} onChangePassword={changeOwnPassword} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
+          <AuthPreview users={users} onSignUp={signUpUser} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
         ) : view === "overview" && actingAsUser ? (
           <EventOverviewView
             user={actingAsUser}
