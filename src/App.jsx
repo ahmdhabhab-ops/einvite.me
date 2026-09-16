@@ -7807,9 +7807,12 @@ function TemplateShopPage({ mode = "canva" }) {
   // this page is standalone with no shared state from the main app, so it
   // fetches them directly from their own dedicated key.
   const [shopDesigns, setShopDesigns] = useState([]);
-  const allTemplates = [...INVITATION_TEMPLATES, ...shopDesigns].filter((t) =>
-    mode === "website" ? t.editOnWebsite : !t.editOnWebsite
-  );
+  const allTemplates = INVITATION_TEMPLATES
+    .map((t) => shopDesigns.find((d) => d.id === t.id) || t) // a saved edit with the same id overrides the hardcoded original
+    .concat(shopDesigns.filter((d) => !INVITATION_TEMPLATES.some((t) => t.id === d.id))) // plus any genuinely new designs
+    .filter((t) =>
+      mode === "website" ? t.editOnWebsite : !t.editOnWebsite
+    );
 
   useEffect(() => {
     (async () => {
@@ -9913,7 +9916,16 @@ export default function InvitationBuilder() {
     setEditingShopDesignId(null);
   };
   const updateShopDesign = async (id, patch) => {
-    const nextList = shopDesigns.map((d) => (d.id === id ? { ...d, ...patch } : d));
+    const exists = shopDesigns.some((d) => d.id === id);
+    const nextList = exists
+      ? shopDesigns.map((d) => (d.id === id ? { ...d, ...patch } : d))
+      : (() => {
+          // First edit of a hardcoded template — create a Supabase-saved
+          // override starting from its hardcoded data, so future loads use
+          // this version instead of the original in the code.
+          const base = INVITATION_TEMPLATES.find((t) => t.id === id);
+          return base ? [...shopDesigns, { ...base, ...patch }] : shopDesigns;
+        })();
     setShopDesigns(nextList);
     try {
       await persistentStorage.set(SHOP_DESIGNS_KEY, JSON.stringify(nextList), false);
@@ -11300,7 +11312,7 @@ export default function InvitationBuilder() {
           <SaveAsShopDesignModal
             onClose={() => setShowSaveAsShopDesign(false)}
             onSave={saveCurrentAsShopDesign}
-            existingDesigns={shopDesigns}
+            existingDesigns={INVITATION_TEMPLATES.map((t) => shopDesigns.find((d) => d.id === t.id) || t).concat(shopDesigns.filter((d) => !INVITATION_TEMPLATES.some((t) => t.id === d.id)))}
             onUpdateDesign={updateShopDesign}
             onDeleteDesign={deleteShopDesign}
             onEditInBuilder={loadShopDesignForEditing}
