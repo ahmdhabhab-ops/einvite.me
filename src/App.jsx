@@ -7664,16 +7664,18 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
 function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign, onEditInBuilder, onUploadVideo }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [canvaUrl, setCanvaUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [editCanvaUrl, setEditCanvaUrl] = useState("");
 
   const submit = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    await onSave(name.trim(), price);
+    await onSave(name.trim(), price, canvaUrl.trim());
     setSaving(false);
     setDone(true);
   };
@@ -7682,9 +7684,16 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
     setEditingId(design.id);
     setEditName(design.name);
     setEditPrice(String(design.price || ""));
+    setEditCanvaUrl(design.canvaTemplateUrl || "");
   };
   const saveEdit = () => {
-    onUpdateDesign(editingId, { name: editName.trim() || "Untitled design", price: Number(editPrice) || 0 });
+    const trimmedCanvaUrl = editCanvaUrl.trim();
+    onUpdateDesign(editingId, {
+      name: editName.trim() || "Untitled design",
+      price: Number(editPrice) || 0,
+      canvaTemplateUrl: trimmedCanvaUrl || null,
+      editOnWebsite: !trimmedCanvaUrl, // a Canva link makes this a /shop (Canva-linked) design; no link keeps it a /designs (built-in-app) one
+    });
     setEditingId(null);
   };
 
@@ -7706,6 +7715,7 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
                   <div className="space-y-2">
                     <TextInput value={editName} onChange={setEditName} placeholder="Design name" />
                     <TextInput type="number" value={editPrice} onChange={setEditPrice} placeholder="Price" />
+                    <TextInput value={editCanvaUrl} onChange={setEditCanvaUrl} placeholder="Canva template link (leave blank for a /designs, built-in-app design)" />
                     <div className="flex gap-2">
                       <button onClick={saveEdit} className="flex-1 rounded-full py-1.5 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>Save</button>
                       <button onClick={() => setEditingId(null)} className="flex-1 rounded-full py-1.5 text-[11.5px] font-semibold" style={{ border: `1px solid rgba(147,166,155,0.3)`, color: MUTED, fontFamily: FONT_BODY }}>Cancel</button>
@@ -7714,7 +7724,12 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
                 ) : (
                   <div className="flex items-center justify-between gap-2">
                     <div>
-                      <div className="text-[12.5px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>{d.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[12.5px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>{d.name}</span>
+                        <span className="rounded-full px-1.5 py-0.5 text-[8.5px] font-semibold uppercase" style={{ background: d.editOnWebsite ? "rgba(143,191,163,0.15)" : "rgba(201,164,76,0.15)", color: d.editOnWebsite ? CHART_COLORS.yes : GOLD_SOFT }}>
+                          {d.editOnWebsite ? "Designs" : "Shop"}
+                        </span>
+                      </div>
                       <div className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>${d.price}</div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -7756,6 +7771,13 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
             <div className="mt-3">
               <FieldLabel>Price (USD)</FieldLabel>
               <TextInput type="number" value={price} onChange={setPrice} placeholder="35" />
+            </div>
+            <div className="mt-3">
+              <FieldLabel>Canva template link (optional)</FieldLabel>
+              <TextInput value={canvaUrl} onChange={setCanvaUrl} placeholder="Leave blank for a /designs design" />
+              <p className="mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                With a link: shows on /shop as a Canva-linked design. Without one: shows on /designs, editable right here in the Builder.
+              </p>
             </div>
             <button
               onClick={submit}
@@ -9805,7 +9827,7 @@ export default function InvitationBuilder() {
   // a one-time snapshot of the STYLE only. Saved straight to Supabase so
   // /shop (a completely separate page) sees it right away, without
   // depending on a "Save invitation" click.
-  const saveCurrentAsShopDesign = async (name, price) => {
+  const saveCurrentAsShopDesign = async (name, price, canvaUrl) => {
     const pageImages = Object.fromEntries(
       Object.keys(pageBackgrounds)
         .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
@@ -9836,8 +9858,8 @@ export default function InvitationBuilder() {
       gateAnimationStyle: intro.animationStyle || "floatingHearts",
       gateIcon: intro.icon || "heart",
       eventTypes: ["wedding", "birthday", "baptism", "babyShower", "quinceanera"],
-      editOnWebsite: true,
-      canvaTemplateUrl: null,
+      editOnWebsite: !canvaUrl,
+      canvaTemplateUrl: canvaUrl || null,
       previewVideo: null,
     };
     const nextList = [...shopDesigns, newDesign];
