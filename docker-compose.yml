@@ -1,0 +1,12 @@
+services:
+  einvite:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - SUPABASE_URL=${SUPABASE_URL:-https://tahbjwbmigoodfrfjpri.supabase.co}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM}
+    ports:
+      - "3000:3000"
