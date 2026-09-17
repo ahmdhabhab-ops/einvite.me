@@ -606,7 +606,7 @@ const ENVELOPE_STYLES = {
   },
 };
 
-const emptyIntroMedia = () => ({ en: null, ar: null, fr: null, es: null }); // each entry: { type: 'image'|'video', url, name }
+const emptyIntroMedia = () => ({ en: null, ar: null, fr: null, es: null, hy: null }); // each entry: { type: 'image'|'video', url, name }
 
 const defaultIntroSettings = {
   type: "button",
@@ -9991,7 +9991,12 @@ export default function InvitationBuilder() {
     const imageJobs = [
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
       ...ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)),
-      ...LANGS.filter((lang) => intro.media[lang]?.url).map((lang) => persistentStorage.set(introBgKey(lang), JSON.stringify(intro.media[lang]), false)),
+      // Every language, not just ones with media set — filtering out a lang
+      // with no media meant deleting it never actually wrote anything here,
+      // so the OLD value already saved under that language's key was never
+      // overwritten: reloading the page fetched that stale value right back,
+      // making a "removed" background reappear after every refresh.
+      ...LANGS.map((lang) => persistentStorage.set(introBgKey(lang), JSON.stringify(intro.media[lang] || null), false)),
       // THE ACTUAL FIX: only write the CURRENTLY ACTIVE invitation's own
       // snapshot here — not every other known client's local copy. Other
       // clients' data is now saved at the moment of switching away from
