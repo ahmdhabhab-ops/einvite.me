@@ -610,7 +610,16 @@ const defaultIntroSettings = {
   animationStyle: "floatingHearts",
   sealDesign: "gold",
   media: emptyIntroMedia(),
+  revealHoldMs: null, // null = 700ms (the "Medium" point in REVEAL_SPEED_MS, in CoverStep) — same speed regardless of background media type, until the admin picks a different one
 };
+
+// Named points on the "Transition speed" slider in CoverStep, rather than a
+// raw free-typed number — keeps the range sane and the label readable.
+const REVEAL_SPEED_MS = [
+  { key: "fast", label: "Fast", ms: 350 },
+  { key: "medium", label: "Medium", ms: 700 },
+  { key: "slow", label: "Slow", ms: 1200 },
+];
 
 const FONT_OPTIONS = [
   { key: "auto", label: "Default", value: null },
@@ -2647,6 +2656,30 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
       <div className="mt-4">
         <FieldLabel>Tap to start text ({LANG_META[activeLang].short})</FieldLabel>
         <TextInput value={c.tapText} onChange={(v) => updateContent({ tapText: v })} placeholder="TAP TO START" />
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Transition speed</FieldLabel>
+        <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          How long the tap-to-start reveal takes before the invitation opens.
+        </p>
+        <div className="flex gap-2">
+          {REVEAL_SPEED_MS.map(({ key, label, ms }) => (
+            <button
+              key={key}
+              onClick={() => updateIntro({ revealHoldMs: ms })}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{
+                background: (intro.revealHoldMs ?? 700) === ms ? GOLD : INK_3,
+                color: (intro.revealHoldMs ?? 700) === ms ? INK : MUTED,
+                border: `1px solid ${(intro.revealHoldMs ?? 700) === ms ? GOLD : "rgba(147,166,155,0.3)"}`,
+                fontFamily: FONT_BODY,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mt-4">
@@ -5137,6 +5170,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [playing, data.music.url]);
 
   const introMedia = data.intro.media[lang];
+  // Admin-adjustable via the "Transition speed" control in CoverStep — how
+  // long the tap-to-start reveal holds before the invitation actually opens.
+  // Applies uniformly regardless of gate style or background media type.
+  const revealHoldMs = data.intro.revealHoldMs ?? 700;
 
   // Kept in sync so the async play()/pause() priming below (whose promise can
   // resolve after a render or two) can check the CURRENT started state rather
@@ -5371,10 +5408,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       gateVideoRef.current.play().catch(() => {});
                     }
                     setGateClosing(true);
-                    setTimeout(() => { onStart(); setGateClosing(false); }, 480);
+                    setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                   }}
                   className="absolute inset-0"
-                  style={{ opacity: gateClosing ? 0 : 1, transition: "opacity 0.48s ease", pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
+                  style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${revealHoldMs}ms ease`, pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
                   <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} revealing={gateClosing} />
                 </button>
@@ -5389,10 +5426,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     // from the DOM outright, which was an abrupt cut straight from a
                     // moving video to the static slide underneath.
                     opacity: gateClosing ? 0 : 1,
-                    // A GIF background (animated via its posterUrl swap) needs the
-                    // same longer hold a video gets — otherwise the reveal cuts away
-                    // before there's been any time to actually see it animate.
-                    transition: `opacity ${introMedia?.type === "video" || (introMedia?.type === "image" && introMedia?.posterUrl) ? 0.9 : 0.48}s ease`,
+                    transition: `opacity ${revealHoldMs}ms ease`,
                   }}
                 >
                   {/* Media layer: never animated directly, so playback isn't disrupted mid-decode on lower-power phones */}
@@ -5420,8 +5454,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                         gateVideoRef.current.play().catch(() => {});
                       }
                       setGateClosing(true);
-                      const holdMs = introMedia?.type === "video" || (introMedia?.type === "image" && introMedia?.posterUrl) ? 900 : 480;
-                      setTimeout(() => { onStart(); setGateClosing(false); }, holdMs);
+                      setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                     }}
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
                     style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
@@ -9933,7 +9966,7 @@ export default function InvitationBuilder() {
       guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
-      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId }, // media (image or video) saved separately below via introBgKey
+      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
       musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
     const imageJobs = [
