@@ -32,6 +32,7 @@ const FONT_DISPLAY = "'Fraunces', serif";
 const FONT_BODY = "'Inter', sans-serif";
 const FONT_SCRIPT = "'Parisienne', cursive";
 const FONT_AR = "'Cairo', sans-serif";
+const FONT_HY = "'Noto Serif Armenian', serif";
 
 const CHART_COLORS = { yes: "#8FBFA3", no: "#D98E8E", pending: "#6C7C74" };
 
@@ -1510,12 +1511,13 @@ async function uploadVideoToStorage(file) {
 /* Languages                                                                */
 /* ---------------------------------------------------------------------- */
 
-const LANGS = ["en", "ar", "fr", "es"];
+const LANGS = ["en", "ar", "fr", "es", "hy"];
 const LANG_META = {
   en: { label: "English", short: "EN", dir: "ltr", locale: "en-US" },
   ar: { label: "العربية", short: "AR", dir: "rtl", locale: "ar" },
   fr: { label: "Français", short: "FR", dir: "ltr", locale: "fr-FR" },
   es: { label: "Español", short: "ES", dir: "ltr", locale: "es-ES" },
+  hy: { label: "Հայերեն", short: "HY", dir: "ltr", locale: "hy-AM" },
 };
 
 const PREVIEW_T = {
@@ -1523,6 +1525,7 @@ const PREVIEW_T = {
   ar: { orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
   fr: { orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
   es: { orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -1550,18 +1553,23 @@ const defaultContent = {
     family: { greeting: "Con el corazón lleno de alegría, les invitamos a celebrar el comienzo de nuestra eternidad.", quote: "", side1Title: "Familia de la novia", side1Names: "Sr. y Sra. Rodríguez", side2Title: "Familia del novio", side2Names: "Sr. y Sra. Chen", side1Icon: null, side2Icon: null },
     rsvp: { heading: "Confirmación", yesLabel: "Asistirá con alegría", noLabel: "Lamenta no poder asistir" },
   },
+  hy: {
+    cover: { name1: "Elena", name2: "Marcus", intro: "իրենց ընտանիքների հետ միասին սիրով հրավիրում են ձեզ կիսելու իրենց հարսանիքի ուրախությունը", tapText: "ՀՊԵՔ՝ ՍԿՍԵԼՈՒ ՀԱՄԱՐ" },
+    family: { greeting: "Ուրախությամբ լի սրտերով հրավիրում ենք ձեզ վկա դառնալու մեր հավերժության սկզբին.", quote: "", side1Title: "Հարսի ընտանիքը", side1Names: "Պարոն և տիկին Ռոդրիգես", side2Title: "Փեսայի ընտանիքը", side2Names: "Պարոն և տիկին Չեն", side1Icon: null, side2Icon: null },
+    rsvp: { heading: "Հաստատում", yesLabel: "Ուրախությամբ կմասնակցենք", noLabel: "Ցավոք՝ չենք կարող մասնակցել" },
+  },
 };
 
 const defaultTimeline = [
-  { id: uid(), icon: "church", time: "4:00 PM", label: { en: "Ceremony", ar: "حفل الزفاف", fr: "Cérémonie", es: "Ceremonia" } },
-  { id: uid(), icon: "wine", time: "5:30 PM", label: { en: "Welcome Drinks", ar: "مشروبات الترحيب", fr: "Cocktail de bienvenue", es: "Bienvenida" } },
-  { id: uid(), icon: "utensils", time: "7:00 PM", label: { en: "Dinner", ar: "العشاء", fr: "Dîner", es: "Cena" } },
-  { id: uid(), icon: "party", time: "9:00 PM", label: { en: "Party", ar: "الحفلة", fr: "Soirée dansante", es: "Fiesta" } },
+  { id: uid(), icon: "church", time: "4:00 PM", label: { en: "Ceremony", ar: "حفل الزفاف", fr: "Cérémonie", es: "Ceremonia", hy: "Արարողություն" } },
+  { id: uid(), icon: "wine", time: "5:30 PM", label: { en: "Welcome Drinks", ar: "مشروبات الترحيب", fr: "Cocktail de bienvenue", es: "Bienvenida", hy: "Ողջույնի խմիչքներ" } },
+  { id: uid(), icon: "utensils", time: "7:00 PM", label: { en: "Dinner", ar: "العشاء", fr: "Dîner", es: "Cena", hy: "Ընթրիք" } },
+  { id: uid(), icon: "party", time: "9:00 PM", label: { en: "Party", ar: "الحفلة", fr: "Soirée dansante", es: "Fiesta", hy: "Խնջույք" } },
 ];
 
 const defaultLocations = [
-  { id: uid(), time: "4:00 PM", address: "St. Augustine Chapel, 12 Rose Ave", title: { en: "The Ceremony", ar: "مراسم الزفاف", fr: "La Cérémonie", es: "La Ceremonia" } },
-  { id: uid(), time: "5:30 PM", address: "Willowbrook Estate, 88 Garden Rd", title: { en: "The Reception", ar: "حفل الاستقبال", fr: "La Réception", es: "La Recepción" } },
+  { id: uid(), time: "4:00 PM", address: "St. Augustine Chapel, 12 Rose Ave", title: { en: "The Ceremony", ar: "مراسم الزفاف", fr: "La Cérémonie", es: "La Ceremonia", hy: "Արարողությունը" } },
+  { id: uid(), time: "5:30 PM", address: "Willowbrook Estate, 88 Garden Rd", title: { en: "The Reception", ar: "حفل الاستقبال", fr: "La Réception", es: "La Recepción", hy: "Ընդունելությունը" } },
 ];
 
 const defaultRegistry = [
@@ -5086,8 +5094,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
-  const fontDisplay = lang === "ar" ? FONT_AR : FONT_DISPLAY;
-  const fontScript = lang === "ar" ? FONT_AR : FONT_SCRIPT;
+  const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
+  const fontScript = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_SCRIPT;
   const stepKey = steps[activeIndex].key;
   // Whether the CURRENT active page needs light text (dark/photo background)
   // or dark text (light/paper background) — same "photo mode = light text"
@@ -9211,7 +9219,7 @@ export default function InvitationBuilder() {
     const link = document.createElement("link");
     link.id = id;
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Serif+Armenian:wght@400;600&display=swap";
     document.head.appendChild(link);
   }, []);
 
@@ -10940,7 +10948,7 @@ export default function InvitationBuilder() {
         <div className="mb-6 flex items-baseline justify-between">
           <div>
             <div className="text-[10px] font-semibold uppercase" style={{ color: GOLD, letterSpacing: "0.2em" }}>eInvite.me</div>
-            <h1 className="mt-1 text-2xl" style={{ fontFamily: activeLang === "ar" ? FONT_AR : FONT_DISPLAY, color: IVORY, fontStyle: activeLang === "ar" ? "normal" : "italic" }}>
+            <h1 className="mt-1 text-2xl" style={{ fontFamily: activeLang === "ar" ? FONT_AR : activeLang === "hy" ? FONT_HY : FONT_DISPLAY, color: IVORY, fontStyle: activeLang === "ar" || activeLang === "hy" ? "normal" : "italic" }}>
               {c.cover.name1 || "—"}{c.cover.name2 ? <> &amp; {c.cover.name2}</> : null}
             </h1>
           </div>
