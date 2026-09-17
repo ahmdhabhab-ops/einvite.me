@@ -5389,7 +5389,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     // from the DOM outright, which was an abrupt cut straight from a
                     // moving video to the static slide underneath.
                     opacity: gateClosing ? 0 : 1,
-                    transition: `opacity ${introMedia?.type === "video" ? 0.9 : 0.48}s ease`,
+                    // A GIF background (animated via its posterUrl swap) needs the
+                    // same longer hold a video gets — otherwise the reveal cuts away
+                    // before there's been any time to actually see it animate.
+                    transition: `opacity ${introMedia?.type === "video" || (introMedia?.type === "image" && introMedia?.posterUrl) ? 0.9 : 0.48}s ease`,
                   }}
                 >
                   {/* Media layer: never animated directly, so playback isn't disrupted mid-decode on lower-power phones */}
@@ -5417,7 +5420,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                         gateVideoRef.current.play().catch(() => {});
                       }
                       setGateClosing(true);
-                      const holdMs = introMedia?.type === "video" ? 900 : 480;
+                      const holdMs = introMedia?.type === "video" || (introMedia?.type === "image" && introMedia?.posterUrl) ? 900 : 480;
                       setTimeout(() => { onStart(); setGateClosing(false); }, holdMs);
                     }}
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
@@ -8211,12 +8214,21 @@ function TemplateShopPage({ mode = "canva" }) {
 }
 
 // Floating AI support chat — a small round bubble in the corner that
-// expands into a chat panel. Needs a new Edge Function called
-// "chat-support" deployed on Supabase before this actually answers
-// anything: that function is what holds the real API key and calls an
-// AI service (e.g. Anthropic's Claude) server-side, then returns just
-// the reply text here. Until that Edge Function exists, this will show
-// the friendly error message below instead of a real answer.
+// expands into a chat panel. Needs an Edge Function named exactly
+// "clever-api" deployed at {SUPABASE_URL}/functions/v1/clever-api —
+// see sendChatSupportMessage above, which is what this actually calls.
+// (An earlier version of this comment said "chat-support", which was
+// never the real endpoint — if a function was ever deployed under that
+// name instead, every request here 404s regardless of any API key.)
+// That function is what holds the real API key and calls an AI service
+// (e.g. Anthropic's Claude) server-side — for the "builder" context, it
+// also needs to return a `formData` object of whatever invitation
+// fields it extracted from the conversation (see onFillForm below) —
+// then returns just the reply text here. It also needs to handle the
+// { action: "send-whatsapp", ... } shape sendWhatsAppMessage posts to
+// this same endpoint. Until that Edge Function exists and responds
+// correctly, this will show the friendly error message below instead
+// of a real answer.
 function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
