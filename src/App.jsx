@@ -118,6 +118,10 @@ const DECORATIVE_ICONS = {
 };
 
 const GATE_ICONS = { heart: Heart, mail: Mail, sparkles: Sparkles, star: Star };
+// Slow-motion feel for the intro gate's video background once it starts
+// playing after the tap — never before it (that's still governed entirely
+// by the pause/play guards around gateVideoRef).
+const GATE_VIDEO_PLAYBACK_RATE = 0.5;
 const MUSIC_ICONS = {
   speaker: { name: "Speaker", playing: Volume2, muted: VolumeX },
   note: { name: "Music note", playing: Music2, muted: Music2 },
@@ -4891,7 +4895,7 @@ function GateAnimation({ style }) {
 
 // Envelope gate with an embossed wax seal. Either a built-in style (no upload
 // needed, everything CSS) or a custom uploaded photo/video behind the seal.
-function WaxSealGate({ tapText, design, customMedia, videoRef }) {
+function WaxSealGate({ tapText, design, customMedia, videoRef, started }) {
   const d = ENVELOPE_STYLES[design] || ENVELOPE_STYLES.kraftGold;
   const EngraveIcon = d.engrave;
   const hasCustomBg = !!customMedia;
@@ -4908,7 +4912,11 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
               muted
               loop
               playsInline
-              onPause={(e) => { if (e.currentTarget.currentTime > 0) e.currentTarget.play().catch(() => {}); }} // only auto-resume a video that's actually been started (currentTime > 0) — never before the tap
+              onPlay={(e) => {
+                if (!started) { e.currentTarget.pause(); return; } // never before the tap, regardless of what triggered playback
+                e.currentTarget.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
+              }}
+              onPause={(e) => { if (started) e.currentTarget.play().catch(() => {}); }} // only auto-resume once the gate has actually been tapped
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
@@ -5279,6 +5287,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     if (gateClosing) return;
                     if (introMedia?.type === "video" && gateVideoRef.current) {
                       gateVideoRef.current.muted = true;
+                      gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                       gateVideoRef.current.play().catch(() => {});
                     }
                     setGateClosing(true);
@@ -5287,7 +5296,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   className="absolute inset-0"
                   style={{ opacity: gateClosing ? 0 : 1, transition: "opacity 0.48s ease", pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
-                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} />
+                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} />
                 </button>
               ) : (
                 <div className="absolute inset-0" style={{ background: gateBackground }}>
@@ -5300,6 +5309,13 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       muted
                       loop
                       playsInline
+                      onPlay={(e) => {
+                        // Extra safety net on top of the mount-time pause() effect above —
+                        // if any browser-specific quirk starts playback on its own before
+                        // the tap, this stops it the instant it's detected.
+                        if (!started) { e.currentTarget.pause(); return; }
+                        e.currentTarget.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
+                      }}
                       onPause={(e) => { if (started) e.currentTarget.play().catch(() => {}); }}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
@@ -5312,10 +5328,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       if (gateClosing) return;
                       // A tap is a real user gesture, so play() here succeeds even in
                       // sandboxed/embedded contexts that silently block autoplay before
-                      // any interaction — the earlier mount-time play() attempt is a
-                      // bonus for environments that do allow autoplay, not the only path.
+                      // any interaction — this is the only place playback ever starts.
                       if (introMedia?.type === "video" && gateVideoRef.current) {
                         gateVideoRef.current.muted = true;
+                        gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                         gateVideoRef.current.play().catch(() => {});
                       }
                       setGateClosing(true);
@@ -10464,12 +10480,19 @@ export default function InvitationBuilder() {
         alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
         return;
       }
-      // Read as a persistent base64 data URI instead of a temporary blob URL —
-      // a blob URL only exists within the current browser tab's session, so
-      // it never survives a reload or a different device reading this data
-      // back later. Same bug class, same fix, as the music upload earlier.
+      // Show an instant local preview via a blob URL first — encoding a large
+      // video to base64 and pushing a many-MB string into state is what was
+      // making the upload feel frozen, since every component reading
+      // data.intro re-renders holding that huge string. The blob URL swap
+      // is instant; the real persistent base64 data URI (needed because a
+      // blob URL doesn't survive a reload or a different device reading this
+      // data back later — same bug class, same fix, as the music upload
+      // earlier) is swapped in moments later once it's ready.
+      const previewUrl = URL.createObjectURL(file);
+      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: previewUrl, name: file.name } } }));
       const reader = new FileReader();
       reader.onload = () => {
+        URL.revokeObjectURL(previewUrl);
         setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: reader.result, name: file.name } } }));
       };
       reader.readAsDataURL(file);
