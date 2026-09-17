@@ -4939,7 +4939,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover` }} />
+            <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover, ${INK}` }} />
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.25) 0%, rgba(10,12,10,0.5) 100%)" }} />
         </>
@@ -5149,7 +5149,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
   const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
-  const gateBackground = gateImage ? `url(${gateImage}) center/cover` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  // An opaque color as the bottom layer here matters for any uploaded image/GIF
+  // with transparent regions (a common design pattern for decorative overlay
+  // art) — without it, the transparent parts let whatever sits behind the gate
+  // in the DOM (the cover slide's own photo and text) show straight through.
+  const gateBackground = gateImage ? `url(${gateImage}) center/cover, ${INK}` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
