@@ -10321,23 +10321,28 @@ export default function InvitationBuilder() {
 
   const toggleLayoutEditMode = () => setLayoutEditMode((v) => { if (v) setSelectedBlockId(null); return !v; });
 
-  const handleAudioUpload = (e) => {
+  const handleAudioUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) {
       alert("That audio file is quite large (over 20MB) — try a shorter clip or a more compressed format (MP3 rather than WAV) for a smoother experience.");
       return;
     }
-    // Read as a persistent base64 data URI instead of a temporary blob URL —
-    // a blob URL only exists within the current browser tab's session, so it
-    // never survives a reload, a different tab, or the guest-facing view
-    // reading this data back later — exactly why uploaded music stopped
-    // being audible after upload.
-    const reader = new FileReader();
-    reader.onload = () => {
-      setMusic((m) => ({ ...m, url: reader.result, name: file.name, enabled: true }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Uploaded to Storage and referenced by its URL, not read into a base64
+      // data URI kept in this invitation's own saved JSON — same fix, same
+      // reason, as the intro video/GIF background earlier: a multi-MB base64
+      // string got re-sent in full on every single "Save" and re-fetched in
+      // full on every page load (a ~1.2MB audio file alone was taking
+      // 15-20+ seconds to load from kv_store), which is what was making
+      // the whole editor feel slow to open. Reuses the custom-videos bucket
+      // (already has the right Storage policies) rather than needing a new
+      // bucket + its own RLS setup.
+      const url = await uploadVideoToStorage(file);
+      setMusic((m) => ({ ...m, url, name: file.name, enabled: true }));
+    } catch (err) {
+      alert(err.message || "Couldn't upload — please try again.");
+    }
   };
 
   const guestGroupsSaveTimeout = useRef(null);
