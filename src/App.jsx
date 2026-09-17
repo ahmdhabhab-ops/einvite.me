@@ -5290,7 +5290,19 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} />
                 </button>
               ) : (
-                <div className="absolute inset-0" style={{ background: gateBackground }}>
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: gateBackground,
+                    // The whole gate (video/photo background + button) fades out as one
+                    // unit here, instead of just the tap button — previously the video
+                    // kept playing at full opacity right up until the gate was removed
+                    // from the DOM outright, which was an abrupt cut straight from a
+                    // moving video to the static slide underneath.
+                    opacity: gateClosing ? 0 : 1,
+                    transition: `opacity ${introMedia?.type === "video" ? 0.9 : 0.48}s ease`,
+                  }}
+                >
                   {/* Media layer: never animated directly, so playback isn't disrupted mid-decode on lower-power phones */}
                   {introMedia?.type === "video" && (
                     <video
@@ -5306,14 +5318,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   )}
                   {data.intro.type === "animation" && <GateAnimation style={data.intro.animationStyle} />}
 
-                  {/* Curtain layer: this is the only thing that fades on tap */}
                   <button
                     onClick={() => {
                       if (gateClosing) return;
-                      // A tap is a real user gesture, so play() here succeeds even in
-                      // sandboxed/embedded contexts that silently block autoplay before
-                      // any interaction — the earlier mount-time play() attempt is a
-                      // bonus for environments that do allow autoplay, not the only path.
+                      // Playback only ever starts from this explicit, user-gesture-backed
+                      // call — the gate stays paused until tap (see the pause effect above).
                       if (introMedia?.type === "video" && gateVideoRef.current) {
                         gateVideoRef.current.muted = true;
                         gateVideoRef.current.play().catch(() => {});
@@ -5323,7 +5332,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       setTimeout(() => { onStart(); setGateClosing(false); }, holdMs);
                     }}
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
-                    style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${introMedia?.type === "video" ? 0.9 : 0.48}s ease`, pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
+                    style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                   >
                     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)" }} />
                     <div className="relative z-10 flex flex-col items-center gap-4">
