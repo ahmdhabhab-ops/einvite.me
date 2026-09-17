@@ -1517,7 +1517,7 @@ const LANG_META = {
   ar: { label: "العربية", short: "AR", dir: "rtl", locale: "ar" },
   fr: { label: "Français", short: "FR", dir: "ltr", locale: "fr-FR" },
   es: { label: "Español", short: "ES", dir: "ltr", locale: "es-ES" },
-  hy: { label: "Հայերեն", short: "HY", dir: "ltr", locale: "hy-AM" },
+  hy: { label: "Հայերեն", short: "Armenian", dir: "ltr", locale: "hy-AM" },
 };
 
 const PREVIEW_T = {
@@ -1670,6 +1670,25 @@ function mergeCustomBlocksWithDefaults(saved) {
     // point on (editing one language no longer affects the others).
     const migrated = fillMissingSteps(saved);
     for (const lang of LANGS) result[lang] = migrated;
+  }
+  return result;
+}
+
+// Same backward-compatibility need as the two merge functions above, for the
+// actual cover/family/rsvp text: an invitation saved before a language (e.g.
+// Armenian) existed has no key for it at all in its saved content, so
+// switching to that language left content[lang] undefined — and every step
+// component reads it unconditionally (content[activeLang].cover.name1, etc.),
+// so the whole editor crashed to a blank page the moment it became active.
+function mergeContentWithDefaults(saved) {
+  const result = {};
+  for (const lang of LANGS) {
+    const langDefault = defaultContent[lang] || defaultContent.en;
+    const langSaved = saved?.[lang] || {};
+    result[lang] = { ...langDefault, ...langSaved };
+    for (const section of Object.keys(langDefault)) {
+      result[lang][section] = { ...langDefault[section], ...(langSaved[section] || {}) };
+    }
   }
   return result;
 }
@@ -9505,7 +9524,7 @@ export default function InvitationBuilder() {
   });
 
   const applySnapshot = (snap) => {
-    setContent(snap.content); setTimeline(snap.timeline); setLocations(snap.locations);
+    setContent(mergeContentWithDefaults(snap.content)); setTimeline(snap.timeline); setLocations(snap.locations);
     setPageBackgrounds(snap.pageBackgrounds); setMusic(snap.music); setRsvpSchedule(snap.rsvpSchedule);
     setRegistry(snap.registry); setEnabledSteps(snap.enabledSteps); setPageOrder(snap.pageOrder);
     setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(mergeCustomBlocksWithDefaults(snap.customBlocks));
@@ -9656,7 +9675,7 @@ export default function InvitationBuilder() {
         const res = await persistentStorage.get(DRAFT_KEY, false);
         if (cancelled || !res?.value) return;
         const d = JSON.parse(res.value);
-        if (d.content) setContent(d.content);
+        if (d.content) setContent(mergeContentWithDefaults(d.content));
         if (d.timeline) setTimeline(d.timeline);
         if (d.locations) setLocations(d.locations);
         if (d.registry) setRegistry(d.registry);
@@ -9711,7 +9730,7 @@ export default function InvitationBuilder() {
               if (activeSnapshot.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(activeSnapshot.customBlocks));
               if (activeSnapshot.openInviteLinks) setOpenInviteLinks(activeSnapshot.openInviteLinks);
               if (activeSnapshot.venueElements) setVenueElements(activeSnapshot.venueElements);
-              if (activeSnapshot.content) setContent(activeSnapshot.content);
+              if (activeSnapshot.content) setContent(mergeContentWithDefaults(activeSnapshot.content));
               if (activeSnapshot.pageBackgrounds) setPageBackgrounds(activeSnapshot.pageBackgrounds);
               if (activeSnapshot.layouts) setLayouts(mergeLayoutsWithDefaults(activeSnapshot.layouts));
               if (activeSnapshot.timeline) setTimeline(activeSnapshot.timeline);
