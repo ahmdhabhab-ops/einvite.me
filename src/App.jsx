@@ -5487,8 +5487,27 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
                     style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                   >
-                    <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)" }} />
-                    <div className="relative z-10 flex flex-col items-center gap-4">
+                    {/* Two diagonal curtain panels that slide apart on tap — like an
+                        envelope's two flaps opening — instead of the scrim just fading
+                        in place. The background/video underneath still cross-fades via
+                        the outer div's opacity (unchanged), so by the time these panels
+                        have slid away the whole gate is already gone too. */}
+                    {[0, 1].map((i) => (
+                      <div
+                        key={i}
+                        className="absolute inset-0"
+                        style={{
+                          clipPath: i === 0 ? "polygon(0 0, 100% 0, 0 100%)" : "polygon(100% 0, 100% 100%, 0 100%)",
+                          background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)",
+                          transform: gateClosing ? (i === 0 ? "translate(-120%, -120%)" : "translate(120%, 120%)") : "translate(0, 0)",
+                          transition: `transform ${revealHoldMs}ms ease`,
+                        }}
+                      />
+                    ))}
+                    <div
+                      className="relative z-10 flex flex-col items-center gap-4"
+                      style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${Math.min(revealHoldMs, 400)}ms ease` }}
+                    >
                       {data.intro.type === "button" && (
                         <div className="flex h-16 w-16 items-center justify-center rounded-full" style={{ border: `1.5px solid rgba(244,237,228,0.85)` }}>
                           <GateIcon size={24} color={PAPER} strokeWidth={1.4} />
