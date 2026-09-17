@@ -5424,23 +5424,37 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     setGateClosing(true);
                     setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                   }}
-                  className="absolute inset-0"
-                  style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${revealHoldMs}ms ease`, pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
+                  className="absolute inset-0 overflow-hidden"
+                  style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
-                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} revealing={gateClosing} />
+                  {/* The whole envelope slides fully away like a curtain being pulled
+                      off, instead of cross-fading out in place — a plain opacity fade
+                      blends two very different-looking images (the envelope's own dark,
+                      textured background against whatever plain page sits behind it),
+                      which shows up as a pale ghosting smear partway through. A hard
+                      translate never blends anything: it's opaque right up to the edge
+                      that's sliding past, so the page underneath appears cleanly. */}
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      transform: gateClosing ? "translate(130%, -130%)" : "translate(0, 0)",
+                      transition: `transform ${revealHoldMs}ms ease`,
+                    }}
+                  >
+                    <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} revealing={gateClosing} />
+                  </div>
                 </button>
               ) : (
                 <div
-                  className="absolute inset-0"
+                  className="absolute inset-0 overflow-hidden"
                   style={{
                     background: gateBackground,
-                    // The whole gate (video/photo background + button) fades out as one
-                    // unit here, instead of just the tap button — previously the video
-                    // kept playing at full opacity right up until the gate was removed
-                    // from the DOM outright, which was an abrupt cut straight from a
-                    // moving video to the static slide underneath.
-                    opacity: gateClosing ? 0 : 1,
-                    transition: `opacity ${revealHoldMs}ms ease`,
+                    // Same reasoning as the seal gate above: slide the whole thing away
+                    // as one opaque unit instead of cross-fading it out, so the page
+                    // underneath is revealed with a clean hard edge instead of a pale
+                    // ghosting blend partway through.
+                    transform: gateClosing ? "translate(130%, -130%)" : "translate(0, 0)",
+                    transition: `transform ${revealHoldMs}ms ease`,
                   }}
                 >
                   {/* Media layer: never animated directly, so playback isn't disrupted mid-decode on lower-power phones */}
@@ -5487,23 +5501,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
                     style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                   >
-                    {/* Two diagonal curtain panels that slide apart on tap — like an
-                        envelope's two flaps opening — instead of the scrim just fading
-                        in place. The background/video underneath still cross-fades via
-                        the outer div's opacity (unchanged), so by the time these panels
-                        have slid away the whole gate is already gone too. */}
-                    {[0, 1].map((i) => (
-                      <div
-                        key={i}
-                        className="absolute inset-0"
-                        style={{
-                          clipPath: i === 0 ? "polygon(0 0, 100% 0, 0 100%)" : "polygon(100% 0, 100% 100%, 0 100%)",
-                          background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)",
-                          transform: gateClosing ? (i === 0 ? "translate(-120%, -120%)" : "translate(120%, 120%)") : "translate(0, 0)",
-                          transition: `transform ${revealHoldMs}ms ease`,
-                        }}
-                      />
-                    ))}
+                    <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)" }} />
                     <div
                       className="relative z-10 flex flex-col items-center gap-4"
                       style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${Math.min(revealHoldMs, 400)}ms ease` }}
