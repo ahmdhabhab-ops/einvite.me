@@ -5102,13 +5102,30 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const introMedia = data.intro.media[lang];
 
-  // The gate video must stay frozen on tap-to-start — it must never play on
-  // its own before the user taps, regardless of any browser-specific
-  // autoplay heuristic. Playback only begins from the explicit play() call
-  // in the tap handlers below.
+  // Kept in sync so the async play()/pause() priming below (whose promise can
+  // resolve after a render or two) can check the CURRENT started state rather
+  // than the one captured in its own closure when it started.
+  const startedRef = useRef(started);
+  useEffect(() => { startedRef.current = started; }, [started]);
+
+  // The gate video must stay frozen on tap-to-start — it must never actually
+  // play on its own before the user taps. But some mobile browsers (notably
+  // iOS Safari) render nothing at all for a <video> — a blank/black box, not
+  // its first frame — until playback has been triggered at least once,
+  // regardless of preload. So rather than just pausing it, briefly play then
+  // immediately pause (both silent and effectively instant, since it's
+  // muted) to force that first frame to actually decode and be visible
+  // as the gate's background before the real tap.
   useEffect(() => {
-    if (started) return;
-    gateVideoRef.current?.pause();
+    const v = gateVideoRef.current;
+    if (!v || started) return;
+    v.muted = true;
+    const playPromise = v.play();
+    if (playPromise?.then) {
+      playPromise.then(() => { if (!startedRef.current) v.pause(); }).catch(() => {});
+    } else {
+      v.pause();
+    }
   }, [started, introMedia?.url]);
 
   const t = PREVIEW_T[lang];
