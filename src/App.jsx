@@ -32,6 +32,7 @@ const FONT_DISPLAY = "'Fraunces', serif";
 const FONT_BODY = "'Inter', sans-serif";
 const FONT_SCRIPT = "'Parisienne', cursive";
 const FONT_AR = "'Cairo', sans-serif";
+const FONT_HY = "'Noto Serif Armenian', serif";
 
 const CHART_COLORS = { yes: "#8FBFA3", no: "#D98E8E", pending: "#6C7C74" };
 
@@ -613,7 +614,16 @@ const defaultIntroSettings = {
   animationStyle: "floatingHearts",
   sealDesign: "gold",
   media: emptyIntroMedia(),
+  revealHoldMs: null, // null = 700ms (the "Medium" point in REVEAL_SPEED_MS, in CoverStep) — same speed regardless of background media type, until the admin picks a different one
 };
+
+// Named points on the "Transition speed" slider in CoverStep, rather than a
+// raw free-typed number — keeps the range sane and the label readable.
+const REVEAL_SPEED_MS = [
+  { key: "fast", label: "Fast", ms: 350 },
+  { key: "medium", label: "Medium", ms: 700 },
+  { key: "slow", label: "Slow", ms: 1200 },
+];
 
 const FONT_OPTIONS = [
   { key: "auto", label: "Default", value: null },
@@ -1486,6 +1496,33 @@ async function uploadImageToStorage(file, bucket = "og-images") {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
+// A GIF background needs to stay STILL until the guest taps "tap to start" —
+// but a GIF, once it's the CSS background-image of a live element, can't be
+// paused/resumed the way a <video> can; browsers just animate it continuously
+// from the moment it loads. The only way to hold it still is to show a
+// separate, genuinely static image in its place before the tap, and switch to
+// the real animated GIF only once the tap transition begins. This uploads
+// that static frame (reusing readImageCompressed, which captures exactly one
+// frame off a canvas — the same behavior that used to be the bug when it was
+// the ONLY thing saved for a GIF). A failure here is non-fatal: the caller
+// just won't get a "before tap" poster and falls back to the animated URL.
+async function uploadGifPosterFrame(file, bucket = "site-decorations") {
+  try {
+    const compressedDataUrl = await readImageCompressed(file, 1200, 0.82);
+    const blob = await (await fetch(compressedDataUrl)).blob();
+    const path = `${crypto.randomUUID()}.png`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": blob.type },
+      body: blob,
+    });
+    if (!res.ok) return null;
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  } catch {
+    return null;
+  }
+}
+
 // Videos can't be compressed client-side the way images are, and are
 // typically many times larger — storing one as a base64 data URL directly
 // inside the saved JSON snapshot (like an image used to be, before
@@ -1514,12 +1551,13 @@ async function uploadVideoToStorage(file) {
 /* Languages                                                                */
 /* ---------------------------------------------------------------------- */
 
-const LANGS = ["en", "ar", "fr", "es"];
+const LANGS = ["en", "ar", "fr", "es", "hy"];
 const LANG_META = {
   en: { label: "English", short: "EN", dir: "ltr", locale: "en-US" },
   ar: { label: "العربية", short: "AR", dir: "rtl", locale: "ar" },
   fr: { label: "Français", short: "FR", dir: "ltr", locale: "fr-FR" },
   es: { label: "Español", short: "ES", dir: "ltr", locale: "es-ES" },
+  hy: { label: "Հայերեն", short: "Armenian", dir: "ltr", locale: "hy-AM" },
 };
 
 const PREVIEW_T = {
@@ -1527,6 +1565,7 @@ const PREVIEW_T = {
   ar: { orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
   fr: { orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
   es: { orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -1554,18 +1593,23 @@ const defaultContent = {
     family: { greeting: "Con el corazón lleno de alegría, les invitamos a celebrar el comienzo de nuestra eternidad.", quote: "", side1Title: "Familia de la novia", side1Names: "Sr. y Sra. Rodríguez", side2Title: "Familia del novio", side2Names: "Sr. y Sra. Chen", side1Icon: null, side2Icon: null },
     rsvp: { heading: "Confirmación", yesLabel: "Asistirá con alegría", noLabel: "Lamenta no poder asistir" },
   },
+  hy: {
+    cover: { name1: "Elena", name2: "Marcus", intro: "իրենց ընտանիքների հետ միասին սիրով հրավիրում են ձեզ կիսելու իրենց հարսանիքի ուրախությունը", tapText: "ՀՊԵՔ՝ ՍԿՍԵԼՈՒ ՀԱՄԱՐ" },
+    family: { greeting: "Ուրախությամբ լի սրտերով հրավիրում ենք ձեզ վկա դառնալու մեր հավերժության սկզբին.", quote: "", side1Title: "Հարսի ընտանիքը", side1Names: "Պարոն և տիկին Ռոդրիգես", side2Title: "Փեսայի ընտանիքը", side2Names: "Պարոն և տիկին Չեն", side1Icon: null, side2Icon: null },
+    rsvp: { heading: "Հաստատում", yesLabel: "Ուրախությամբ կմասնակցենք", noLabel: "Ցավոք՝ չենք կարող մասնակցել" },
+  },
 };
 
 const defaultTimeline = [
-  { id: uid(), icon: "church", time: "4:00 PM", label: { en: "Ceremony", ar: "حفل الزفاف", fr: "Cérémonie", es: "Ceremonia" } },
-  { id: uid(), icon: "wine", time: "5:30 PM", label: { en: "Welcome Drinks", ar: "مشروبات الترحيب", fr: "Cocktail de bienvenue", es: "Bienvenida" } },
-  { id: uid(), icon: "utensils", time: "7:00 PM", label: { en: "Dinner", ar: "العشاء", fr: "Dîner", es: "Cena" } },
-  { id: uid(), icon: "party", time: "9:00 PM", label: { en: "Party", ar: "الحفلة", fr: "Soirée dansante", es: "Fiesta" } },
+  { id: uid(), icon: "church", time: "4:00 PM", label: { en: "Ceremony", ar: "حفل الزفاف", fr: "Cérémonie", es: "Ceremonia", hy: "Արարողություն" } },
+  { id: uid(), icon: "wine", time: "5:30 PM", label: { en: "Welcome Drinks", ar: "مشروبات الترحيب", fr: "Cocktail de bienvenue", es: "Bienvenida", hy: "Ողջույնի խմիչքներ" } },
+  { id: uid(), icon: "utensils", time: "7:00 PM", label: { en: "Dinner", ar: "العشاء", fr: "Dîner", es: "Cena", hy: "Ընթրիք" } },
+  { id: uid(), icon: "party", time: "9:00 PM", label: { en: "Party", ar: "الحفلة", fr: "Soirée dansante", es: "Fiesta", hy: "Խնջույք" } },
 ];
 
 const defaultLocations = [
-  { id: uid(), time: "4:00 PM", address: "St. Augustine Chapel, 12 Rose Ave", title: { en: "The Ceremony", ar: "مراسم الزفاف", fr: "La Cérémonie", es: "La Ceremonia" } },
-  { id: uid(), time: "5:30 PM", address: "Willowbrook Estate, 88 Garden Rd", title: { en: "The Reception", ar: "حفل الاستقبال", fr: "La Réception", es: "La Recepción" } },
+  { id: uid(), time: "4:00 PM", address: "St. Augustine Chapel, 12 Rose Ave", title: { en: "The Ceremony", ar: "مراسم الزفاف", fr: "La Cérémonie", es: "La Ceremonia", hy: "Արարողությունը" } },
+  { id: uid(), time: "5:30 PM", address: "Willowbrook Estate, 88 Garden Rd", title: { en: "The Reception", ar: "حفل الاستقبال", fr: "La Réception", es: "La Recepción", hy: "Ընդունելությունը" } },
 ];
 
 const defaultRegistry = [
@@ -1666,6 +1710,25 @@ function mergeCustomBlocksWithDefaults(saved) {
     // point on (editing one language no longer affects the others).
     const migrated = fillMissingSteps(saved);
     for (const lang of LANGS) result[lang] = migrated;
+  }
+  return result;
+}
+
+// Same backward-compatibility need as the two merge functions above, for the
+// actual cover/family/rsvp text: an invitation saved before a language (e.g.
+// Armenian) existed has no key for it at all in its saved content, so
+// switching to that language left content[lang] undefined — and every step
+// component reads it unconditionally (content[activeLang].cover.name1, etc.),
+// so the whole editor crashed to a blank page the moment it became active.
+function mergeContentWithDefaults(saved) {
+  const result = {};
+  for (const lang of LANGS) {
+    const langDefault = defaultContent[lang] || defaultContent.en;
+    const langSaved = saved?.[lang] || {};
+    result[lang] = { ...langDefault, ...langSaved };
+    for (const section of Object.keys(langDefault)) {
+      result[lang][section] = { ...langDefault[section], ...(langSaved[section] || {}) };
+    }
   }
   return result;
 }
@@ -2597,6 +2660,30 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
       <div className="mt-4">
         <FieldLabel>Tap to start text ({LANG_META[activeLang].short})</FieldLabel>
         <TextInput value={c.tapText} onChange={(v) => updateContent({ tapText: v })} placeholder="TAP TO START" />
+      </div>
+
+      <div className="mt-4">
+        <FieldLabel>Transition speed</FieldLabel>
+        <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          How long the tap-to-start reveal takes before the invitation opens.
+        </p>
+        <div className="flex gap-2">
+          {REVEAL_SPEED_MS.map(({ key, label, ms }) => (
+            <button
+              key={key}
+              onClick={() => updateIntro({ revealHoldMs: ms })}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{
+                background: (intro.revealHoldMs ?? 700) === ms ? GOLD : INK_3,
+                color: (intro.revealHoldMs ?? 700) === ms ? INK : MUTED,
+                border: `1px solid ${(intro.revealHoldMs ?? 700) === ms ? GOLD : "rgba(147,166,155,0.3)"}`,
+                fontFamily: FONT_BODY,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="mt-4">
@@ -4895,7 +4982,7 @@ function GateAnimation({ style }) {
 
 // Envelope gate with an embossed wax seal. Either a built-in style (no upload
 // needed, everything CSS) or a custom uploaded photo/video behind the seal.
-function WaxSealGate({ tapText, design, customMedia, videoRef, started }) {
+function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealing }) {
   const d = ENVELOPE_STYLES[design] || ENVELOPE_STYLES.kraftGold;
   const EngraveIcon = d.engrave;
   const hasCustomBg = !!customMedia;
@@ -4920,7 +5007,16 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started }) {
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover` }} />
+            <div
+              className="absolute inset-0"
+              style={{
+                // Same reasoning as the button-style gate: a GIF can't be paused
+                // once it's a live CSS background, so show its static posterUrl
+                // (generated at upload time) until the tap actually starts the
+                // reveal, then switch to the real animated GIF.
+                background: `url(${customMedia.posterUrl && !revealing ? customMedia.posterUrl : customMedia.url}) center/cover, ${INK}`,
+              }}
+            />
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.25) 0%, rgba(10,12,10,0.5) 100%)" }} />
         </>
@@ -5082,20 +5178,41 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [playing, data.music.url]);
 
   const introMedia = data.intro.media[lang];
+  // Admin-adjustable via the "Transition speed" control in CoverStep — how
+  // long the tap-to-start reveal holds before the invitation actually opens.
+  // Applies uniformly regardless of gate style or background media type.
+  const revealHoldMs = data.intro.revealHoldMs ?? 700;
 
-  // The gate video must stay frozen on tap-to-start — it must never play on
-  // its own before the user taps, regardless of any browser-specific
-  // autoplay heuristic. Playback only begins from the explicit play() call
-  // in the tap handlers below.
+  // Kept in sync so the async play()/pause() priming below (whose promise can
+  // resolve after a render or two) can check the CURRENT started state rather
+  // than the one captured in its own closure when it started.
+  const startedRef = useRef(started);
+  useEffect(() => { startedRef.current = started; }, [started]);
+
+  // The gate video must stay frozen on tap-to-start — it must never actually
+  // play on its own before the user taps. But some mobile browsers (notably
+  // iOS Safari) render nothing at all for a <video> — a blank/black box, not
+  // its first frame — until playback has been triggered at least once,
+  // regardless of preload. So rather than just pausing it, briefly play then
+  // immediately pause (both silent and effectively instant, since it's
+  // muted) to force that first frame to actually decode and be visible
+  // as the gate's background before the real tap.
   useEffect(() => {
-    if (started) return;
-    gateVideoRef.current?.pause();
+    const v = gateVideoRef.current;
+    if (!v || started) return;
+    v.muted = true;
+    const playPromise = v.play();
+    if (playPromise?.then) {
+      playPromise.then(() => { if (!startedRef.current) v.pause(); }).catch(() => {});
+    } else {
+      v.pause();
+    }
   }, [started, introMedia?.url]);
 
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
-  const fontDisplay = lang === "ar" ? FONT_AR : FONT_DISPLAY;
-  const fontScript = lang === "ar" ? FONT_AR : FONT_SCRIPT;
+  const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
+  const fontScript = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_SCRIPT;
   const stepKey = steps[activeIndex].key;
   // Whether the CURRENT active page needs light text (dark/photo background)
   // or dark text (light/paper background) — same "photo mode = light text"
@@ -5129,8 +5246,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
-  const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
-  const gateBackground = gateImage ? `url(${gateImage}) center/cover` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  // A GIF can't be paused like a <video> — it animates continuously the
+  // moment it's a live background, so a GIF with a posterUrl (its static
+  // first frame, generated at upload time) shows that instead, right up
+  // until the tap actually starts the reveal transition.
+  const introMediaUrl = introMedia?.type === "image" && introMedia.posterUrl && !gateClosing ? introMedia.posterUrl : introMedia?.url;
+  const gateImage = (introMedia?.type === "image" ? introMediaUrl : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
+  // An opaque color as the bottom layer here matters for any uploaded image/GIF
+  // with transparent regions (a common design pattern for decorative overlay
+  // art) — without it, the transparent parts let whatever sits behind the gate
+  // in the DOM (the cover slide's own photo and text) show straight through.
+  const gateBackground = gateImage ? `url(${gateImage}) center/cover, ${INK}` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
@@ -5291,15 +5417,27 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       gateVideoRef.current.play().catch(() => {});
                     }
                     setGateClosing(true);
-                    setTimeout(() => { onStart(); setGateClosing(false); }, 480);
+                    setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                   }}
                   className="absolute inset-0"
-                  style={{ opacity: gateClosing ? 0 : 1, transition: "opacity 0.48s ease", pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
+                  style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${revealHoldMs}ms ease`, pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
-                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} />
+                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} revealing={gateClosing} />
                 </button>
               ) : (
-                <div className="absolute inset-0" style={{ background: gateBackground }}>
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: gateBackground,
+                    // The whole gate (video/photo background + button) fades out as one
+                    // unit here, instead of just the tap button — previously the video
+                    // kept playing at full opacity right up until the gate was removed
+                    // from the DOM outright, which was an abrupt cut straight from a
+                    // moving video to the static slide underneath.
+                    opacity: gateClosing ? 0 : 1,
+                    transition: `opacity ${revealHoldMs}ms ease`,
+                  }}
+                >
                   {/* Media layer: never animated directly, so playback isn't disrupted mid-decode on lower-power phones */}
                   {introMedia?.type === "video" && (
                     <video
@@ -5322,24 +5460,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   )}
                   {data.intro.type === "animation" && <GateAnimation style={data.intro.animationStyle} />}
 
-                  {/* Curtain layer: this is the only thing that fades on tap */}
                   <button
                     onClick={() => {
                       if (gateClosing) return;
                       // A tap is a real user gesture, so play() here succeeds even in
                       // sandboxed/embedded contexts that silently block autoplay before
-                      // any interaction — this is the only place playback ever starts.
+                      // any interaction — the gate stays paused until tap otherwise (see
+                      // the pause effect and onPlay guard above).
                       if (introMedia?.type === "video" && gateVideoRef.current) {
                         gateVideoRef.current.muted = true;
                         gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                         gateVideoRef.current.play().catch(() => {});
                       }
                       setGateClosing(true);
-                      const holdMs = introMedia?.type === "video" ? 900 : 480;
-                      setTimeout(() => { onStart(); setGateClosing(false); }, holdMs);
+                      setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                     }}
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
-                    style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${introMedia?.type === "video" ? 0.9 : 0.48}s ease`, pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
+                    style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                   >
                     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)" }} />
                     <div className="relative z-10 flex flex-col items-center gap-4">
@@ -8129,12 +8266,21 @@ function TemplateShopPage({ mode = "canva" }) {
 }
 
 // Floating AI support chat — a small round bubble in the corner that
-// expands into a chat panel. Needs a new Edge Function called
-// "chat-support" deployed on Supabase before this actually answers
-// anything: that function is what holds the real API key and calls an
-// AI service (e.g. Anthropic's Claude) server-side, then returns just
-// the reply text here. Until that Edge Function exists, this will show
-// the friendly error message below instead of a real answer.
+// expands into a chat panel. Needs an Edge Function named exactly
+// "clever-api" deployed at {SUPABASE_URL}/functions/v1/clever-api —
+// see sendChatSupportMessage above, which is what this actually calls.
+// (An earlier version of this comment said "chat-support", which was
+// never the real endpoint — if a function was ever deployed under that
+// name instead, every request here 404s regardless of any API key.)
+// That function is what holds the real API key and calls an AI service
+// (e.g. Anthropic's Claude) server-side — for the "builder" context, it
+// also needs to return a `formData` object of whatever invitation
+// fields it extracted from the conversation (see onFillForm below) —
+// then returns just the reply text here. It also needs to handle the
+// { action: "send-whatsapp", ... } shape sendWhatsAppMessage posts to
+// this same endpoint. Until that Edge Function exists and responds
+// correctly, this will show the friendly error message below instead
+// of a real answer.
 function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -9218,7 +9364,7 @@ export default function InvitationBuilder() {
     const link = document.createElement("link");
     link.id = id;
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Inter:wght@400;500;600;700&family=Parisienne&family=Cairo:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,500&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=Marcellus&family=Great+Vibes&family=Dancing+Script:wght@400;600&family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=PT+Serif:ital,wght@0,400;1,400&family=Alex+Brush&family=Moontime&family=Lora:ital,wght@0,400;0,600;1,400&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Serif+Armenian:wght@400;600&display=swap";
     document.head.appendChild(link);
   }, []);
 
@@ -9504,7 +9650,7 @@ export default function InvitationBuilder() {
   });
 
   const applySnapshot = (snap) => {
-    setContent(snap.content); setTimeline(snap.timeline); setLocations(snap.locations);
+    setContent(mergeContentWithDefaults(snap.content)); setTimeline(snap.timeline); setLocations(snap.locations);
     setPageBackgrounds(snap.pageBackgrounds); setMusic(snap.music); setRsvpSchedule(snap.rsvpSchedule);
     setRegistry(snap.registry); setEnabledSteps(snap.enabledSteps); setPageOrder(snap.pageOrder);
     setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(mergeCustomBlocksWithDefaults(snap.customBlocks));
@@ -9655,7 +9801,7 @@ export default function InvitationBuilder() {
         const res = await persistentStorage.get(DRAFT_KEY, false);
         if (cancelled || !res?.value) return;
         const d = JSON.parse(res.value);
-        if (d.content) setContent(d.content);
+        if (d.content) setContent(mergeContentWithDefaults(d.content));
         if (d.timeline) setTimeline(d.timeline);
         if (d.locations) setLocations(d.locations);
         if (d.registry) setRegistry(d.registry);
@@ -9710,7 +9856,7 @@ export default function InvitationBuilder() {
               if (activeSnapshot.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(activeSnapshot.customBlocks));
               if (activeSnapshot.openInviteLinks) setOpenInviteLinks(activeSnapshot.openInviteLinks);
               if (activeSnapshot.venueElements) setVenueElements(activeSnapshot.venueElements);
-              if (activeSnapshot.content) setContent(activeSnapshot.content);
+              if (activeSnapshot.content) setContent(mergeContentWithDefaults(activeSnapshot.content));
               if (activeSnapshot.pageBackgrounds) setPageBackgrounds(activeSnapshot.pageBackgrounds);
               if (activeSnapshot.layouts) setLayouts(mergeLayoutsWithDefaults(activeSnapshot.layouts));
               if (activeSnapshot.timeline) setTimeline(activeSnapshot.timeline);
@@ -9839,7 +9985,7 @@ export default function InvitationBuilder() {
       guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
-      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId }, // media (image or video) saved separately below via introBgKey
+      intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
       musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
     const imageJobs = [
@@ -9906,9 +10052,11 @@ export default function InvitationBuilder() {
     const file = e.target.files?.[0];
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
+    const isGif = file.type === "image/gif";
     try {
       const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
-      const newItem = { id: uid(), type: isVideo ? "video" : "image", url, name: file.name };
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      const newItem = { id: uid(), type: isVideo ? "video" : "image", url, posterUrl, name: file.name };
       setIntroMediaLibrary((list) => [...list, newItem]);
     } catch (err) {
       alert(err.message || "Couldn't upload — please try again.");
@@ -10475,44 +10623,27 @@ export default function InvitationBuilder() {
   const handleIntroMediaUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type.startsWith("video/")) {
-      if (file.size > 20 * 1024 * 1024) {
-        alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
-        return;
-      }
-      // Show an instant local preview via a blob URL first — encoding a large
-      // video to base64 and pushing a many-MB string into state is what was
-      // making the upload feel frozen, since every component reading
-      // data.intro re-renders holding that huge string. The blob URL swap
-      // is instant; the real persistent base64 data URI (needed because a
-      // blob URL doesn't survive a reload or a different device reading this
-      // data back later — same bug class, same fix, as the music upload
-      // earlier) is swapped in moments later once it's ready.
-      const previewUrl = URL.createObjectURL(file);
-      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: previewUrl, name: file.name } } }));
-      const reader = new FileReader();
-      reader.onload = () => {
-        URL.revokeObjectURL(previewUrl);
-        setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: reader.result, name: file.name } } }));
-      };
-      reader.readAsDataURL(file);
-      return;
-    }
-    if (file.type === "image/gif") {
-      // readImageCompressed below only captures a single canvas-drawn frame —
-      // read the raw bytes instead so the GIF keeps animating.
-      const reader = new FileReader();
-      reader.onload = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: reader.result, name: file.name } } }));
-      reader.readAsDataURL(file);
+    const isVideo = file.type.startsWith("video/");
+    const isGif = file.type === "image/gif";
+    if (isVideo && file.size > 20 * 1024 * 1024) {
+      alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
       return;
     }
     try {
-      const dataUrl = await readImageCompressed(file);
-      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: dataUrl, name: file.name } } }));
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: reader.result, name: file.name } } }));
-      reader.readAsDataURL(file);
+      // Uploaded to Storage and referenced by its URL — not read into a base64
+      // data URI kept in this invitation's own saved JSON. A multi-MB video or
+      // GIF embedded that way got re-sent in full on every single "Save",
+      // whether or not this field had actually changed, which is what was
+      // making saves so slow. uploadImageToStorage already handles GIFs
+      // (preserving their animation) the same way it handles any other image.
+      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
+      // A GIF also gets a static poster frame uploaded alongside it — see
+      // uploadGifPosterFrame — so the gate can show that instead of the
+      // animated GIF before the tap.
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: isVideo ? "video" : "image", url, posterUrl, name: file.name } } }));
+    } catch (err) {
+      alert(err.message || "Couldn't upload — please try again.");
     }
   };
   const removeIntroMedia = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: null } }));
@@ -10520,7 +10651,7 @@ export default function InvitationBuilder() {
     setIntro((i) => ({
       ...i,
       introMediaChoiceId: item ? item.id : null,
-      media: { ...i.media, [activeLang]: item ? { type: item.type, url: item.url, name: item.name } : null },
+      media: { ...i.media, [activeLang]: item ? { type: item.type, url: item.url, posterUrl: item.posterUrl, name: item.name } : null },
     }));
   };
 
@@ -10969,7 +11100,7 @@ export default function InvitationBuilder() {
         <div className="mb-6 flex items-baseline justify-between">
           <div>
             <div className="text-[10px] font-semibold uppercase" style={{ color: GOLD, letterSpacing: "0.2em" }}>eInvite.me</div>
-            <h1 className="mt-1 text-2xl" style={{ fontFamily: activeLang === "ar" ? FONT_AR : FONT_DISPLAY, color: IVORY, fontStyle: activeLang === "ar" ? "normal" : "italic" }}>
+            <h1 className="mt-1 text-2xl" style={{ fontFamily: activeLang === "ar" ? FONT_AR : activeLang === "hy" ? FONT_HY : FONT_DISPLAY, color: IVORY, fontStyle: activeLang === "ar" || activeLang === "hy" ? "normal" : "italic" }}>
               {c.cover.name1 || "—"}{c.cover.name2 ? <> &amp; {c.cover.name2}</> : null}
             </h1>
           </div>
