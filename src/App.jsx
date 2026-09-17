@@ -5066,6 +5066,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   // call play() as a guaranteed fallback for stricter/sandboxed environments.
   useEffect(() => {
     if (introMedia?.type === "video" && data.intro.type !== "seal" && !started && gateVideoRef.current) {
+      // Setting the muted PROPERTY here, not just relying on the JSX attribute,
+      // matters — the tap handlers below do the same before their own play()
+      // call, because browsers don't reliably treat a video as "muted" for
+      // autoplay-policy purposes just from the JSX prop alone at mount time.
+      gateVideoRef.current.muted = true;
       gateVideoRef.current.play().catch(() => {});
     }
   }, [introMedia, started, data.intro.type]);
