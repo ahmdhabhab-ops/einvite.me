@@ -42,6 +42,16 @@ const BG_PRESETS = {
   gilded: { name: "Gilded", css: "linear-gradient(160deg, #3a2f14 0%, #8a6a2c 50%, #e4ce95 100%)" },
 };
 
+// A page background can hold BOTH an uploaded custom photo (bg.image) and a
+// chosen preset (bg.preset) at the same time — switching to a preset swatch
+// only changes which one is currently shown, it never discards the uploaded
+// photo. `useCustomImage` is the flag that tracks which one is active;
+// `undefined` (invitations saved before this flag existed) defaults to
+// "active" so old data keeps showing its photo exactly as before.
+function hasActiveCustomImage(bg) {
+  return !!(bg?.mode === "photo" && bg.image && bg.useCustomImage !== false);
+}
+
 const TIMELINE_ICONS = {
   church: { icon: Church }, wine: { icon: Wine }, utensils: { icon: UtensilsCrossed },
   party: { icon: PartyPopper }, heart: { icon: Heart }, sparkles: { icon: Sparkles },
@@ -1974,8 +1984,14 @@ function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, 
 /* ---------------------------------------------------------------------- */
 
 function BackgroundPicker({ bg, onChange }) {
-  const setPreset = (key) => onChange({ ...bg, mode: "photo", preset: key, image: null });
+  const customImageActive = hasActiveCustomImage(bg);
+  // Switching presets only changes which source is active — the uploaded
+  // photo (bg.image) is left untouched so it's still there, one click away,
+  // if the user comes back to it.
+  const setPreset = (key) => onChange({ ...bg, mode: "photo", preset: key, useCustomImage: false });
   const setPaper = () => onChange({ ...bg, mode: "paper" });
+  // Re-activates the already-uploaded photo without needing to re-upload it.
+  const useUploadedImage = () => onChange({ ...bg, mode: "photo", useCustomImage: true });
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1986,11 +2002,11 @@ function BackgroundPicker({ bg, onChange }) {
       // upload started — otherwise clicking a preset swatch or another
       // control right after starting the upload would get silently
       // reverted once the upload's own stale-bg write lands.
-      onChange((current) => ({ ...current, mode: "photo", image: dataUrl }));
+      onChange((current) => ({ ...current, mode: "photo", image: dataUrl, useCustomImage: true }));
     } catch {
       // If compression fails for any reason, fall back to the raw file.
       const reader = new FileReader();
-      reader.onload = () => onChange((current) => ({ ...current, mode: "photo", image: reader.result }));
+      reader.onload = () => onChange((current) => ({ ...current, mode: "photo", image: reader.result, useCustomImage: true }));
       reader.readAsDataURL(file);
     }
   };
@@ -2012,17 +2028,37 @@ function BackgroundPicker({ bg, onChange }) {
             key={key}
             onClick={() => setPreset(key)}
             className="h-11 w-11 rounded-lg transition-all"
-            style={{ background: preset.css, border: bg.mode === "photo" && bg.preset === key && !bg.image ? `2px solid ${GOLD}` : "2px solid transparent", boxShadow: bg.mode === "photo" && bg.preset === key && !bg.image ? `0 0 0 2px ${INK_2}` : "none" }}
+            style={{ background: preset.css, border: bg.mode === "photo" && bg.preset === key && !customImageActive ? `2px solid ${GOLD}` : "2px solid transparent", boxShadow: bg.mode === "photo" && bg.preset === key && !customImageActive ? `0 0 0 2px ${INK_2}` : "none" }}
             title={preset.name}
           />
         ))}
-        <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg" style={{ border: bg.mode === "photo" && bg.image ? `2px solid ${GOLD}` : `2px dashed rgba(147,166,155,0.5)`, background: bg.mode === "photo" && bg.image ? `url(${bg.image}) center/cover` : "transparent" }}>
-          {!(bg.mode === "photo" && bg.image) && <Upload size={16} style={{ color: MUTED }} />}
-          <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUpload} />
-        </label>
+        {bg.image ? (
+          <button
+            type="button"
+            onClick={useUploadedImage}
+            className="relative h-11 w-11 rounded-lg transition-all"
+            style={{ border: customImageActive ? `2px solid ${GOLD}` : "2px solid transparent", boxShadow: customImageActive ? `0 0 0 2px ${INK_2}` : "none", background: `url(${bg.image}) center/cover` }}
+            title="Your uploaded photo"
+          >
+            <label
+              className="absolute -right-1.5 -top-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full"
+              style={{ background: INK_3, border: `1px solid ${INK_2}` }}
+              title="Replace photo"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Upload size={10} style={{ color: MUTED }} />
+              <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUpload} />
+            </label>
+          </button>
+        ) : (
+          <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg" style={{ border: `2px dashed rgba(147,166,155,0.5)` }}>
+            <Upload size={16} style={{ color: MUTED }} />
+            <input type="file" accept="image/*" style={VISUALLY_HIDDEN} onChange={onUpload} />
+          </label>
+        )}
       </div>
-      {bg.mode === "photo" && bg.image && (
-        <button onClick={() => onChange({ ...bg, image: null })} className="mt-2 text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+      {bg.image && (
+        <button onClick={() => onChange({ ...bg, image: null, useCustomImage: false })} className="mt-2 text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
           Remove photo, use preset instead
         </button>
       )}
@@ -3779,7 +3815,7 @@ function StoryPage({ bg, children }) {
   // color here, transparent areas show whatever's behind this element,
   // which is nothing by default. Defaults to INK (this app's own dark
   // background) if the page hasn't set one.
-  const background = isPhoto ? (bg.image ? `${bg.backdropColor || INK} url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
+  const background = isPhoto ? (hasActiveCustomImage(bg) ? `${bg.backdropColor || INK} url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
   // "darken" (0-100) sets the strength of the bottom stop; top/mid scale with it
   // at the same ratios as the original fixed overlay, so 55 looks identical to before.
   const amount = (bg.darken ?? 55) / 100;
@@ -5059,7 +5095,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
-  const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || data.pageBackgrounds.cover.image;
+  const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
   const gateBackground = gateImage ? `url(${gateImage}) center/cover` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
@@ -8641,7 +8677,7 @@ function QuickRsvpPage({ slug }) {
   }
 
   const c = state.snapshot.content?.cover || {};
-  const photo = state.snapshot.og?.image || (state.snapshot.pageBackgrounds?.cover?.mode === "photo" ? state.snapshot.pageBackgrounds.cover.image : null);
+  const photo = state.snapshot.og?.image || (hasActiveCustomImage(state.snapshot.pageBackgrounds?.cover) ? state.snapshot.pageBackgrounds.cover.image : null);
   const coupleNames = [c.name1, c.name2].filter(Boolean).join(" & ");
 
   return (
@@ -9857,7 +9893,7 @@ export default function InvitationBuilder() {
   const saveCurrentAsShopDesign = async (name, price, canvaUrl) => {
     const pageImages = Object.fromEntries(
       Object.keys(pageBackgrounds)
-        .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
+        .filter((key) => key !== "cover" && hasActiveCustomImage(pageBackgrounds[key]))
         .map((key) => [key, pageBackgrounds[key].image])
     );
     // Captured regardless of whether a real photo is set — this is what
@@ -9872,7 +9908,7 @@ export default function InvitationBuilder() {
       name,
       description: "",
       price: Number(price) || 0,
-      coverImage: pageBackgrounds.cover?.mode === "photo" ? pageBackgrounds.cover.image : null,
+      coverImage: hasActiveCustomImage(pageBackgrounds.cover) ? pageBackgrounds.cover.image : null,
       coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
       coverPreset: pagePresets.cover,
       pageImages,
@@ -9916,7 +9952,7 @@ export default function InvitationBuilder() {
     if (!editingShopDesignId) return;
     const pageImages = Object.fromEntries(
       Object.keys(pageBackgrounds)
-        .filter((key) => key !== "cover" && pageBackgrounds[key]?.mode === "photo" && pageBackgrounds[key]?.image)
+        .filter((key) => key !== "cover" && hasActiveCustomImage(pageBackgrounds[key]))
         .map((key) => [key, pageBackgrounds[key].image])
     );
     const pagePresets = Object.fromEntries(
@@ -9924,7 +9960,7 @@ export default function InvitationBuilder() {
     );
     const namesLayout = layouts?.cover?.names || {};
     await updateShopDesign(editingShopDesignId, {
-      coverImage: pageBackgrounds.cover?.mode === "photo" ? pageBackgrounds.cover.image : null,
+      coverImage: hasActiveCustomImage(pageBackgrounds.cover) ? pageBackgrounds.cover.image : null,
       coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
       coverPreset: pagePresets.cover,
       pageImages,
