@@ -5058,6 +5058,14 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const introMedia = data.intro.media[lang];
 
+  // The gate video must stay frozen on tap-to-start regardless of any
+  // browser-specific autoplay heuristic — playback only begins from the
+  // explicit play() call in the tap handlers below.
+  useEffect(() => {
+    if (started) return;
+    gateVideoRef.current?.pause();
+  }, [started, introMedia?.url]);
+
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
   const fontDisplay = lang === "ar" ? FONT_AR : FONT_DISPLAY;
