@@ -1449,6 +1449,23 @@ function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
  * (Dashboard -> Storage -> create bucket -> toggle Public).
  */
 async function uploadImageToStorage(file, bucket = "og-images") {
+  // readImageCompressed below draws the file onto a canvas to re-encode it,
+  // which only captures a single frame — fine for a still photo, but it
+  // silently flattens an animated GIF into a static picture. Upload the raw
+  // bytes instead so the animation survives.
+  if (file.type === "image/gif") {
+    const path = `${crypto.randomUUID()}.gif`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "image/gif" },
+      body: file,
+    });
+    if (!res.ok) {
+      console.error("uploadImageToStorage (gif) failed:", res.status, await res.text().catch(() => ""));
+      throw new Error("Couldn't upload the image — please try again.");
+    }
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  }
   const compressedDataUrl = await readImageCompressed(file, 1200, 0.82);
   const blob = await (await fetch(compressedDataUrl)).blob(); // convert the compressed data URI back into a real Blob Storage can actually store
   const ext = blob.type === "image/png" ? "png" : "jpg";
@@ -10463,6 +10480,14 @@ export default function InvitationBuilder() {
       reader.onload = () => {
         setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: reader.result, name: file.name } } }));
       };
+      reader.readAsDataURL(file);
+      return;
+    }
+    if (file.type === "image/gif") {
+      // readImageCompressed below only captures a single canvas-drawn frame —
+      // read the raw bytes instead so the GIF keeps animating.
+      const reader = new FileReader();
+      reader.onload = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: reader.result, name: file.name } } }));
       reader.readAsDataURL(file);
       return;
     }
