@@ -5000,10 +5000,15 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
               loop
               playsInline
               onPlay={(e) => {
-                if (!started) { e.currentTarget.pause(); return; } // never before the tap, regardless of what triggered playback
+                // `started` only flips true at the END of the tap-to-reveal hold
+                // (see revealHoldMs) — checking it alone here re-paused the video
+                // the instant the tap handler's own play() call made it start,
+                // since that happens well before `started` becomes true. `revealing`
+                // (gateClosing) is what's actually true from the moment of the tap.
+                if (!started && !revealing) { e.currentTarget.pause(); return; }
                 e.currentTarget.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
               }}
-              onPause={(e) => { if (started) e.currentTarget.play().catch(() => {}); }} // only auto-resume once the gate has actually been tapped
+              onPause={(e) => { if (started || revealing) e.currentTarget.play().catch(() => {}); }} // only auto-resume once the gate has actually been tapped
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
@@ -5450,11 +5455,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       onPlay={(e) => {
                         // Extra safety net on top of the mount-time pause() effect above —
                         // if any browser-specific quirk starts playback on its own before
-                        // the tap, this stops it the instant it's detected.
-                        if (!started) { e.currentTarget.pause(); return; }
+                        // the tap, this stops it the instant it's detected. `started` only
+                        // flips true at the END of the tap-to-reveal hold (revealHoldMs), so
+                        // checking it alone re-paused the video the instant the tap
+                        // handler's own play() call made it start — gateClosing is what's
+                        // actually true from the moment of the tap.
+                        if (!started && !gateClosing) { e.currentTarget.pause(); return; }
                         e.currentTarget.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                       }}
-                      onPause={(e) => { if (started) e.currentTarget.play().catch(() => {}); }}
+                      onPause={(e) => { if (started || gateClosing) e.currentTarget.play().catch(() => {}); }}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   )}
