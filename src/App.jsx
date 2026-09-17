@@ -9826,32 +9826,35 @@ export default function InvitationBuilder() {
         if (d.swipeDirection) setSwipeDirection(d.swipeDirection);
         if (d.transitionStyle) setTransitionStyle(d.transitionStyle);
         if (Array.isArray(d.invitationIds) && d.invitationIds.length) {
-          const results = await Promise.allSettled(d.invitationIds.map((id) => persistentStorage.get(invitationKey(id), false)));
-          if (!cancelled) {
-            const restoredStore = {};
-            d.invitationIds.forEach((id, i) => {
-              const r = results[i];
-              if (r.status === "fulfilled" && r.value?.value) {
-                try { restoredStore[id] = JSON.parse(r.value.value); } catch {} // skip a corrupted individual entry rather than failing the whole load
-              }
-            });
-            setInvitationsStore(restoredStore);
-            // THE ACTUAL FIX: the main draft payload's own copies of content,
-            // customBlocks, pageBackgrounds, layouts, etc. (set from d.xxx
-            // above) reflect whatever was active at the moment of the LAST
-            // "Save invitation" click — not necessarily the currently active
-            // client, since the owner may have switched to a different
-            // client's invitation, made edits there (custom images added,
-            // text changed, a background swapped), and reloaded or
-            // refreshed before clicking Save again. Each client's own data
-            // IS already saved correctly, immediately, to its own per-client
-            // key (via switchActiveInvitation, addGuestGroup, an RSVP
-            // submission, etc.) — so re-applying it here, AFTER the stale
-            // main-payload values above, is what makes the active client's
-            // real, current data win instead of silently reverting to
-            // whichever client happened to be active at the last save.
-            const activeSnapshot = restoredStore[d.activeInvitationId];
-            if (activeSnapshot) {
+          // Only the ACTIVE client's own snapshot needs to block initial
+          // load — it's what corrects potentially-stale values above with
+          // whatever was actually saved for them since (see "THE ACTUAL
+          // FIX" below). The other clients' snapshots are only needed for
+          // the Users list's guest-count badges and for instant switching
+          // later, so they load separately in the background further down,
+          // without delaying this page becoming usable. Fetching every
+          // single client's full snapshot right here, on every load,
+          // regardless of which one was even needed yet, was what made a
+          // refresh (and the Users list) get slower as the client list grew.
+          const activeRes = d.activeInvitationId ? await persistentStorage.get(invitationKey(d.activeInvitationId), false) : null;
+          if (!cancelled && activeRes?.value) {
+            try {
+              const activeSnapshot = JSON.parse(activeRes.value);
+              setInvitationsStore((s) => ({ ...s, [d.activeInvitationId]: activeSnapshot }));
+              // THE ACTUAL FIX: the main draft payload's own copies of content,
+              // customBlocks, pageBackgrounds, layouts, etc. (set from d.xxx
+              // above) reflect whatever was active at the moment of the LAST
+              // "Save invitation" click — not necessarily the currently active
+              // client, since the owner may have switched to a different
+              // client's invitation, made edits there (custom images added,
+              // text changed, a background swapped), and reloaded or
+              // refreshed before clicking Save again. Each client's own data
+              // IS already saved correctly, immediately, to its own per-client
+              // key (via switchActiveInvitation, addGuestGroup, an RSVP
+              // submission, etc.) — so re-applying it here, AFTER the stale
+              // main-payload values above, is what makes the active client's
+              // real, current data win instead of silently reverting to
+              // whichever client happened to be active at the last save.
               if (activeSnapshot.guestGroups) setGuestGroups(activeSnapshot.guestGroups);
               if (activeSnapshot.customBlocks) setCustomBlocks(mergeCustomBlocksWithDefaults(activeSnapshot.customBlocks));
               if (activeSnapshot.openInviteLinks) setOpenInviteLinks(activeSnapshot.openInviteLinks);
@@ -9875,7 +9878,25 @@ export default function InvitationBuilder() {
               if (activeSnapshot.enabledLanguages) setEnabledLanguages(activeSnapshot.enabledLanguages);
               if (activeSnapshot.swipeDirection) setSwipeDirection(activeSnapshot.swipeDirection);
               if (activeSnapshot.transitionStyle) setTransitionStyle(activeSnapshot.transitionStyle);
-            }
+            } catch {}
+          }
+          // The rest of the clients — fire-and-forget, populates
+          // invitationsStore progressively as each one resolves instead of
+          // blocking coreDataLoaded on all of them.
+          const otherIds = d.invitationIds.filter((id) => id !== d.activeInvitationId);
+          if (otherIds.length) {
+            (async () => {
+              const results = await Promise.allSettled(otherIds.map((id) => persistentStorage.get(invitationKey(id), false)));
+              if (cancelled) return;
+              const restored = {};
+              otherIds.forEach((id, i) => {
+                const r = results[i];
+                if (r.status === "fulfilled" && r.value?.value) {
+                  try { restored[id] = JSON.parse(r.value.value); } catch {} // skip a corrupted individual entry rather than failing the whole batch
+                }
+              });
+              setInvitationsStore((s) => ({ ...s, ...restored }));
+            })();
           }
         }
         if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
