@@ -1483,6 +1483,33 @@ async function uploadImageToStorage(file, bucket = "og-images") {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
+// A GIF background needs to stay STILL until the guest taps "tap to start" —
+// but a GIF, once it's the CSS background-image of a live element, can't be
+// paused/resumed the way a <video> can; browsers just animate it continuously
+// from the moment it loads. The only way to hold it still is to show a
+// separate, genuinely static image in its place before the tap, and switch to
+// the real animated GIF only once the tap transition begins. This uploads
+// that static frame (reusing readImageCompressed, which captures exactly one
+// frame off a canvas — the same behavior that used to be the bug when it was
+// the ONLY thing saved for a GIF). A failure here is non-fatal: the caller
+// just won't get a "before tap" poster and falls back to the animated URL.
+async function uploadGifPosterFrame(file, bucket = "site-decorations") {
+  try {
+    const compressedDataUrl = await readImageCompressed(file, 1200, 0.82);
+    const blob = await (await fetch(compressedDataUrl)).blob();
+    const path = `${crypto.randomUUID()}.png`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": blob.type },
+      body: blob,
+    });
+    if (!res.ok) return null;
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  } catch {
+    return null;
+  }
+}
+
 // Videos can't be compressed client-side the way images are, and are
 // typically many times larger — storing one as a base64 data URL directly
 // inside the saved JSON snapshot (like an image used to be, before
@@ -4918,7 +4945,7 @@ function GateAnimation({ style }) {
 
 // Envelope gate with an embossed wax seal. Either a built-in style (no upload
 // needed, everything CSS) or a custom uploaded photo/video behind the seal.
-function WaxSealGate({ tapText, design, customMedia, videoRef }) {
+function WaxSealGate({ tapText, design, customMedia, videoRef, revealing }) {
   const d = ENVELOPE_STYLES[design] || ENVELOPE_STYLES.kraftGold;
   const EngraveIcon = d.engrave;
   const hasCustomBg = !!customMedia;
@@ -4939,7 +4966,16 @@ function WaxSealGate({ tapText, design, customMedia, videoRef }) {
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0" style={{ background: `url(${customMedia.url}) center/cover, ${INK}` }} />
+            <div
+              className="absolute inset-0"
+              style={{
+                // Same reasoning as the button-style gate: a GIF can't be paused
+                // once it's a live CSS background, so show its static posterUrl
+                // (generated at upload time) until the tap actually starts the
+                // reveal, then switch to the real animated GIF.
+                background: `url(${customMedia.posterUrl && !revealing ? customMedia.posterUrl : customMedia.url}) center/cover, ${INK}`,
+              }}
+            />
           )}
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.25) 0%, rgba(10,12,10,0.5) 100%)" }} />
         </>
@@ -5165,7 +5201,12 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
 
-  const gateImage = (introMedia?.type === "image" ? introMedia.url : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
+  // A GIF can't be paused like a <video> — it animates continuously the
+  // moment it's a live background, so a GIF with a posterUrl (its static
+  // first frame, generated at upload time) shows that instead, right up
+  // until the tap actually starts the reveal transition.
+  const introMediaUrl = introMedia?.type === "image" && introMedia.posterUrl && !gateClosing ? introMedia.posterUrl : introMedia?.url;
+  const gateImage = (introMedia?.type === "image" ? introMediaUrl : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
   // An opaque color as the bottom layer here matters for any uploaded image/GIF
   // with transparent regions (a common design pattern for decorative overlay
   // art) — without it, the transparent parts let whatever sits behind the gate
@@ -5335,7 +5376,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   className="absolute inset-0"
                   style={{ opacity: gateClosing ? 0 : 1, transition: "opacity 0.48s ease", pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
-                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} />
+                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} revealing={gateClosing} />
                 </button>
               ) : (
                 <div
@@ -9947,9 +9988,11 @@ export default function InvitationBuilder() {
     const file = e.target.files?.[0];
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
+    const isGif = file.type === "image/gif";
     try {
       const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
-      const newItem = { id: uid(), type: isVideo ? "video" : "image", url, name: file.name };
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      const newItem = { id: uid(), type: isVideo ? "video" : "image", url, posterUrl, name: file.name };
       setIntroMediaLibrary((list) => [...list, newItem]);
     } catch (err) {
       alert(err.message || "Couldn't upload — please try again.");
@@ -10517,6 +10560,7 @@ export default function InvitationBuilder() {
     const file = e.target.files?.[0];
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
+    const isGif = file.type === "image/gif";
     if (isVideo && file.size > 20 * 1024 * 1024) {
       alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
       return;
@@ -10529,7 +10573,11 @@ export default function InvitationBuilder() {
       // making saves so slow. uploadImageToStorage already handles GIFs
       // (preserving their animation) the same way it handles any other image.
       const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
-      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: isVideo ? "video" : "image", url, name: file.name } } }));
+      // A GIF also gets a static poster frame uploaded alongside it — see
+      // uploadGifPosterFrame — so the gate can show that instead of the
+      // animated GIF before the tap.
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: isVideo ? "video" : "image", url, posterUrl, name: file.name } } }));
     } catch (err) {
       alert(err.message || "Couldn't upload — please try again.");
     }
@@ -10539,7 +10587,7 @@ export default function InvitationBuilder() {
     setIntro((i) => ({
       ...i,
       introMediaChoiceId: item ? item.id : null,
-      media: { ...i.media, [activeLang]: item ? { type: item.type, url: item.url, name: item.name } : null },
+      media: { ...i.media, [activeLang]: item ? { type: item.type, url: item.url, posterUrl: item.posterUrl, name: item.name } : null },
     }));
   };
 
