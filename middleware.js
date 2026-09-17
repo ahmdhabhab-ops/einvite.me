@@ -41,8 +41,8 @@ const CRAWLER_USER_AGENTS = [
   "facebot", "ia_archiver",
 ];
 
-const SUPABASE_URL = "https://tahbjwbmigoodfrfjpri.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM";
+const SUPABASE_URL = "https://cores.einvite.me";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLXNlbGYtaG9zdGVkIiwiaWF0IjoxNzg5NjQzMjM5LCJleHAiOjIxMDUwMDMyMzl9.F94kRvGQvVWb0lrgiuFNPx4aG3g4oRCwGgudW4IIkR8";
 const supabaseHeaders = {
   apikey: SUPABASE_ANON_KEY,
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,

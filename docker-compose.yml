@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       - PORT=3000
-      - SUPABASE_URL=${SUPABASE_URL:-https://tahbjwbmigoodfrfjpri.supabase.co}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM}
+      - SUPABASE_URL=${SUPABASE_URL:-https://cores.einvite.me}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLXNlbGYtaG9zdGVkIiwiaWF0IjoxNzg5NjQzMjM5LCJleHAiOjIxMDUwMDMyMzl9.F94kRvGQvVWb0lrgiuFNPx4aG3g4oRCwGgudW4IIkR8}
     ports:
       - "3000:3000"

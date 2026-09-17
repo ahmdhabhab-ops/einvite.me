@@ -296,8 +296,8 @@ function applyEventTypeToSnapshot(snapshot, eventType) {
 // Referencing SUPABASE_URL before its own declaration threw a
 // ReferenceError that crashed the entire app before anything could
 // render — which is exactly what a blank white screen looks like.
-const SUPABASE_URL = "https://tahbjwbmigoodfrfjpri.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_85PWR75Vq5WcSWvgos6pmg_4JwG0_iM";
+const SUPABASE_URL = "https://cores.einvite.me";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlLXNlbGYtaG9zdGVkIiwiaWF0IjoxNzg5NjQzMjM5LCJleHAiOjIxMDUwMDMyMzl9.F94kRvGQvVWb0lrgiuFNPx4aG3g4oRCwGgudW4IIkR8";
 const supabaseConfigured = !SUPABASE_URL.includes("YOUR-PROJECT") && !SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
 
 const supabaseHeaders = {
