@@ -10468,37 +10468,22 @@ export default function InvitationBuilder() {
   const handleIntroMediaUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.type.startsWith("video/")) {
-      if (file.size > 20 * 1024 * 1024) {
-        alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
-        return;
-      }
-      // Read as a persistent base64 data URI instead of a temporary blob URL —
-      // a blob URL only exists within the current browser tab's session, so
-      // it never survives a reload or a different device reading this data
-      // back later. Same bug class, same fix, as the music upload earlier.
-      const reader = new FileReader();
-      reader.onload = () => {
-        setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: reader.result, name: file.name } } }));
-      };
-      reader.readAsDataURL(file);
-      return;
-    }
-    if (file.type === "image/gif") {
-      // readImageCompressed below only captures a single canvas-drawn frame —
-      // read the raw bytes instead so the GIF keeps animating.
-      const reader = new FileReader();
-      reader.onload = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: reader.result, name: file.name } } }));
-      reader.readAsDataURL(file);
+    const isVideo = file.type.startsWith("video/");
+    if (isVideo && file.size > 20 * 1024 * 1024) {
+      alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
       return;
     }
     try {
-      const dataUrl = await readImageCompressed(file);
-      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: dataUrl, name: file.name } } }));
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "image", url: reader.result, name: file.name } } }));
-      reader.readAsDataURL(file);
+      // Uploaded to Storage and referenced by its URL — not read into a base64
+      // data URI kept in this invitation's own saved JSON. A multi-MB video or
+      // GIF embedded that way got re-sent in full on every single "Save",
+      // whether or not this field had actually changed, which is what was
+      // making saves so slow. uploadImageToStorage already handles GIFs
+      // (preserving their animation) the same way it handles any other image.
+      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
+      setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: isVideo ? "video" : "image", url, name: file.name } } }));
+    } catch (err) {
+      alert(err.message || "Couldn't upload — please try again.");
     }
   };
   const removeIntroMedia = () => setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: null } }));
