@@ -5058,6 +5058,18 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const introMedia = data.intro.media[lang];
 
+  // Mount-time autoplay attempt for the button-style gate's video background —
+  // without this, the video just sits paused on its first frame (indistinguishable
+  // from a static photo) for the entire time the intro screen is up, and only
+  // starts moving once the user taps. Browsers that allow autoplay for muted
+  // video (most do) play it immediately here; the tap handlers below still
+  // call play() as a guaranteed fallback for stricter/sandboxed environments.
+  useEffect(() => {
+    if (introMedia?.type === "video" && data.intro.type !== "seal" && !started && gateVideoRef.current) {
+      gateVideoRef.current.play().catch(() => {});
+    }
+  }, [introMedia, started, data.intro.type]);
+
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
   const fontDisplay = lang === "ar" ? FONT_AR : FONT_DISPLAY;
