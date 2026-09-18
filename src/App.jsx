@@ -10284,7 +10284,14 @@ export default function InvitationBuilder() {
 
   const addCustomText = () => {
     const stepKey = steps[safeIndex].key;
-    const newBlock = { id: uid(), type: "text", text: "New text", x: 50, y: 50, width: 29, fontFamily: null, color: null, fontSize: 16 };
+    // Staggers each new text block diagonally instead of always spawning at
+    // dead center — a second block landing exactly on top of the first (then
+    // both snapping back to the same center-guide) made them nearly
+    // impossible to grab and separate. Same offset pattern addCustomImage
+    // already uses below.
+    const existingTextBlocks = customBlocks[activeLang][stepKey].filter((b) => b.type === "text").length;
+    const offset = (existingTextBlocks % 4) * 8;
+    const newBlock = { id: uid(), type: "text", text: "New text", x: 50 + offset, y: 50 + offset, width: 29, fontFamily: null, color: null, fontSize: 16 };
     setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
