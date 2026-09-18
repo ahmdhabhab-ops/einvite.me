@@ -3976,7 +3976,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     );
   }
   return (
-    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onResizeWidth={(w) => onMove({ width: w })} widthPercent={block.width || 80} noMaxWidth label="Custom text" light={light} selected={selected} onSelect={onSelect} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onResizeWidth={(w) => onMove({ width: w })} widthPercent={block.width || 29} noMaxWidth label="Custom text" light={light} selected={selected} onSelect={onSelect} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
       {toolbar}
       {editingText ? (
         <div
@@ -4009,8 +4009,18 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       ) : (
         <p
           className="text-center"
+          onClick={(e) => {
+            // Editing directly from a second click (the block is already
+            // selected by the first) instead of only via the toolbar's
+            // pencil button — the pencil still works too.
+            if (!editMode || !selected) return;
+            e.stopPropagation();
+            setDraft(block.text || "");
+            setEditingText(true);
+          }}
           style={{
             whiteSpace: "pre-wrap",
+            cursor: editMode && selected ? "text" : undefined,
             fontFamily: block.fontFamily || (light ? FONT_BODY : FONT_BODY),
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
@@ -10188,7 +10198,7 @@ export default function InvitationBuilder() {
 
   const addCustomText = () => {
     const stepKey = steps[safeIndex].key;
-    const newBlock = { id: uid(), type: "text", text: "New text", x: 50, y: 50, fontFamily: null, color: null, fontSize: 16 };
+    const newBlock = { id: uid(), type: "text", text: "New text", x: 50, y: 50, width: 29, fontFamily: null, color: null, fontSize: 16 };
     setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
