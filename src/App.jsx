@@ -5539,9 +5539,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     const rect = canvasRef.current.getBoundingClientRect();
     groupDragRef.current = {
       clientX: e.clientX, clientY: e.clientY, width: rect.width, height: rect.height,
-      positions: groupSelectedIds.map((id) => ({ id, ...groupPositionOf(id) })).filter((p) => p.x != null),
+      positions: groupSelectedIds.map((id) => ({ ...groupPositionOf(id), id })).filter((p) => p.x != null),
     };
-    console.log("[group-drag] pointerdown", { ids: groupSelectedIds, positions: groupDragRef.current.positions });
     e.target.setPointerCapture?.(e.pointerId);
   };
   const onGroupPointerMove = (e) => {
@@ -5549,7 +5548,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     if (!d) return;
     const dx = ((e.clientX - d.clientX) / d.width) * 100;
     const dy = ((e.clientY - d.clientY) / d.height) * 100;
-    console.log("[group-drag] pointermove", { dx, dy });
     d.positions.forEach(({ id, x, y }) => {
       const newX = Math.min(92, Math.max(8, x + dx));
       const newY = Math.min(88, Math.max(6, y + dy));
