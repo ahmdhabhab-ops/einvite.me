@@ -9709,17 +9709,25 @@ export default function InvitationBuilder() {
       } catch {}
     })();
   }, []);
+  // Mirrors globalAssets so saveGlobalAssets can read the up-to-date list
+  // synchronously — setGlobalAssets's own updater-fn form runs on React's
+  // own schedule, not necessarily before the very next line of code, so
+  // capturing its result into a local variable to persist right after
+  // calling it was a race: persistentStorage.set could (and, per the report
+  // that follows, did) fire with `resolved` still undefined, uploading
+  // "undefined" instead of the real list and making every new image vanish
+  // on the next load.
+  const globalAssetsRef = useRef([]);
+  useEffect(() => { globalAssetsRef.current = globalAssets; }, [globalAssets]);
   // Takes either a next array or an updater fn (list) => nextList — the
-  // updater form reads the up-to-date list at commit time instead of
+  // updater form reads the up-to-date list (via the ref) instead of
   // whatever `globalAssets` a caller's closure happened to capture, so two
   // uploads started close together (each awaiting its own upload before
   // saving) can't silently clobber one another's addition.
   const saveGlobalAssets = async (next) => {
-    let resolved;
-    setGlobalAssets((current) => {
-      resolved = typeof next === "function" ? next(current) : next;
-      return resolved;
-    });
+    const resolved = typeof next === "function" ? next(globalAssetsRef.current) : next;
+    globalAssetsRef.current = resolved;
+    setGlobalAssets(resolved);
     try {
       await persistentStorage.set(GLOBAL_ASSETS_KEY, JSON.stringify(resolved), false);
     } catch (err) {
