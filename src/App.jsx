@@ -4112,7 +4112,12 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
           }}
           style={{
             whiteSpace: "pre-wrap",
-            cursor: editMode && selected ? "text" : undefined,
+            // No cursor override here — a single click no longer enters edit
+            // mode (only a double-click does, see above), so hinting "text"
+            // the moment the block is selected was misleading: it showed an
+            // I-beam caret cursor instead of the grab/drag cursor the outer
+            // DraggableBlock already sets, right while the block was being
+            // dragged. Let that cursor show through instead.
             fontFamily: block.fontFamily || (light ? FONT_BODY : FONT_BODY),
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
