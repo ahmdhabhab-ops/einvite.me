@@ -3860,7 +3860,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   if (block.type === "icon") {
     const Icon = DECORATIVE_ICONS[block.icon]?.icon || Sparkles;
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y, scale: block.scale }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         <Icon size={block.iconSize || 32} color={block.color || (light ? PAPER : EMERALD)} />
       </DraggableBlock>
