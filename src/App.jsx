@@ -95,6 +95,37 @@ function OrnateCrossIcon({ size = 24, color = "currentColor", style }) {
   );
 }
 
+function CrossRaysIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M12 3 L12 20 M6.5 9 L17.5 9" strokeWidth={2.4} />
+      <g strokeWidth={1.2}>
+        <line x1="12" y1="0.5" x2="12" y2="2.2" />
+        <line x1="4" y1="3.5" x2="5.3" y2="4.8" />
+        <line x1="20" y1="3.5" x2="18.7" y2="4.8" />
+        <line x1="1" y1="9.5" x2="3" y2="9.5" />
+        <line x1="23" y1="9.5" x2="21" y2="9.5" />
+        <line x1="2" y1="16" x2="4" y2="15" />
+        <line x1="22" y1="16" x2="20" y2="15" />
+        <line x1="7" y1="2" x2="8" y2="3.7" />
+        <line x1="17" y1="2" x2="16" y2="3.7" />
+      </g>
+    </svg>
+  );
+}
+
+// A loose, single-stroke heart with a small flourish tail past the bottom
+// point — a hand-drawn "doodle" feel, distinct from the plain filled/outline
+// Heart icon already in this list.
+function HeartDoodleIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M12 19 C12 19 4.5 12.5 4.5 7.8 C4.5 4.3 8 2.5 10 4.3 C11 5.2 12 6.8 12 6.8 C12 6.8 13 5.2 14 4.3 C16 2.5 19.5 4.3 19.5 7.8 C19.5 12.5 12 19 12 19" />
+      <path d="M12 19 C10.3 20.6 7.8 21.6 6.3 20.4" />
+    </svg>
+  );
+}
+
 // Decorative icons available as a standalone block on ANY page, or next to
 // each side's title on the Family page. Lucide doesn't provide a combined
 // crescent-and-star or Star-of-David icon, so each entry is named for
@@ -105,12 +136,14 @@ const DECORATIVE_ICONS = {
   cross: { name: "Cross", icon: LatinCrossIcon },
   crossCeltic: { name: "Celtic cross", icon: CelticCrossIcon },
   crossOrnate: { name: "Ornate cross", icon: OrnateCrossIcon },
+  crossRays: { name: "Cross with rays", icon: CrossRaysIcon },
   church: { name: "Church", icon: Church },
   crescentMoon: { name: "Crescent moon", icon: Moon },
   openBook: { name: "Open book", icon: BookOpen },
   star: { name: "Star", icon: Star },
   flower: { name: "Flower", icon: Flower2 },
   heart: { name: "Heart", icon: Heart },
+  heartDoodle: { name: "Heart (doodle)", icon: HeartDoodleIcon },
   sparkles: { name: "Sparkles", icon: Sparkles },
   gem: { name: "Gem", icon: Gem },
   crown: { name: "Crown", icon: Crown },
