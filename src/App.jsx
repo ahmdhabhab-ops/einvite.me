@@ -5468,6 +5468,108 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
+  const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
+
+  // Canva-style rubber-band multi-select: drag a rectangle across empty
+  // canvas space to select every block whose position falls inside it, then
+  // drag any of them to move the whole group together by the same delta.
+  // Scoped to this component (not persisted) — it's a builder-session
+  // selection, not invitation data.
+  const canvasRef = useRef(null);
+  const [marquee, setMarquee] = useState(null); // {x1,y1,x2,y2} in % of the canvas, only while actively dragging
+  const [groupSelectedIds, setGroupSelectedIds] = useState([]); // block ids ("names", "custom:<id>", ...) currently multi-selected
+  const marqueeDownRef = useRef(null);
+  const groupDragRef = useRef(null);
+
+  const onCanvasPointerDown = (e) => {
+    // DraggableBlock's own handleDown calls stopPropagation, so reaching
+    // here means the pointerdown landed on bare canvas, not on a block.
+    if (!layoutEditMode || e.pointerType === "touch") return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    marqueeDownRef.current = { x, y, rect, moved: false };
+    setGroupSelectedIds([]);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onCanvasPointerMove = (e) => {
+    const d = marqueeDownRef.current;
+    if (!d) return;
+    const x = Math.min(100, Math.max(0, ((e.clientX - d.rect.left) / d.rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - d.rect.top) / d.rect.height) * 100));
+    if (Math.abs(x - d.x) > 1 || Math.abs(y - d.y) > 1) d.moved = true;
+    if (d.moved) setMarquee({ x1: Math.min(d.x, x), y1: Math.min(d.y, y), x2: Math.max(d.x, x), y2: Math.max(d.y, y) });
+  };
+  const onCanvasPointerUp = (e) => {
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    const d = marqueeDownRef.current;
+    if (d?.moved && marquee) {
+      const hits = [];
+      Object.entries(layout || {}).forEach(([id, pos]) => {
+        if (pos?.x == null || pos?.y == null) return;
+        if (pos.x >= marquee.x1 && pos.x <= marquee.x2 && pos.y >= marquee.y1 && pos.y <= marquee.y2) hits.push(id);
+      });
+      customBlocks.forEach((b) => {
+        if (b.x >= marquee.x1 && b.x <= marquee.x2 && b.y >= marquee.y1 && b.y <= marquee.y2) hits.push(`custom:${b.id}`);
+      });
+      if (hits.length > 1) { setGroupSelectedIds(hits); onSelectBlock(null); }
+    }
+    marqueeDownRef.current = null;
+    setMarquee(null);
+  };
+
+  const groupPositionOf = (id) =>
+    id.startsWith("custom:")
+      ? customBlocks.find((b) => `custom:${b.id}` === id)
+      : layout?.[id];
+  const groupBounds = (() => {
+    if (groupSelectedIds.length < 2) return null;
+    const positions = groupSelectedIds.map(groupPositionOf).filter(Boolean);
+    if (positions.length < 2) return null;
+    const xs = positions.map((p) => p.x), ys = positions.map((p) => p.y);
+    const pad = 7;
+    return {
+      x1: Math.max(0, Math.min(...xs) - pad), x2: Math.min(100, Math.max(...xs) + pad),
+      y1: Math.max(0, Math.min(...ys) - pad), y2: Math.min(100, Math.max(...ys) + pad),
+    };
+  })();
+  const onGroupPointerDown = (e) => {
+    e.stopPropagation();
+    if (e.pointerType === "touch") return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    groupDragRef.current = {
+      clientX: e.clientX, clientY: e.clientY, width: rect.width, height: rect.height,
+      positions: groupSelectedIds.map((id) => ({ id, ...groupPositionOf(id) })).filter((p) => p.x != null),
+    };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+  const onGroupPointerMove = (e) => {
+    const d = groupDragRef.current;
+    if (!d) return;
+    const dx = ((e.clientX - d.clientX) / d.width) * 100;
+    const dy = ((e.clientY - d.clientY) / d.height) * 100;
+    d.positions.forEach(({ id, x, y }) => {
+      const newX = Math.min(92, Math.max(8, x + dx));
+      const newY = Math.min(88, Math.max(6, y + dy));
+      if (id.startsWith("custom:")) onMoveCustomBlock(stepKey, id.slice(7), { x: newX, y: newY });
+      else moveBlock(id, { x: newX, y: newY });
+    });
+  };
+  const onGroupPointerUp = (e) => {
+    groupDragRef.current = null;
+    e.target.releasePointerCapture?.(e.pointerId);
+  };
+  const deleteGroupSelection = () => {
+    groupSelectedIds.filter((id) => id.startsWith("custom:")).forEach((id) => onRemoveCustomBlock(stepKey, id.slice(7)));
+    setGroupSelectedIds([]);
+  };
+  const groupHasDeletable = groupSelectedIds.some((id) => id.startsWith("custom:"));
+  // Selecting a single block directly (not via the marquee, which already
+  // clears this on its own pointerdown) should drop any stale group
+  // selection instead of leaving its bounding box drawn over a now-unrelated
+  // selection. Same for leaving positioning mode or switching pages.
+  useEffect(() => { if (selectedBlockId) setGroupSelectedIds([]); }, [selectedBlockId]);
+  useEffect(() => { setGroupSelectedIds([]); }, [layoutEditMode, stepKey]);
 
   // Canva-style rubber-band multi-select: drag a rectangle across empty
   // canvas space to select every block whose position falls inside it, then
@@ -5597,8 +5699,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     });
   }
   // More bottom-right actions (share, like, etc.) can be appended to this array the same way.
-
-  const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
 
   const renderSlide = (key) => {
     const layout = data.layouts[lang]?.[key] || DEFAULT_LAYOUTS[key];
