@@ -4095,11 +4095,17 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       ) : (
         <p
           className="text-center"
-          onClick={(e) => {
-            // Editing directly from a second click (the block is already
-            // selected by the first) instead of only via the toolbar's
-            // pencil button — the pencil still works too.
-            if (!editMode || !selected) return;
+          onDoubleClick={(e) => {
+            // Editing directly via a double-click, in addition to the
+            // toolbar's pencil button. This used to trigger on a plain
+            // second click once the block was already selected, but that's
+            // indistinguishable from the click that starts a drag — every
+            // attempt to drag an already-selected block instead dropped it
+            // into text-edit mode, whose contentEditable div deliberately
+            // stops pointerdown from propagating (so placing a text cursor
+            // doesn't also start dragging), which silently broke dragging
+            // entirely for a selected block. A double-click is unambiguous.
+            if (!editMode) return;
             e.stopPropagation();
             setDraft(block.text || "");
             setEditingText(true);
