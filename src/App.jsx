@@ -127,6 +127,65 @@ function HeartDoodleIcon({ size = 24, color = "currentColor", style }) {
   );
 }
 
+function BrideIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <circle cx="12" cy="4.3" r="2" />
+      <path d="M12 6.3 L12 8" />
+      <path d="M9.5 8 C9.5 8 8.2 8.3 7.5 10 L6 21 Q12 23 18 21 L16.5 10 C15.8 8.3 14.5 8 14.5 8 Z" />
+      <circle cx="12" cy="14.5" r="1.3" />
+      <circle cx="10.6" cy="14" r="0.9" />
+      <circle cx="13.4" cy="14" r="0.9" />
+    </svg>
+  );
+}
+
+function GroomIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <circle cx="12" cy="4.3" r="2" />
+      <path d="M12 6.3 L12 7.5" />
+      <path d="M8.5 8 L7.5 15 L16.5 15 L15.5 8 C15.5 8 13.6 9 12 9 C10.4 9 8.5 8 8.5 8 Z" />
+      <path d="M9 15 L8.3 21 M10.5 15 L10 21 M13.5 15 L14 21 M15 15 L15.7 21" />
+      <circle cx="12" cy="8.6" r="0.55" fill={color} stroke="none" />
+    </svg>
+  );
+}
+
+function ChurchArchIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M12 2 L12 5 M10.6 3.3 L13.4 3.3" />
+      <path d="M6 21 L6 11 L12 6 L18 11 L18 21 Z" />
+      <path d="M10.5 21 L10.5 15 Q12 13.3 13.5 15 L13.5 21" />
+      <path d="M7.5 17.5 L9 17.5 M15 17.5 L16.5 17.5" />
+    </svg>
+  );
+}
+
+function ChampagneToastIcon({ size = 24, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <g transform="rotate(-22 5.5 13)">
+        <path d="M2.5 3.5 L8.5 3.5 L5.5 9 Z" />
+        <path d="M5.5 9 L5.5 17" />
+        <path d="M3.3 18.5 L7.7 18.5" />
+        <path d="M5.5 17 L5.5 18.5" />
+        <path d="M3.3 5.8 C4.1 7 6.9 7 7.7 5.8" strokeWidth={1} />
+        <path d="M3.3 18.5 C2 17.7 2 16.6 3.1 16.2 C2.3 15.3 3.3 14.3 4.3 14.7" strokeWidth={0.9} />
+      </g>
+      <g transform="rotate(22 18.5 13)">
+        <path d="M15.5 3.5 L21.5 3.5 L18.5 9 Z" />
+        <path d="M18.5 9 L18.5 17" />
+        <path d="M16.3 18.5 L20.7 18.5" />
+        <path d="M18.5 17 L18.5 18.5" />
+        <path d="M16.3 5.8 C17.1 7 19.9 7 20.7 5.8" strokeWidth={1} />
+        <path d="M20.7 18.5 C22 17.7 22 16.6 20.9 16.2 C21.7 15.3 20.7 14.3 19.7 14.7" strokeWidth={0.9} />
+      </g>
+    </svg>
+  );
+}
+
 // Decorative icons available as a standalone block on ANY page, or next to
 // each side's title on the Family page. Lucide doesn't provide a combined
 // crescent-and-star or Star-of-David icon, so each entry is named for
@@ -139,6 +198,7 @@ const DECORATIVE_ICONS = {
   crossOrnate: { name: "Ornate cross", icon: OrnateCrossIcon },
   crossRays: { name: "Cross with rays", icon: CrossRaysIcon },
   church: { name: "Church", icon: Church },
+  churchArch: { name: "Church (arch)", icon: ChurchArchIcon },
   crescentMoon: { name: "Crescent moon", icon: Moon },
   openBook: { name: "Open book", icon: BookOpen },
   star: { name: "Star", icon: Star },
@@ -150,6 +210,9 @@ const DECORATIVE_ICONS = {
   crown: { name: "Crown", icon: Crown },
   bell: { name: "Bell", icon: Bell },
   sun: { name: "Sun", icon: Sun },
+  bride: { name: "Bride", icon: BrideIcon },
+  groom: { name: "Groom", icon: GroomIcon },
+  champagneToast: { name: "Champagne toast", icon: ChampagneToastIcon },
 };
 
 const GATE_ICONS = { heart: Heart, mail: Mail, sparkles: Sparkles, star: Star };
