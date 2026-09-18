@@ -5539,7 +5539,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     const rect = canvasRef.current.getBoundingClientRect();
     groupDragRef.current = {
       clientX: e.clientX, clientY: e.clientY, width: rect.width, height: rect.height,
-      positions: groupSelectedIds.map((id) => ({ id, ...groupPositionOf(id) })).filter((p) => p.x != null),
+      positions: groupSelectedIds.map((id) => ({ ...groupPositionOf(id), id })).filter((p) => p.x != null),
     };
     console.log("[group-drag] pointerdown", { ids: groupSelectedIds, positions: groupDragRef.current.positions });
     e.target.setPointerCapture?.(e.pointerId);
