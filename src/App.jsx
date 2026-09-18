@@ -4982,13 +4982,26 @@ function GateAnimation({ style }) {
 
 // Envelope gate with an embossed wax seal. Either a built-in style (no upload
 // needed, everything CSS) or a custom uploaded photo/video behind the seal.
-function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealing }) {
+function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealing, revealHoldMs = 700 }) {
   const d = ENVELOPE_STYLES[design] || ENVELOPE_STYLES.kraftGold;
   const EngraveIcon = d.engrave;
   const hasCustomBg = !!customMedia;
 
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: hasCustomBg ? undefined : d.envelopeBg }}>
+    <div className="absolute inset-0 overflow-hidden">
+    {/* The envelope's face and its wax seal peel away as two separate pieces
+        instead of one — the face slides off to the left while the seal (and
+        tap text riding with it) lingers a beat longer, then follows up and to
+        the right. Matches how a real wax-sealed envelope opens: the body of
+        the letter moves out of the way first, the seal breaks free last. */}
+    <div
+      className="absolute inset-0 overflow-hidden"
+      style={{
+        background: hasCustomBg ? undefined : d.envelopeBg,
+        transform: revealing ? "translate(-115%, 0)" : "translate(0, 0)",
+        transition: `transform ${revealHoldMs}ms ease`,
+      }}
+    >
       {hasCustomBg ? (
         <>
           {customMedia.type === "video" ? (
@@ -5068,8 +5081,17 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
           )}
         </>
       )}
+    </div>
 
-      {/* wax seal */}
+    {/* Seal + tap text peel away as their own piece, delayed slightly behind
+        the envelope face so they visibly linger before following it out. */}
+    <div
+      className="absolute inset-0"
+      style={{
+        transform: revealing ? "translate(115%, -115%)" : "translate(0, 0)",
+        transition: `transform ${revealHoldMs}ms ease ${revealing ? Math.round(revealHoldMs * 0.2) : 0}ms`,
+      }}
+    >
       <div
         className="absolute left-1/2 top-1/2 flex items-center justify-center rounded-full"
         style={{
@@ -5094,6 +5116,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
           {tapText}
         </p>
       </div>
+    </div>
     </div>
   );
 }
@@ -5427,22 +5450,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   className="absolute inset-0 overflow-hidden"
                   style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
-                  {/* The whole envelope slides fully away like a curtain being pulled
-                      off, instead of cross-fading out in place — a plain opacity fade
-                      blends two very different-looking images (the envelope's own dark,
-                      textured background against whatever plain page sits behind it),
-                      which shows up as a pale ghosting smear partway through. A hard
-                      translate never blends anything: it's opaque right up to the edge
-                      that's sliding past, so the page underneath appears cleanly. */}
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      transform: gateClosing ? "translate(130%, -130%)" : "translate(0, 0)",
-                      transition: `transform ${revealHoldMs}ms ease`,
-                    }}
-                  >
-                    <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} revealing={gateClosing} />
-                  </div>
+                  <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} revealing={gateClosing} revealHoldMs={revealHoldMs} />
                 </button>
               ) : (
                 <div
@@ -5450,10 +5458,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   style={{
                     background: gateBackground,
                     // Same reasoning as the seal gate above: slide the whole thing away
-                    // as one opaque unit instead of cross-fading it out, so the page
-                    // underneath is revealed with a clean hard edge instead of a pale
-                    // ghosting blend partway through.
-                    transform: gateClosing ? "translate(130%, -130%)" : "translate(0, 0)",
+                    // as its own piece — sliding left — while the icon/tap-text piece
+                    // below lingers a beat longer and follows up and to the right, so
+                    // the page underneath is revealed with a clean hard edge instead of
+                    // a pale cross-fade ghosting through partway.
+                    transform: gateClosing ? "translate(-115%, 0)" : "translate(0, 0)",
                     transition: `transform ${revealHoldMs}ms ease`,
                   }}
                 >
@@ -5504,7 +5513,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)" }} />
                     <div
                       className="relative z-10 flex flex-col items-center gap-4"
-                      style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${Math.min(revealHoldMs, 400)}ms ease` }}
+                      style={{
+                        transform: gateClosing ? "translate(115%, -115%)" : "translate(0, 0)",
+                        transition: `transform ${revealHoldMs}ms ease ${gateClosing ? Math.round(revealHoldMs * 0.2) : 0}ms`,
+                      }}
                     >
                       {data.intro.type === "button" && (
                         <div className="flex h-16 w-16 items-center justify-center rounded-full" style={{ border: `1.5px solid rgba(244,237,228,0.85)` }}>
