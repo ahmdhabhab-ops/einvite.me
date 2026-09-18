@@ -19,15 +19,26 @@
 //      below). If those aren't set, this action responds with a clear error
 //      instead of pretending to send anything.
 //
+//   3. New-signup admin email — notifyAdminNewSignup() posts
+//      { action: "notify-admin-signup", userName, userEmail, userPhone } the
+//      moment someone creates an account that needs manual approval (see
+//      signUpUser in src/App.jsx). Sends a plain notification email to
+//      ADMIN_EMAIL via Resend so you know to go approve them in the
+//      dashboard's Users tab, instead of only finding out next time you
+//      happen to check it. Needs a free Resend account (resend.com) for the
+//      RESEND_API_KEY — their test sender (the RESEND_FROM_EMAIL default)
+//      works immediately with no domain setup, good enough to try this out.
+//
 // Deploy (self-hosted Supabase / supabase/docker):
 //   1. Copy this whole `clever-api` folder into your self-hosted stack's
 //      functions volume, e.g. `supabase/docker/volumes/functions/clever-api/`
 //      (same folder structure the official supabase/docker repo expects —
 //      one subfolder per function, each with its own index.ts).
-//   2. Add OPENAI_API_KEY (required) — and META_WHATSAPP_TOKEN /
-//      META_PHONE_NUMBER_ID (only if you want WhatsApp sending to work) — to
-//      whatever env file your `functions` (edge-runtime) service reads. In
-//      the official supabase/docker compose, that's
+//   2. Add OPENAI_API_KEY (required) — plus whichever of these you actually
+//      want working: META_WHATSAPP_TOKEN / META_PHONE_NUMBER_ID (WhatsApp
+//      sending), RESEND_API_KEY / ADMIN_EMAIL / RESEND_FROM_EMAIL (new-signup
+//      admin email) — to whatever env file your `functions` (edge-runtime)
+//      service reads. In the official supabase/docker compose, that's
 //      `supabase/docker/volumes/functions/.env` (or the `environment:` block
 //      of the `functions` service in your docker-compose.yml — check which
 //      one your stack actually uses).
@@ -47,6 +58,13 @@ const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
 const META_WHATSAPP_TOKEN = Deno.env.get("META_WHATSAPP_TOKEN");
 const META_PHONE_NUMBER_ID = Deno.env.get("META_PHONE_NUMBER_ID");
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const ADMIN_EMAIL = Deno.env.get("ADMIN_EMAIL");
+// Resend's own shared test sender — works with no setup, but Resend can
+// throttle/flag mail sent from it. Once you've verified your own domain in
+// Resend, set RESEND_FROM_EMAIL to something like "notifications@yourdomain"
+// for reliable delivery instead.
+const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
 
 // Wide open (*) since this is called from a browser with only the public
 // anon key, the same way every other Storage/REST call from src/App.jsx
@@ -197,6 +215,53 @@ async function handleWhatsApp(body: Record<string, unknown>) {
   return jsonResponse({ sent: true, messageId: metaData.messages?.[0]?.id });
 }
 
+async function handleNotifyAdminSignup(body: Record<string, unknown>) {
+  if (!RESEND_API_KEY || !ADMIN_EMAIL) {
+    return jsonResponse(
+      { error: "Admin signup emails aren't configured on this server (RESEND_API_KEY / ADMIN_EMAIL not set)." },
+      500,
+    );
+  }
+  const { userName, userEmail, userPhone } = body as {
+    userName?: string;
+    userEmail?: string;
+    userPhone?: string;
+  };
+  if (!userEmail) {
+    return jsonResponse({ error: "userEmail is required." }, 400);
+  }
+
+  const resendRes = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to: [ADMIN_EMAIL],
+      subject: `New account awaiting approval — ${userName || userEmail}`,
+      html: `
+        <p>A new account just signed up and is waiting for approval.</p>
+        <ul>
+          <li><strong>Name:</strong> ${userName || "(not given)"}</li>
+          <li><strong>Email:</strong> ${userEmail}</li>
+          <li><strong>Phone:</strong> ${userPhone || "(not given)"}</li>
+        </ul>
+        <p>Go to the Users tab in the dashboard to approve them.</p>
+      `,
+    }),
+  });
+
+  if (!resendRes.ok) {
+    const errText = await resendRes.text().catch(() => "");
+    console.error("Resend request failed:", resendRes.status, errText);
+    return jsonResponse({ error: "The email service didn't accept the request." }, 502);
+  }
+
+  return jsonResponse({ sent: true });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -214,6 +279,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (body.action === "send-whatsapp") return await handleWhatsApp(body);
+    if (body.action === "notify-admin-signup") return await handleNotifyAdminSignup(body);
     return await handleChat(body);
   } catch (err) {
     console.error("clever-api unhandled error:", err);

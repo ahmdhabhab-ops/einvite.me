@@ -1059,6 +1059,29 @@ async function sendWhatsAppMessage({ to, templateName, languageCode, variables, 
   return data; // { sent: true, messageId }
 }
 
+// Fires the moment a new account is created that needs manual approval
+// (see signUpUser) — never throws, same reasoning as sendApprovalEmail
+// below: a failed notification email should never block the signup itself
+// from succeeding, it just means you find out about it later than ideal.
+async function notifyAdminNewSignup({ userName, userEmail, userPhone }) {
+  try {
+    const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
+      method: "POST",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ action: "notify-admin-signup", userName, userEmail, userPhone }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error("notifyAdminNewSignup failed:", res.status, data.error);
+      return { sent: false, error: data.error || `Status ${res.status}` };
+    }
+    return { sent: true };
+  } catch (err) {
+    console.error("notifyAdminNewSignup threw:", err);
+    return { sent: false, error: "Couldn't reach the email service." };
+  }
+}
+
 async function sendChatSupportMessage(messages, context = "shop") {
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
@@ -10676,6 +10699,9 @@ export default function InvitationBuilder() {
     // approval on top of that would be a confusing, redundant step.
     const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: pendingShopTemplate ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
     saveUsersDirectly((list) => [newUser, ...list]);
+    if (newUser.status === "pending") {
+      notifyAdminNewSignup({ userName: newUser.name, userEmail: newUser.email, userPhone: newUser.phone });
+    }
     return newUser;
   };
   const [pendingNewUser, setPendingNewUser] = useState(null);
