@@ -2393,6 +2393,18 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </div>
       ) : (
         <>
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between">
+              <FieldLabel>Width (% of screen) — drag the box's corners on the phone works too</FieldLabel>
+              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{Math.round(current.width || 88)}%</span>
+            </div>
+            <input
+              type="range" min={20} max={96} value={current.width || 88}
+              onChange={(e) => onChangeStyle({ width: Number(e.target.value) })}
+              className="w-full" style={{ accentColor: GOLD }}
+            />
+          </div>
+
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
               <FieldLabel>Font</FieldLabel>
@@ -3386,7 +3398,7 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 /* Draggable text block (Canva-style)                                      */
 /* ---------------------------------------------------------------------- */
 
-function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
+function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
   const [isDraggingNow, setIsDraggingNow] = useState(false);
@@ -3463,12 +3475,17 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     e.target.releasePointerCapture?.(e.pointerId);
   };
 
-  // Resize handle — drags from the block's own center, so distance from
-  // center to the pointer maps directly to a scale factor. Only active
-  // when onScale is actually provided (opt-in per usage), so every
-  // existing DraggableBlock without it behaves exactly as before.
+  // Resize handle. Two modes, opt-in per usage so every existing
+  // DraggableBlock without either prop behaves exactly as before:
+  //   - onScale (icons, lines): drags from the block's own center, so
+  //     distance from center to the pointer maps to a uniform scale factor —
+  //     these have no natural "reflow", so growing them just enlarges them.
+  //   - onResizeWidth (text blocks): drags horizontally only, resizing the
+  //     block's width as a percent of the card — text re-wraps into that
+  //     width at its existing font size, Canva-style, instead of the whole
+  //     block visually stretching.
   const handleResizeDown = (e) => {
-    if (!editMode || !onScale) return;
+    if (!editMode || (!onScale && !onResizeWidth)) return;
     e.stopPropagation();
     e.preventDefault();
     const el = ref.current;
@@ -3476,17 +3493,29 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
     const rect = el.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    const startDist = Math.hypot(e.clientX - centerX, e.clientY - centerY);
-    resizingRef.current = { centerX, centerY, startDist, startScale: pos.scale || 1 };
+    if (onResizeWidth) {
+      const startDistX = Math.max(Math.abs(e.clientX - centerX), 1);
+      resizingRef.current = { mode: "width", centerX, startDistX, startWidthPercent: widthPercent || 88 };
+    } else {
+      const startDist = Math.hypot(e.clientX - centerX, e.clientY - centerY);
+      resizingRef.current = { mode: "scale", centerX, centerY, startDist, startScale: pos.scale || 1 };
+    }
     e.target.setPointerCapture?.(e.pointerId);
   };
   const handleResizeMove = (e) => {
     const r = resizingRef.current;
     if (!r) return;
-    const dist = Math.hypot(e.clientX - r.centerX, e.clientY - r.centerY);
-    const ratio = dist / Math.max(r.startDist, 1);
-    const newScale = Math.min(2.5, Math.max(0.5, r.startScale * ratio)); // clamp so a block can't be resized into being invisible or absurdly huge
-    onScale(newScale);
+    if (r.mode === "width") {
+      const distX = Math.abs(e.clientX - r.centerX);
+      const ratio = distX / r.startDistX;
+      const newWidthPercent = Math.min(96, Math.max(20, r.startWidthPercent * ratio)); // clamp so a text box can't be resized down to unreadable or wider than the card
+      onResizeWidth(newWidthPercent);
+    } else {
+      const dist = Math.hypot(e.clientX - r.centerX, e.clientY - r.centerY);
+      const ratio = dist / Math.max(r.startDist, 1);
+      const newScale = Math.min(2.5, Math.max(0.5, r.startScale * ratio)); // clamp so a block can't be resized into being invisible or absurdly huge
+      onScale(newScale);
+    }
   };
   const handleResizeUp = (e) => {
     resizingRef.current = null;
@@ -3569,7 +3598,10 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
   // displayed — this is what actually fixes old saved data, not just future
   // drags. 88 keeps any block clear of the swipe-up hint's zone at the bottom.
   const safeY = Math.min(pos.y, 88);
-  const scale = pos.scale || 1;
+  // Stale `scale` from before a block switched to width-based resizing (or
+  // simply never had onScale wired up) should never apply — only read it
+  // when this block is actually in scale mode.
+  const scale = onScale ? (pos.scale || 1) : 1;
   const isTrulyEmpty = isEmpty !== undefined ? isEmpty : (onTextEdit ? !(editableText && editableText.trim()) : false);
 
   return (
@@ -3619,13 +3651,13 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, editableText, onTe
           children
         )}
       </div>
-      {editMode && selected && onScale && !isTrulyEmpty && !isDraggingNow && (
+      {editMode && selected && (onScale || onResizeWidth) && !isTrulyEmpty && !isDraggingNow && (
         <>
           {[
-            { bottom: -5, right: -5, cursor: "nwse-resize" },
-            { bottom: -5, left: -5, cursor: "nesw-resize" },
-            { top: -5, right: -5, cursor: "nesw-resize" },
-            { top: -5, left: -5, cursor: "nwse-resize" },
+            { bottom: -5, right: -5, cursor: onResizeWidth ? "ew-resize" : "nwse-resize" },
+            { bottom: -5, left: -5, cursor: onResizeWidth ? "ew-resize" : "nesw-resize" },
+            { top: -5, right: -5, cursor: onResizeWidth ? "ew-resize" : "nesw-resize" },
+            { top: -5, left: -5, cursor: onResizeWidth ? "ew-resize" : "nwse-resize" },
           ].map((posStyle, i) => (
             <div
               key={i}
@@ -3920,7 +3952,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     );
   }
   return (
-    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom text" light={light} selected={selected} onSelect={onSelect} noMaxWidth={block.type === "text"} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+    <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onResizeWidth={(w) => onMove({ width: w })} widthPercent={block.width || 80} noMaxWidth label="Custom text" light={light} selected={selected} onSelect={onSelect} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
       {toolbar}
       {editingText ? (
         <div
@@ -3936,7 +3968,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             display: "inline-block",
             minWidth: 20,
             maxWidth: "none",
-            whiteSpace: "pre",
+            whiteSpace: "pre-wrap",
             fontFamily: block.fontFamily || FONT_BODY,
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
@@ -3954,7 +3986,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         <p
           className="text-center"
           style={{
-            whiteSpace: "pre",
+            whiteSpace: "pre-wrap",
             fontFamily: block.fontFamily || (light ? FONT_BODY : FONT_BODY),
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
@@ -4008,7 +4040,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
-          <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")} isEmpty={!content.name1 && !content.name2}>
+          <DraggableBlock id="names" pos={namesStyle} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onResizeWidth={(w) => onMoveBlock("names", { width: w })} widthPercent={namesStyle.width || 88} noMaxWidth label="Names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")} isEmpty={!content.name1 && !content.name2}>
             <div className="relative text-center">
               {/* Large icon with a soft glow behind the names — optional,
                   and choosable (not forced to a heart specifically). CSS
@@ -4042,13 +4074,13 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
               </div>
             </div>
           </DraggableBlock>
-          <DraggableBlock id="intro" pos={introStyle} editMode={editMode} onMove={(p) => onMoveBlock("intro", p)} onScale={(scale) => onMoveBlock("intro", { scale })} label="Intro" light={light} selected={selectedBlock === "intro"} onSelect={() => onSelectBlock("intro")} isEmpty={!content.intro}>
+          <DraggableBlock id="intro" pos={introStyle} editMode={editMode} onMove={(p) => onMoveBlock("intro", p)} onResizeWidth={(w) => onMoveBlock("intro", { width: w })} widthPercent={introStyle.width || 85} noMaxWidth label="Intro" light={light} selected={selectedBlock === "intro"} onSelect={() => onSelectBlock("intro")} isEmpty={!content.intro}>
             <p className="text-center italic leading-relaxed" style={{ color: introStyle.color || (light ? "rgba(244,237,228,0.85)" : EMERALD), fontFamily: introStyle.fontFamily || fontDisplay, fontSize: introStyle.fontSize ? `${introStyle.fontSize}px` : 12.5 }}>
               {content.intro}
             </p>
           </DraggableBlock>
           {formattedDate && (
-            <DraggableBlock id="date" pos={dateStyle} editMode={editMode} onMove={(p) => onMoveBlock("date", p)} onScale={(scale) => onMoveBlock("date", { scale })} label="Date" light={light} selected={selectedBlock === "date"} onSelect={() => onSelectBlock("date")}>
+            <DraggableBlock id="date" pos={dateStyle} editMode={editMode} onMove={(p) => onMoveBlock("date", p)} onResizeWidth={(w) => onMoveBlock("date", { width: w })} widthPercent={dateStyle.width || 70} noMaxWidth label="Date" light={light} selected={selectedBlock === "date"} onSelect={() => onSelectBlock("date")}>
               <p className="text-center" style={{ color: dateStyle.color || (light ? GOLD_SOFT : ROSE), fontFamily: dateStyle.fontFamily || FONT_BODY, fontSize: dateStyle.fontSize ? `${dateStyle.fontSize}px` : 12 }}>
                 {formattedDate}
               </p>
@@ -4078,8 +4110,8 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
               </p>
             </DraggableBlock>
           )}
-          <DraggableBlock id="titles" pos={ts} editMode={editMode} onMove={(p) => onMoveBlock("titles", p)} onScale={(scale) => onMoveBlock("titles", { scale })} label="Side titles" light={light} selected={selectedBlock === "titles"} onSelect={() => onSelectBlock("titles")}>
-            <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
+          <DraggableBlock id="titles" pos={ts} editMode={editMode} onMove={(p) => onMoveBlock("titles", p)} onResizeWidth={(w) => onMoveBlock("titles", { width: w })} widthPercent={ts.width || 75} noMaxWidth label="Side titles" light={light} selected={selectedBlock === "titles"} onSelect={() => onSelectBlock("titles")}>
+            <div className="grid grid-cols-2 gap-4" style={{ width: "100%" }}>
               {[{ title: content.side1Title, icon: content.side1Icon, color: content.side1TitleColor }, { title: content.side2Title, icon: content.side2Icon, color: content.side2TitleColor }].map((side, i) => {
                 const SideIcon = DECORATIVE_ICONS[side.icon]?.icon;
                 const sideColor = side.color || ts.color || (light ? GOLD_SOFT : ROSE);
@@ -4092,8 +4124,8 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
               })}
             </div>
           </DraggableBlock>
-          <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onScale={(scale) => onMoveBlock("names", { scale })} label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")} isEmpty={!content.side1Names && !content.side2Names}>
-            <div className="grid grid-cols-2 gap-4" style={{ width: 220 }}>
+          <DraggableBlock id="names" pos={ns} editMode={editMode} onMove={(p) => onMoveBlock("names", p)} onResizeWidth={(w) => onMoveBlock("names", { width: w })} widthPercent={ns.width || 75} noMaxWidth label="Family names" light={light} selected={selectedBlock === "names"} onSelect={() => onSelectBlock("names")} isEmpty={!content.side1Names && !content.side2Names}>
+            <div className="grid grid-cols-2 gap-4" style={{ width: "100%" }}>
               {[{ names: content.side1Names, color: content.side1NamesColor }, { names: content.side2Names, color: content.side2NamesColor }].map((side, i) => (
                 <div key={i} className="text-center">
                   <div style={{ color: side.color || ns.color || (light ? PAPER : EMERALD), fontFamily: ns.fontFamily || fontDisplay, fontSize: ns.fontSize ? `${ns.fontSize}px` : 13 }}>{side.names}</div>
@@ -4478,7 +4510,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         <div className="relative h-full w-full">
           <DraggableBlock
             id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)}
-            onScale={(scale) => onMoveBlock("heading", { scale })}
+            onResizeWidth={(w) => onMoveBlock("heading", { width: w })} widthPercent={hs.width || 80} noMaxWidth
             editableText={content.heading || "RSVP"}
             onTextEdit={(text) => onUpdateContent({ heading: text })}
             label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}
