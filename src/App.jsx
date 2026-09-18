@@ -5425,7 +5425,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                   }}
                   className="absolute inset-0"
-                  style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${revealHoldMs}ms ease`, pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
+                  style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                 >
                   <WaxSealGate tapText={tapText} design={data.intro.sealDesign} customMedia={introMedia} videoRef={gateVideoRef} started={started} revealing={gateClosing} />
                 </button>
@@ -5434,10 +5434,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   className="absolute inset-0"
                   style={{
                     background: gateBackground,
-                    // Tapping just lets the video/photo underneath keep playing in
-                    // place and fades the gate out around it — no sliding pieces.
-                    opacity: gateClosing ? 0 : 1,
-                    transition: `opacity ${revealHoldMs}ms ease`,
+                    // Tapping just lets the video/photo keep playing at full
+                    // visibility for the whole hold — no fading out gradually.
+                    // Once revealHoldMs elapses, `started` flips true and this
+                    // whole gate unmounts in one step, switching straight to the
+                    // slide underneath.
                   }}
                 >
                   {/* Media layer: never animated directly, so playback isn't disrupted mid-decode on lower-power phones */}
@@ -5485,10 +5486,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
                   >
                     <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,12,10,0.3) 0%, rgba(10,12,10,0.5) 100%)" }} />
-                    <div
-                      className="relative z-10 flex flex-col items-center gap-4"
-                      style={{ opacity: gateClosing ? 0 : 1, transition: `opacity ${Math.min(revealHoldMs, 400)}ms ease` }}
-                    >
+                    <div className="relative z-10 flex flex-col items-center gap-4">
                       {data.intro.type === "button" && (
                         <div className="flex h-16 w-16 items-center justify-center rounded-full" style={{ border: `1.5px solid rgba(244,237,228,0.85)` }}>
                           <GateIcon size={24} color={PAPER} strokeWidth={1.4} />
