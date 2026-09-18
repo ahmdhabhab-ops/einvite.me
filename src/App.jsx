@@ -5468,6 +5468,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
+  const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
 
   // Canva-style rubber-band multi-select: drag a rectangle across empty
   // canvas space to select every block whose position falls inside it, then
@@ -5597,8 +5598,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     });
   }
   // More bottom-right actions (share, like, etc.) can be appended to this array the same way.
-
-  const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
 
   const renderSlide = (key) => {
     const layout = data.layouts[lang]?.[key] || DEFAULT_LAYOUTS[key];
