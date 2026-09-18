@@ -5734,7 +5734,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 style={{
                   left: `${marquee.x1}%`, top: `${marquee.y1}%`,
                   width: `${marquee.x2 - marquee.x1}%`, height: `${marquee.y2 - marquee.y1}%`,
-                  background: "rgba(201,164,76,0.15)", border: `1.5px solid ${GOLD}`, zIndex: 45,
+                  background: "rgba(201,164,76,0.15)", border: `1.5px solid ${GOLD}`, zIndex: 500,
                 }}
               />
             )}
@@ -5744,7 +5744,13 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 style={{
                   left: `${groupBounds.x1}%`, top: `${groupBounds.y1}%`,
                   width: `${groupBounds.x2 - groupBounds.x1}%`, height: `${groupBounds.y2 - groupBounds.y1}%`,
-                  border: `1.5px dashed ${GOLD}`, borderRadius: 8, zIndex: 45,
+                  // Individual blocks stack at 30 + layerIndex (see DraggableBlock),
+                  // which climbs past whatever z-index this had on a page with many
+                  // blocks — a click meant to drag the whole group was landing on
+                  // whichever block happened to render on top instead, so nothing in
+                  // the group actually moved. Comfortably above any realistic block
+                  // count instead of guessing a number close to the collision.
+                  border: `1.5px dashed ${GOLD}`, borderRadius: 8, zIndex: 500,
                   cursor: "grab", touchAction: "none",
                 }}
                 onPointerDown={onGroupPointerDown} onPointerMove={onGroupPointerMove} onPointerUp={onGroupPointerUp}
