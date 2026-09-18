@@ -9,6 +9,7 @@ import {
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
+  Download,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -1787,6 +1788,29 @@ const seedGuestGroups = () => {
 };
 
 const flattenMembers = (groups) => groups.flatMap((g) => g.members);
+
+// Wraps a value in quotes and escapes any quotes/commas/newlines inside it —
+// only needed when the value actually contains a character that would
+// otherwise break the CSV grid (a comma reads as a new column, a bare quote
+// or newline corrupts the row), so plain values pass through untouched.
+const csvCell = (value) => {
+  const str = String(value ?? "");
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+};
+
+// Triggers a browser download for arbitrary text content — used for the
+// guest list export, but generic enough to reuse elsewhere later.
+const downloadTextFile = (filename, content, mimeType = "text/csv;charset=utf-8") => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
 
 const seedTables = () => [
   { id: uid(), name: "Family Table", capacity: 10 },
@@ -7066,6 +7090,26 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
 
   const addBlankRow = () => addGuestGroup({ id: uid(), lastName: "", members: [], additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: false, updatedAt: Date.now() });
 
+  // One row per invited person (not per family group), since that's what's
+  // actually useful for a headcount or a mail-merge — a group's shared
+  // fields (last name, phone, table) repeat on every member's row.
+  const exportGuestsToCsv = () => {
+    const header = ["Last Name", "Guest Name", "RSVP Status", "Phone", "Additional Guests", "Table", "Invitation Sent", "Invitation Viewed"];
+    const rows = guestGroups.flatMap((g) => {
+      const tableName = tables.find((t) => t.id === g.tableId)?.name || "";
+      const members = g.members.length > 0 ? g.members : [{ name: "", status: "" }];
+      return members.map((m) => [
+        g.lastName || "", m.name || "", m.status || "", g.phone || "",
+        g.additionalGuests || 0, tableName, g.invitationSent ? "Yes" : "No", g.invitationViewed ? "Yes" : "No",
+      ]);
+    });
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
+    // The BOM is what makes Excel detect this as UTF-8 instead of the
+    // system's default codepage — without it, guest names with Arabic or
+    // other non-ASCII characters show up garbled when opened in Excel.
+    downloadTextFile(`guest-list-${slug}.csv`, `﻿${csv}`);
+  };
+
   return (
     <div className="mx-auto max-w-6xl">
       {/* Hero banner */}
@@ -7271,6 +7315,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               {f === "all" ? "All" : f === "yes" ? "Attending" : f === "no" ? "Not attending" : "Pending"}
             </GhostButton>
           ))}
+          <GhostButton onClick={exportGuestsToCsv} title="Downloads a .csv file that opens directly in Excel">
+            <Download size={13} /> Download
+          </GhostButton>
         </div>
 
         <div className="overflow-x-auto">
