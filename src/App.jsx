@@ -2207,11 +2207,12 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
+  const isIcon = current.type === "icon";
   return (
     <div className="mb-5 rounded-xl p-4" style={{ background: INK_3, border: `1px solid rgba(201,164,76,0.3)` }}>
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
-          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isLine ? "Line" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
+          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isLine ? "Line" : isIcon ? "Icon" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
         </span>
         <button onClick={onDeselect} style={{ color: MUTED }}><X size={14} /></button>
       </div>
@@ -2343,7 +2344,28 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
       </p>
       )}
 
-      {isLine ? null : isImage && !current.fullScreen ? (
+      {isLine ? null : isIcon ? (
+        <div className="mt-4">
+          <FieldLabel>Size (px)</FieldLabel>
+          <TextInput
+            type="number"
+            value={String(current.iconSize || 32)}
+            onChange={(v) => onChangeStyle({ iconSize: v ? Math.max(16, Math.min(96, Number(v))) : 32 })}
+          />
+
+          <div className="mt-3 flex items-center gap-3">
+            <FieldLabel>Color</FieldLabel>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="color" value={current.color || "#F4EDE4"} onChange={(e) => onChangeStyle({ color: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+            {current.color && (
+              <button onClick={() => onChangeStyle({ color: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                Reset to default
+              </button>
+            )}
+          </div>
+        </div>
+      ) : isImage && !current.fullScreen ? (
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
             <FieldLabel>Size (% of screen width)</FieldLabel>
