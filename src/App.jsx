@@ -4234,13 +4234,11 @@ function FamilySlide({ content, bg, fontDisplay, layout, editMode, onMoveBlock, 
               <p style={{ fontFamily: gs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: gs.fontSize ? `${gs.fontSize}px` : 16, color: gs.color || (light ? PAPER : EMERALD), lineHeight: 1.5 }}>{content.greeting}</p>
             </div>
           </DraggableBlock>
-          {(content.quote || editMode) && (
-            <DraggableBlock id="quote" pos={qs} editMode={editMode} onMove={(p) => onMoveBlock("quote", p)} label="Quote" light={light} selected={selectedBlock === "quote"} onSelect={() => onSelectBlock("quote")}>
-              <p className="text-center italic" style={{ color: qs.color || (light ? GOLD_SOFT : ROSE), fontFamily: qs.fontFamily || fontDisplay, fontSize: qs.fontSize ? `${qs.fontSize}px` : 12 }}>
-                {content.quote ? `“${content.quote}”` : "Add a verse or quote in the editor"}
-              </p>
-            </DraggableBlock>
-          )}
+          <DraggableBlock id="quote" pos={qs} editMode={editMode} onMove={(p) => onMoveBlock("quote", p)} label="Quote" light={light} selected={selectedBlock === "quote"} onSelect={() => onSelectBlock("quote")} isEmpty={!content.quote}>
+            <p className="text-center italic" style={{ color: qs.color || (light ? GOLD_SOFT : ROSE), fontFamily: qs.fontFamily || fontDisplay, fontSize: qs.fontSize ? `${qs.fontSize}px` : 12 }}>
+              {content.quote ? `“${content.quote}”` : ""}
+            </p>
+          </DraggableBlock>
           <DraggableBlock id="titles" pos={ts} editMode={editMode} onMove={(p) => onMoveBlock("titles", p)} onResizeWidth={(w) => onMoveBlock("titles", { width: w })} widthPercent={ts.width || 75} noMaxWidth label="Side titles" light={light} selected={selectedBlock === "titles"} onSelect={() => onSelectBlock("titles")}>
             <div className="grid grid-cols-2 gap-4" style={{ width: "100%" }}>
               {[{ title: content.side1Title, icon: content.side1Icon, color: content.side1TitleColor }, { title: content.side2Title, icon: content.side2Icon, color: content.side2TitleColor }].map((side, i) => {
