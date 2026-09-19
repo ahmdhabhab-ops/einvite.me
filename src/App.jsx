@@ -2399,6 +2399,20 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
               </div>
             </div>
           </div>
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <FieldLabel>Button background transparency</FieldLabel>
+              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.directionsTransparency ?? 0}%</span>
+            </div>
+            <input
+              type="range" min={0} max={100} value={current.directionsTransparency ?? 0}
+              onChange={(e) => onChangeStyle({ directionsTransparency: Number(e.target.value) })}
+              className="w-full" style={{ accentColor: GOLD }}
+            />
+            <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              100% removes the button's pill shape entirely, leaving just the icon and text — the color picker above can't do this on its own since it only ever picks a solid color.
+            </p>
+          </div>
         </div>
       )}
 
@@ -4522,7 +4536,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
                   </div>
                   {loc.address && (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: ls.directionsColor || (light ? GOLD : EMERALD), color: ls.directionsTextColor || (light ? INK : PAPER), fontFamily: FONT_BODY }}>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100), color: ls.directionsTextColor || (light ? INK : PAPER), fontFamily: FONT_BODY }}>
                       <Navigation2 size={10} /> {ls.directionsLabel || t.directions}
                     </a>
                   )}
