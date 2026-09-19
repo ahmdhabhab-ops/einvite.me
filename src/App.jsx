@@ -2375,6 +2375,17 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
             <FieldLabel>"Get Directions" button text</FieldLabel>
             <TextInput value={current.directionsLabel || ""} onChange={(v) => onChangeStyle({ directionsLabel: v })} placeholder="Get Directions" />
           </div>
+          <div className="mt-3">
+            <FieldLabel>Button size</FieldLabel>
+            <TextInput
+              type="number"
+              value={String(current.directionsFontSize || 10)}
+              onChange={(v) => onChangeStyle({ directionsFontSize: v ? Math.max(8, Math.min(28, Number(v))) : 10 })}
+            />
+            <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              Scales the whole button — icon, text, and padding — bigger or smaller.
+            </p>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
               <FieldLabel>Button background</FieldLabel>
@@ -4536,8 +4547,20 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
                   </div>
                   {loc.address && (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100), color: ls.directionsTextColor || (light ? INK : PAPER), fontFamily: FONT_BODY }}>
-                      <Navigation2 size={10} /> {ls.directionsLabel || t.directions}
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`}
+                      target="_blank" rel="noreferrer"
+                      onClick={(e) => { if (editMode) e.preventDefault(); }}
+                      className="mt-2 inline-flex items-center gap-1 rounded-full font-semibold"
+                      style={{
+                        background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100),
+                        color: ls.directionsTextColor || (light ? INK : PAPER),
+                        fontFamily: FONT_BODY,
+                        fontSize: `${ls.directionsFontSize || 10}px`,
+                        padding: `${(ls.directionsFontSize || 10) * 0.4}px ${ls.directionsFontSize || 10}px`,
+                      }}
+                    >
+                      <Navigation2 size={(ls.directionsFontSize || 10)} /> {ls.directionsLabel || t.directions}
                     </a>
                   )}
                 </div>
