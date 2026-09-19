@@ -3004,10 +3004,6 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
             <SwatchColorPicker value={c.side1TitleColor} onChange={(v) => updateContent({ side1TitleColor: v })} />
           </div>
           <div className="mt-3">
-            <FieldLabel>Icon (optional)</FieldLabel>
-            <FamilyIconPicker value={c.side1Icon} onChange={(v) => updateContent({ side1Icon: v })} />
-          </div>
-          <div className="mt-3">
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side1Names} onChange={(v) => updateContent({ side1Names: v })} />
           </div>
@@ -3022,10 +3018,6 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
           <div className="mt-3">
             <FieldLabel>Title color (optional)</FieldLabel>
             <SwatchColorPicker value={c.side2TitleColor} onChange={(v) => updateContent({ side2TitleColor: v })} />
-          </div>
-          <div className="mt-3">
-            <FieldLabel>Icon (optional)</FieldLabel>
-            <FamilyIconPicker value={c.side2Icon} onChange={(v) => updateContent({ side2Icon: v })} />
           </div>
           <div className="mt-3">
             <FieldLabel>Names</FieldLabel>
