@@ -3237,6 +3237,14 @@ function LocationsStep({ items, update, activeLang, bg, setBg }) {
   const setTitle = (id, v) => update(items.map((it) => (it.id === id ? { ...it, title: { ...it.title, [activeLang]: v } } : it)));
   const removeItem = (id) => update(items.filter((it) => it.id !== id));
   const addItem = () => update([...items, { id: uid(), time: "", address: "", title: { en: "New location", ar: "", fr: "", es: "" } }]);
+  const duplicateItem = (id) => {
+    const index = items.findIndex((it) => it.id === id);
+    if (index === -1) return;
+    const clone = { ...items[index], id: uid() };
+    const next = [...items];
+    next.splice(index + 1, 0, clone);
+    update(next);
+  };
 
   return (
     <div>
@@ -3247,6 +3255,9 @@ function LocationsStep({ items, update, activeLang, bg, setBg }) {
               <div className="flex-1">
                 <TextInput value={item.title[activeLang] || ""} onChange={(v) => setTitle(item.id, v)} placeholder={`Venue title (${LANG_META[activeLang].short})`} />
               </div>
+              <button onClick={() => duplicateItem(item.id)} title="Duplicate" style={{ color: GOLD_SOFT }}>
+                <Copy size={15} />
+              </button>
               <button onClick={() => removeItem(item.id)} style={{ color: "#E29B9B" }}>
                 <Trash2 size={15} />
               </button>
@@ -4551,8 +4562,12 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
           )}
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="flex flex-col gap-3" style={{ width: 232 }}>
-              {items.map((loc) => (
-                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
+              {items.map((loc, locIndex) => (
+                <React.Fragment key={loc.id}>
+                  {locIndex > 0 && (
+                    <div className="h-px" style={{ background: light ? "rgba(255,255,255,0.25)" : "rgba(36,70,61,0.25)" }} />
+                  )}
+                  <div className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
                   <div className="flex items-center justify-between">
                     <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
@@ -4562,7 +4577,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`}
                       target="_blank" rel="noreferrer"
                       onClick={(e) => { if (editMode) e.preventDefault(); }}
-                      className="mt-2 inline-flex items-center gap-1 rounded-full font-semibold"
+                      className="mt-2 flex w-full items-center justify-center gap-1 rounded-full font-semibold"
                       style={{
                         background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100),
                         color: ls.directionsTextColor || (light ? INK : PAPER),
@@ -4574,7 +4589,8 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                       <Navigation2 size={(ls.directionsFontSize || 10)} /> {ls.directionsLabel || t.directions}
                     </a>
                   )}
-                </div>
+                  </div>
+                </React.Fragment>
               ))}
             </div>
           </DraggableBlock>
