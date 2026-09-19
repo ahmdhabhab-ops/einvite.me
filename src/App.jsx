@@ -2652,6 +2652,15 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
             />
           </div>
 
+          <div className="mt-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+            <FieldLabel>Italic</FieldLabel>
+            <SegmentedToggle
+              value={current.italic ? "on" : "off"}
+              onChange={(v) => onChangeStyle({ italic: v === "on" })}
+              options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+            />
+          </div>
+
           <div className="mt-3 rounded-lg p-3" style={{ background: INK_2 }}>
             <div className="flex items-center justify-between">
               <FieldLabel>Glow</FieldLabel>
@@ -2701,7 +2710,7 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null, glowTransparency: null })}>Reset style</GhostButton>}
+        {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, italic: null, glow: null, glowTransparency: null })}>Reset style</GhostButton>}
         {isCustom && (
           <GhostButton onClick={onDuplicate}>
             <Copy size={12} /> Duplicate
@@ -4304,6 +4313,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
             fontWeight: block.fontWeight || 400,
+            fontStyle: block.italic ? "italic" : "normal",
             textShadow: glowTextShadow(block.glow, block.glowTransparency),
             lineHeight: 1.4,
             background: "rgba(0,0,0,0.25)",
@@ -4343,6 +4353,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
             fontWeight: block.fontWeight || 400,
+            fontStyle: block.italic ? "italic" : "normal",
             textShadow: glowTextShadow(block.glow, block.glowTransparency),
             lineHeight: 1.4,
           }}
@@ -4408,7 +4419,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                 />
               )}
               <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, zIndex: 1 }}>
-                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow, namesStyle.glowTransparency), lineHeight: 1.3 }}>
+                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, fontStyle: namesStyle.italic ? "italic" : "normal", textShadow: glowTextShadow(namesStyle.glow, namesStyle.glowTransparency), lineHeight: 1.3 }}>
                   {content.name1 || ""}
                 </div>
                 {content.name2 ? (
@@ -4418,7 +4429,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                         {ampersandText}
                       </div>
                     )}
-                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow, namesStyle.glowTransparency), lineHeight: 1.3 }}>
+                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, fontStyle: namesStyle.italic ? "italic" : "normal", textShadow: glowTextShadow(namesStyle.glow, namesStyle.glowTransparency), lineHeight: 1.3 }}>
                       {content.name2}
                     </div>
                   </>
