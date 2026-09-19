@@ -3992,6 +3992,30 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             />
           ))}
         </>
+      ) : block.type === "video" ? (
+        <>
+          <button onClick={() => bump("width", -5, 10, 100, 55)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
+          <span className="text-[10px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{block.width || 55}%</span>
+          <button onClick={() => bump("width", 5, 10, 100, 55)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>+</button>
+          <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
+          <button onClick={() => onMove({ width: 100, x: 50 })} title="Fill the full screen width" className="px-1 text-[9.5px] font-bold uppercase" style={{ color: GOLD_SOFT }}>Fill</button>
+        </>
+      ) : block.type === "line" ? (
+        <>
+          <button onClick={() => bump("length", -10, 20, 300, 100)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
+          <span className="text-[10px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{block.length || 100}px</span>
+          <button onClick={() => bump("length", 10, 20, 300, 100)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>+</button>
+          <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
+          <button onClick={() => bump("thickness", -1, 1, 12, 2)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
+          <span className="text-[10px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{block.thickness || 2}px</span>
+          <button onClick={() => bump("thickness", 1, 1, 12, 2)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>+</button>
+        </>
+      ) : block.type === "divider" ? (
+        <>
+          <button onClick={() => bump("width", -5, 10, 100, 40)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
+          <span className="text-[10px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{block.width || 40}%</span>
+          <button onClick={() => bump("width", 5, 10, 100, 40)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>+</button>
+        </>
       ) : (
         <>
           <button onClick={() => bump("fontSize", -2, 8, 72, 16)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>−</button>
