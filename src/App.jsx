@@ -2329,7 +2329,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, blockId, current, onChangeStyle, onChangeText, onDelete, onDeselect, onReorder }) {
+function BlockStylePanel({ isCustom, blockId, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
@@ -2632,6 +2632,11 @@ function BlockStylePanel({ isCustom, blockId, current, onChangeStyle, onChangeTe
 
       <div className="mt-4 flex items-center gap-2">
         {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null, glowTransparency: null })}>Reset style</GhostButton>}
+        {isCustom && (
+          <GhostButton onClick={onDuplicate}>
+            <Copy size={12} /> Duplicate
+          </GhostButton>
+        )}
         {isCustom && (
           <GhostButton danger onClick={onDelete}>
             <Trash2 size={12} /> Delete
@@ -3958,7 +3963,7 @@ function useCountdown(date, time) {
   return { days: Math.floor(s / 86400), hours: Math.floor((s % 86400) / 3600), mins: Math.floor((s % 3600) / 60), secs: s % 60, passed: diff <= 0 };
 }
 
-function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, onDelete, layerIndex }) {
+function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, onDelete, onDuplicate, layerIndex }) {
   const [editingText, setEditingText] = useState(false);
   const [draft, setDraft] = useState(block.text || "");
   const editRef = useRef(null);
@@ -4058,6 +4063,8 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
           <button onClick={() => { setDraft(block.text || ""); setEditingText(true); }} title="Edit text" style={{ color: GOLD_SOFT }}><Pencil size={11} /></button>
         </>
       )}
+      <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
+      <button onClick={onDuplicate} title="Duplicate" style={{ color: GOLD_SOFT }}><Copy size={11} /></button>
       <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
       <button onClick={onDelete} title="Delete" style={{ color: "#E29B9B" }}><Trash2 size={12} /></button>
     </div>
@@ -5464,7 +5471,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide" }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide" }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -5892,6 +5899,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     onSelect={() => onSelectBlock(`custom:${block.id}`)}
                     onMove={(p) => onMoveCustomBlock(stepKey, block.id, p)}
                     onDelete={() => onRemoveCustomBlock(stepKey, block.id)}
+                    onDuplicate={() => onDuplicateCustomBlock(stepKey, block.id)}
                   />
                 ))}
               </div>
@@ -5910,6 +5918,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     onSelect={() => onSelectBlock(`custom:${block.id}`)}
                     onMove={(p) => onMoveCustomBlock(stepKey, block.id, p)}
                     onDelete={() => onRemoveCustomBlock(stepKey, block.id)}
+                    onDuplicate={() => onDuplicateCustomBlock(stepKey, block.id)}
                   />
                 ))}
               </div>
@@ -10895,6 +10904,21 @@ export default function InvitationBuilder() {
     setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: c[activeLang][stepKey].filter((b) => b.id !== id) } }));
     setSelectedBlockId((sel) => (sel === `custom:${id}` ? null : sel));
   };
+  const duplicateCustomBlock = (stepKey, id) => {
+    setCustomBlocks((c) => {
+      const list = c[activeLang][stepKey];
+      const index = list.findIndex((b) => b.id === id);
+      if (index === -1) return c;
+      // Small offset so the copy doesn't land exactly on top of the
+      // original — same nudge addCustomText/addCustomImage use for new
+      // blocks, so a duplicate is immediately visible and grabbable.
+      const clone = { ...list[index], id: uid(), x: Math.min(92, (list[index].x ?? 50) + 6), y: Math.min(88, (list[index].y ?? 50) + 6) };
+      const next = [...list];
+      next.splice(index + 1, 0, clone);
+      setSelectedBlockId(`custom:${clone.id}`);
+      return { ...c, [activeLang]: { ...c[activeLang], [stepKey]: next } };
+    });
+  };
   // Custom blocks render in array order (later = drawn on top), so
   // reordering the array IS the layer control. "front"/"back" move the
   // block all the way to one end; "forward"/"backward" swap it one step
@@ -11666,6 +11690,7 @@ export default function InvitationBuilder() {
           onSelectBlock={() => {}}
           onMoveCustomBlock={() => {}}
           onRemoveCustomBlock={() => {}}
+          onDuplicateCustomBlock={() => {}}
           onSubmitRsvp={submitGuestViewRsvp}
           fullscreen
           slug={guestView.slug}
@@ -11979,6 +12004,7 @@ export default function InvitationBuilder() {
                     onChangeStyle={(patch) => (isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
                     onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
                     onDelete={() => removeCustomBlock(stepKey, customId)}
+                    onDuplicate={isCustom ? () => duplicateCustomBlock(stepKey, customId) : undefined}
                     onDeselect={() => setSelectedBlockId(null)}
                     onReorder={isCustom ? (action) => reorderCustomBlock(stepKey, customId, action) : undefined}
                   />
@@ -12116,7 +12142,7 @@ export default function InvitationBuilder() {
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto md:sticky md:top-10 md:w-auto md:self-start">
               <div className="relative">
-                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
+                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
                 {/* Fades to hide the instant background/style swap behind an
                     opaque cover, then fades back in — this is what makes
                     switching templates look like a smooth, medium-speed
