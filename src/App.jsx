@@ -2375,6 +2375,17 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
             <FieldLabel>"Get Directions" button text</FieldLabel>
             <TextInput value={current.directionsLabel || ""} onChange={(v) => onChangeStyle({ directionsLabel: v })} placeholder="Get Directions" />
           </div>
+          <div className="mt-3">
+            <FieldLabel>"Get Directions" button color</FieldLabel>
+            <div className="flex items-center gap-2">
+              <input type="color" value={current.directionsColor || "#C9A44C"} onChange={(e) => onChangeStyle({ directionsColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+              {current.directionsColor && (
+                <button onClick={() => onChangeStyle({ directionsColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                  Reset to default
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -4498,7 +4509,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
                   </div>
                   {loc.address && (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, fontFamily: FONT_BODY }}>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: ls.directionsColor || (light ? GOLD : EMERALD), color: light ? INK : PAPER, fontFamily: FONT_BODY }}>
                       <Navigation2 size={10} /> {ls.directionsLabel || t.directions}
                     </a>
                   )}
