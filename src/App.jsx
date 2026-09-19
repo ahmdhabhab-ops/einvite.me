@@ -3626,15 +3626,29 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   };
 
   // Mouse / stylus via Pointer Events.
-  const downPointRef = useRef(null); // { x, y } where the pointer went down — a simple click/select shouldn't move the block at all, only a real drag past a small threshold should
+  const downPointRef = useRef(null); // { x, y, offsetX, offsetY } where the pointer went down — a simple click/select shouldn't move the block at all, only a real drag past a small threshold should
   const MOVE_THRESHOLD = 4; // px
+
+  // Grabbing a block anywhere other than dead-center used to snap its CENTER
+  // to the cursor the instant a drag started — computeFromPoint always
+  // treated the raw cursor position as the block's new center, so clicking
+  // near a tall image's top edge and dragging made the whole image jump
+  // down to recenter under the cursor before it had moved at all. Capturing
+  // the pointer's offset from the block's actual current center here, and
+  // subtracting it in every subsequent move, keeps the block glued to where
+  // it was grabbed instead of teleporting to the cursor.
+  const dragOffsetFromCenter = (clientX, clientY) => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return { offsetX: 0, offsetY: 0 };
+    return { offsetX: clientX - (rect.left + rect.width / 2), offsetY: clientY - (rect.top + rect.height / 2) };
+  };
 
   const handleDown = (e) => {
     if (!editMode || e.pointerType === "touch" || isEditingText) return;
     e.stopPropagation();
     onSelect?.();
     draggingRef.current = true;
-    downPointRef.current = { x: e.clientX, y: e.clientY };
+    downPointRef.current = { x: e.clientX, y: e.clientY, ...dragOffsetFromCenter(e.clientX, e.clientY) };
     setIsDraggingNow(true);
     onDragStateChange?.(true);
     e.target.setPointerCapture?.(e.pointerId);
@@ -3643,7 +3657,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
     if (!editMode || !draggingRef.current || e.pointerType === "touch") return;
     const d = downPointRef.current;
     if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < MOVE_THRESHOLD) return; // hasn't moved enough yet to count as an actual drag
-    const next = computeFromPoint(e.clientX, e.clientY);
+    const next = computeFromPoint(e.clientX - (d?.offsetX || 0), e.clientY - (d?.offsetY || 0));
     if (next) onMove(next);
   };
   const handleUp = (e) => {
@@ -3722,7 +3736,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
       onSelectRef.current?.();
       draggingRef.current = true;
       const t0 = e.touches[0];
-      downPointRef.current = t0 ? { x: t0.clientX, y: t0.clientY } : null;
+      downPointRef.current = t0 ? { x: t0.clientX, y: t0.clientY, ...dragOffsetFromCenter(t0.clientX, t0.clientY) } : null;
       setIsDraggingNow(true);
       onDragStateChange?.(true);
     };
@@ -3733,7 +3747,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
       if (!t) return;
       const d = downPointRef.current;
       if (d && Math.hypot(t.clientX - d.x, t.clientY - d.y) < MOVE_THRESHOLD) return;
-      const next = computeFromPoint(t.clientX, t.clientY);
+      const next = computeFromPoint(t.clientX - (d?.offsetX || 0), t.clientY - (d?.offsetY || 0));
       if (next) onMoveRef.current(next);
     };
     const onEnd = () => { draggingRef.current = false; downPointRef.current = null; setIsDraggingNow(false); onDragStateChange?.(false); setSnapGuide({ x: null, y: null }); };
