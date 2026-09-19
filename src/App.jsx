@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useContext, createContext } from "react";
 import { createPortal } from "react-dom";
 import {
   Heart, Users, Clock, MapPin, CalendarClock, ChevronUp, ChevronDown,
@@ -3551,6 +3551,12 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 /* Draggable text block (Canva-style)                                      */
 /* ---------------------------------------------------------------------- */
 
+// Shared registry (a ref to a Map, provided once per phone canvas) that every
+// mounted DraggableBlock on the current slide publishes its own {x, y} center
+// into. Lets alignment guides snap to OTHER elements' centers — and to the
+// midpoint between two of them — not just the page's own dead-center.
+const BlockPositionsContext = createContext(null);
+
 function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
@@ -3558,16 +3564,31 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
   const [isEditingText, setIsEditingText] = useState(false);
   const textRef = useRef(null);
-  // Canva-style alignment guides — which axis (if any) the block is
-  // currently snapped to center on, plus the frame's own screen position
-  // so the guide line itself can be drawn at the right spot with `position:
-  // fixed` (percentage-based positioning can't span outside this block's
-  // own box, but the guide line needs to run the full height/width of the
-  // frame, not just this one block).
-  const [centerSnap, setCenterSnap] = useState({ x: false, y: false });
-  const [frameRect, setFrameRect] = useState(null);
+  // Canva-style alignment guides — the exact position (percent, not just a
+  // boolean) the block is currently snapped to on each axis, so the guide
+  // line can be drawn there. Snap targets are the page's own dead-center,
+  // every OTHER block's center on this slide, and the midpoint between any
+  // two of them — not just the screen's center.
+  const [snapGuide, setSnapGuide] = useState({ x: null, y: null });
+  const positionsRegistry = useContext(BlockPositionsContext);
 
-  const SNAP_THRESHOLD = 2.5; // percent — how close to dead-center before it snaps and shows the guide
+  useEffect(() => {
+    if (!positionsRegistry) return;
+    positionsRegistry.current.set(id, { x: pos.x, y: pos.y });
+    return () => { positionsRegistry.current.delete(id); };
+  }, [positionsRegistry, id, pos.x, pos.y]);
+
+  const SNAP_THRESHOLD = 2.5; // percent — how close to a snap target before it snaps and shows the guide
+
+  // Picks the candidate value closest to `val` within SNAP_THRESHOLD, or null.
+  const closestSnap = (val, candidates) => {
+    let best = null, bestDist = SNAP_THRESHOLD;
+    for (const c of candidates) {
+      const d = Math.abs(val - c);
+      if (d < bestDist) { bestDist = d; best = c; }
+    }
+    return best;
+  };
 
   const computeFromPoint = (clientX, clientY) => {
     const parent = ref.current?.parentElement;
@@ -3587,12 +3608,24 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
     }
     y = Math.min(88, Math.max(6, y));
 
-    const snapX = Math.abs(x - 50) < SNAP_THRESHOLD;
-    const snapY = Math.abs(y - 50) < SNAP_THRESHOLD;
-    if (snapX) x = 50;
-    if (snapY) y = 50;
-    setCenterSnap({ x: snapX, y: snapY });
-    setFrameRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+    const others = positionsRegistry
+      ? [...positionsRegistry.current.entries()].filter(([oid]) => oid !== id).map(([, p]) => p)
+      : [];
+    const otherXs = others.map((p) => p.x).filter((v) => v != null);
+    const otherYs = others.map((p) => p.y).filter((v) => v != null);
+    const midpoints = (vals) => {
+      const mids = [];
+      for (let i = 0; i < vals.length; i++) for (let j = i + 1; j < vals.length; j++) mids.push((vals[i] + vals[j]) / 2);
+      return mids;
+    };
+    const candidatesX = [50, ...otherXs, ...midpoints(otherXs)];
+    const candidatesY = [50, ...otherYs, ...midpoints(otherYs)];
+
+    const snapXVal = closestSnap(x, candidatesX);
+    const snapYVal = closestSnap(y, candidatesY);
+    if (snapXVal != null) x = snapXVal;
+    if (snapYVal != null) y = snapYVal;
+    setSnapGuide({ x: snapXVal, y: snapYVal });
 
     return { x, y };
   };
@@ -3620,7 +3653,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   };
   const handleUp = (e) => {
     if (e.pointerType === "touch") return;
-    setCenterSnap({ x: false, y: false }); // guides only show WHILE actively dragging, not once released
+    setSnapGuide({ x: null, y: null }); // guides only show WHILE actively dragging, not once released
     draggingRef.current = false;
     downPointRef.current = null;
     setIsDraggingNow(false);
@@ -3708,7 +3741,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
       const next = computeFromPoint(t.clientX, t.clientY);
       if (next) onMoveRef.current(next);
     };
-    const onEnd = () => { draggingRef.current = false; downPointRef.current = null; setIsDraggingNow(false); onDragStateChange?.(false); setCenterSnap({ x: false, y: false }); };
+    const onEnd = () => { draggingRef.current = false; downPointRef.current = null; setIsDraggingNow(false); onDragStateChange?.(false); setSnapGuide({ x: null, y: null }); };
     el.addEventListener("touchstart", onStart, { passive: false });
     el.addEventListener("touchmove", onMoveTouch, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: false });
@@ -3832,13 +3865,13 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
           ))}
         </>
       )}
-      {ref.current?.parentElement && (centerSnap.x || centerSnap.y) && createPortal(
+      {ref.current?.parentElement && (snapGuide.x != null || snapGuide.y != null) && createPortal(
         <>
-          {centerSnap.x && (
+          {snapGuide.x != null && (
             <div
               className="pointer-events-none absolute"
               style={{
-                left: "50%",
+                left: `${snapGuide.x}%`,
                 top: 0,
                 width: 1,
                 height: "100%",
@@ -3849,12 +3882,12 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
               }}
             />
           )}
-          {centerSnap.y && (
+          {snapGuide.y != null && (
             <div
               className="pointer-events-none absolute"
               style={{
                 left: 0,
-                top: "50%",
+                top: `${snapGuide.y}%`,
                 width: "100%",
                 height: 1,
                 transform: "translateY(-0.5px)",
@@ -5522,6 +5555,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const [groupSelectedIds, setGroupSelectedIds] = useState([]); // block ids ("names", "custom:<id>", ...) currently multi-selected
   const marqueeDownRef = useRef(null);
   const groupDragRef = useRef(null);
+  // Every DraggableBlock on the current slide publishes its own {x, y}
+  // center into this map (see BlockPositionsContext) so alignment guides
+  // can snap to each other's centers, not just the page's dead-center.
+  const blockPositionsRef = useRef(new Map());
 
   const onCanvasPointerDown = (e) => {
     // DraggableBlock's own handleDown calls stopPropagation, so reaching
@@ -5754,6 +5791,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           )}
 
           <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+            <BlockPositionsContext.Provider value={blockPositionsRef}>
             {renderSlide(stepKey)}
             {started && (
               <div className="absolute inset-0">
@@ -5772,6 +5810,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 ))}
               </div>
             )}
+            </BlockPositionsContext.Provider>
             {marquee && (
               <div
                 className="pointer-events-none absolute"
