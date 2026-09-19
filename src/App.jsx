@@ -4561,7 +4561,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
           </DraggableBlock>
           )}
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
-            <div className="flex flex-col gap-5" style={{ width: 232 }}>
+            <div className="flex flex-col gap-8" style={{ width: 232 }}>
               {items.map((loc) => (
                 <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
                   <div className="flex items-center justify-between">
