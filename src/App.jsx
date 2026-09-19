@@ -2329,7 +2329,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, blockId, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder }) {
+function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
@@ -2354,6 +2354,27 @@ function BlockStylePanel({ isCustom, blockId, current, onChangeStyle, onChangeTe
             onChange={(v) => onChangeStyle({ hidden: v === "hidden" })}
             options={[{ value: "shown", label: "Show" }, { value: "hidden", label: "Hide" }]}
           />
+        </div>
+      )}
+
+      {stepKey === "locations" && blockId === "list" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="mb-1.5 flex items-center justify-between">
+            <FieldLabel>Card background (on a photo)</FieldLabel>
+            <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.cardOpacity ?? 12}%</span>
+          </div>
+          <input
+            type="range" min={0} max={100} value={current.cardOpacity ?? 12}
+            onChange={(e) => onChangeStyle({ cardOpacity: Number(e.target.value) })}
+            className="w-full" style={{ accentColor: GOLD }}
+          />
+          <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Each location's card behind its title and time — 0% is fully see-through, only visible on a photo background.
+          </p>
+          <div className="mt-3">
+            <FieldLabel>"Get Directions" button text</FieldLabel>
+            <TextInput value={current.directionsLabel || ""} onChange={(v) => onChangeStyle({ directionsLabel: v })} placeholder="Get Directions" />
+          </div>
         </div>
       )}
 
@@ -4471,14 +4492,14 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="flex flex-col gap-3" style={{ width: 232 }}>
               {items.map((loc) => (
-                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? "rgba(255,255,255,0.12)" : PAPER_2, backdropFilter: light ? "blur(3px)" : "none" }}>
+                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light ? "blur(3px)" : "none" }}>
                   <div className="flex items-center justify-between">
                     <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
                   </div>
                   {loc.address && (
                     <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, fontFamily: FONT_BODY }}>
-                      <Navigation2 size={10} /> {t.directions}
+                      <Navigation2 size={10} /> {ls.directionsLabel || t.directions}
                     </a>
                   )}
                 </div>
@@ -12010,6 +12031,7 @@ export default function InvitationBuilder() {
                   <BlockStylePanel
                     isCustom={isCustom}
                     blockId={isCustom ? null : selectedBlockId}
+                    stepKey={stepKey}
                     current={current}
                     onChangeStyle={(patch) => (isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
                     onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
