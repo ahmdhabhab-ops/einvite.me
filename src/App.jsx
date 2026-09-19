@@ -3665,6 +3665,16 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   const handleDown = (e) => {
     if (!editMode || e.pointerType === "touch" || isEditingText) return;
     e.stopPropagation();
+    // Without this, the browser can still kick off its own native text
+    // selection/drag on mousedown — invisible most of the time since
+    // user-select: none on this block usually pre-empts it, but any
+    // pre-existing selection (e.g. left over from a prior contentEditable
+    // session, or right after a click on another control like Duplicate)
+    // wins the race and the browser shows its own "can't drop here" cursor
+    // for the rest of the drag instead of ours, even though our own
+    // pointer-move handling keeps running underneath it. The resize handle
+    // below already does this; the main drag never did.
+    e.preventDefault();
     onSelect?.();
     draggingRef.current = true;
     downPointRef.current = { x: e.clientX, y: e.clientY, ...dragOffsetFromCenter(e.clientX, e.clientY) };
