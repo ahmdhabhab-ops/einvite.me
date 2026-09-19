@@ -2329,7 +2329,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDelete, onDeselect, onReorder }) {
+function BlockStylePanel({ isCustom, blockId, current, onChangeStyle, onChangeText, onDelete, onDeselect, onReorder }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
@@ -2342,6 +2342,20 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </span>
         <button onClick={onDeselect} style={{ color: MUTED }}><X size={14} /></button>
       </div>
+
+      {blockId === "heading" && (
+        <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+          <div>
+            <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Heading</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Hide this section's title label</div>
+          </div>
+          <SegmentedToggle
+            value={current.hidden ? "hidden" : "shown"}
+            onChange={(v) => onChangeStyle({ hidden: v === "hidden" })}
+            options={[{ value: "shown", label: "Show" }, { value: "hidden", label: "Hide" }]}
+          />
+        </div>
+      )}
 
       {isLine && (
         <>
@@ -4394,9 +4408,11 @@ function TimelineSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMo
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
-            <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10 }}>{t.orderOfDay}</div>
+            <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10, opacity: hs.hidden ? 0.4 : 1 }}>{t.orderOfDay}</div>
           </DraggableBlock>
+          )}
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Timeline" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="relative" style={{ width: 210 }}>
               <div className="absolute bottom-2 left-[13px] top-2 w-px" style={{ background: light ? "rgba(255,255,255,0.25)" : "rgba(36,70,61,0.25)" }} />
@@ -4430,9 +4446,11 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
-            <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10 }}>{t.celebration}</div>
+            <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10, opacity: hs.hidden ? 0.4 : 1 }}>{t.celebration}</div>
           </DraggableBlock>
+          )}
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="flex flex-col gap-3" style={{ width: 232 }}>
               {items.map((loc) => (
@@ -4470,13 +4488,15 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
-            <div className="text-center">
+            <div className="text-center" style={{ opacity: hs.hidden ? 0.4 : 1 }}>
               <div className="text-[10px] font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.15em", fontFamily: FONT_BODY }}>{t.countingDownTo}</div>
               <div style={{ fontFamily: hs.fontFamily || fontScript, fontSize: hs.fontSize ? `${hs.fontSize}px` : 26, color: hs.color || (light ? PAPER : EMERALD), margin: "4px 0 4px" }}>{t.celebrationWord}</div>
               {formattedDate && <div className="text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : ROSE, fontFamily: FONT_BODY }}>{formattedDate}</div>}
             </div>
           </DraggableBlock>
+          )}
           <DraggableBlock id="countdown" pos={cs} editMode={editMode} onMove={(p) => onMoveBlock("countdown", p)} label="Countdown" light={light} selected={selectedBlock === "countdown"} onSelect={() => onSelectBlock("countdown")}>
             {cd && !cd.passed ? (
               <div className="flex gap-2.5">
@@ -4757,6 +4777,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock
             id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)}
             onResizeWidth={(w) => onMoveBlock("heading", { width: w })} widthPercent={hs.width || 80} noMaxWidth
@@ -4764,6 +4785,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             onTextEdit={(text) => onUpdateContent({ heading: text })}
             label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}
           >
+            <div style={{ opacity: hs.hidden ? 0.4 : 1 }}>
             {style === "stacked" ? (
               <p className="text-center" style={{ fontFamily: hs.fontFamily || fontScript, fontSize: hs.fontSize ? `${hs.fontSize}px` : 28, color: hs.color || (light ? PAPER : EMERALD) }}>
                 {content.heading || "RSVP"}
@@ -4775,7 +4797,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 <p className="italic" style={{ fontFamily: fontDisplay, fontSize: 12, color: light ? "rgba(244,237,228,0.85)" : ROSE }}>{t.rsvpHeading}</p>
               </div>
             )}
+            </div>
           </DraggableBlock>
+          )}
 
           <DraggableBlock id="buttons" pos={bs} editMode={editMode} onMove={(p) => onMoveBlock("buttons", p)} label="RSVP form" light={light} selected={selectedBlock === "buttons"} onSelect={() => onSelectBlock("buttons")}>
             <div style={{ width: 230 }}>
@@ -4954,12 +4978,14 @@ function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBloc
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
-            <div className="text-center" style={{ width: 230 }}>
+            <div className="text-center" style={{ width: 230, opacity: hs.hidden ? 0.4 : 1 }}>
               <div className="font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.15em", fontFamily: FONT_BODY, fontSize: 10 }}>{t.giftRegistry}</div>
               <p className="mt-1.5 text-[11px] italic" style={{ color: light ? "rgba(244,237,228,0.8)" : EMERALD, fontFamily: fontDisplay }}>{t.registryIntro}</p>
             </div>
           </DraggableBlock>
+          )}
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Registry list" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="flex flex-col gap-3" style={{ width: 220 }}>
               {items.map((item) => (
@@ -5011,8 +5037,9 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
-            <div className="text-center" style={{ width: 220 }}>
+            <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0.4 : 1 }}>
               <Icon size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
               <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
               <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
@@ -5023,6 +5050,7 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
               )}
             </div>
           </DraggableBlock>
+          )}
           <DraggableBlock id="button" pos={bs} editMode={editMode} onMove={(p) => onMoveBlock("button", p)} label="Button" light={light} selected={selectedBlock === "button"} onSelect={() => onSelectBlock("button")}>
             {canAct ? (
               <a
@@ -5084,13 +5112,15 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
     <StoryPage bg={bg}>
       {(light) => (
         <div className="relative h-full w-full">
+          {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
-            <div className="text-center" style={{ width: 220 }}>
+            <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0.4 : 1 }}>
               <Music2 size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
               <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
               <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
             </div>
           </DraggableBlock>
+          )}
           <DraggableBlock id="form" pos={fs} editMode={editMode} onMove={(p) => onMoveBlock("form", p)} label="Request form" light={light} selected={selectedBlock === "form"} onSelect={() => onSelectBlock("form")}>
             {editMode ? (
               <div style={{ width: 220, padding: "12px 14px", borderRadius: 10, border: `1.5px dashed ${light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)"}`, textAlign: "center" }}>
@@ -5587,6 +5617,13 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
   const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
+  // "Send to back"/"Bring to front" need to cross the page's own structural
+  // content (titles, icons, the timeline list, etc.), not just reorder among
+  // other custom blocks — so behindContent-flagged blocks render in their own
+  // pass BEFORE renderSlide() below, and everything else renders AFTER it,
+  // in the same relative order they'd have had in one flat list.
+  const behindCustomBlocks = customBlocks.filter((b) => b.behindContent);
+  const frontCustomBlocks = customBlocks.filter((b) => !b.behindContent);
 
   // Canva-style rubber-band multi-select: drag a rectangle across empty
   // canvas space to select every block whose position falls inside it, then
@@ -5842,10 +5879,27 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
           <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
             <BlockPositionsContext.Provider value={blockPositionsRef}>
-            {renderSlide(stepKey)}
-            {started && (
+            {started && behindCustomBlocks.length > 0 && (
               <div className="absolute inset-0">
-                {customBlocks.map((block, index) => (
+                {behindCustomBlocks.map((block, index) => (
+                  <CustomTextBlock
+                    key={block.id}
+                    block={block}
+                    layerIndex={index}
+                    light={data.pageBackgrounds[stepKey].mode === "photo"}
+                    editMode={layoutEditMode}
+                    selected={selectedBlockId === `custom:${block.id}`}
+                    onSelect={() => onSelectBlock(`custom:${block.id}`)}
+                    onMove={(p) => onMoveCustomBlock(stepKey, block.id, p)}
+                    onDelete={() => onRemoveCustomBlock(stepKey, block.id)}
+                  />
+                ))}
+              </div>
+            )}
+            {renderSlide(stepKey)}
+            {started && frontCustomBlocks.length > 0 && (
+              <div className="absolute inset-0">
+                {frontCustomBlocks.map((block, index) => (
                   <CustomTextBlock
                     key={block.id}
                     block={block}
@@ -10852,8 +10906,16 @@ export default function InvitationBuilder() {
       if (index === -1) return c;
       const reordered = [...list];
       const [item] = reordered.splice(index, 1);
-      if (action === "front") reordered.push(item);
-      else if (action === "back") reordered.unshift(item);
+      // "front"/"back" cross all the way past the page's own structural
+      // content (titles, icons, the timeline list, etc.), not just past
+      // other custom blocks — behindContent is what actually makes that
+      // possible; see its render split in PhonePreview. Without it, every
+      // custom block always rendered after (so always on top of) every
+      // structural block regardless of array position, so "send to back"
+      // visibly did nothing once a custom block was layered against page
+      // content rather than another custom block.
+      if (action === "front") { reordered.push({ ...item, behindContent: false }); }
+      else if (action === "back") { reordered.unshift({ ...item, behindContent: true }); }
       else if (action === "forward") reordered.splice(Math.min(index + 1, reordered.length), 0, item);
       else if (action === "backward") reordered.splice(Math.max(index - 1, 0), 0, item);
       return { ...c, [activeLang]: { ...c[activeLang], [stepKey]: reordered } };
@@ -11912,6 +11974,7 @@ export default function InvitationBuilder() {
                 return (
                   <BlockStylePanel
                     isCustom={isCustom}
+                    blockId={isCustom ? null : selectedBlockId}
                     current={current}
                     onChangeStyle={(patch) => (isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
                     onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
