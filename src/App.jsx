@@ -3811,8 +3811,18 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
         left: `${pos.x}%`,
         top: `${safeY}%`,
         transform: "translate(-50%, -50%)",
-        width: widthPercent ? `${widthPercent}%` : undefined,
-        maxHeight: maxHeightPercent ? `${maxHeightPercent}%` : undefined,
+        // The edit-mode-only padding below is meant purely as extra grab
+        // area — but with box-sizing: border-box and a percentage width,
+        // it was eating directly into the box's own content size, so a
+        // percentage-sized block (images especially) visibly shrank by 8px
+        // the instant edit mode turned on and grew back the instant it
+        // turned off. That's what read as the block "zooming" every time
+        // "Position text" was toggled. Compensating the box's own
+        // dimensions by the same 8px keeps the rendered content size
+        // identical in and out of edit mode; the padding then only adds
+        // outward hit-area, which is all it was ever meant to do.
+        width: widthPercent ? (editMode ? `calc(${widthPercent}% + 8px)` : `${widthPercent}%`) : undefined,
+        maxHeight: maxHeightPercent ? (editMode ? `calc(${maxHeightPercent}% + 8px)` : `${maxHeightPercent}%`) : undefined,
         boxSizing: "border-box",
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
