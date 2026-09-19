@@ -1456,13 +1456,26 @@ function qrCodeImageUrl(data, size = 220) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 }
 
+function hexToRgba(hex, alpha) {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 // Builds a layered neon-style text-shadow: a few tight, bright layers close
 // to the letters plus wider, softer layers further out — this reads as a
 // glow rather than a flat drop shadow. Returns undefined when no glow
 // color is set, so it can be spread straight into a style object.
-function glowTextShadow(color) {
+// `transparency` (0-100, 0 = fully solid) fades the glow's own alpha
+// without touching the color underneath it.
+function glowTextShadow(color, transparency = 0) {
   if (!color) return undefined;
-  return `0 0 4px ${color}, 0 0 11px ${color}, 0 0 19px ${color}, 0 0 40px ${color}`;
+  const alpha = Math.max(0, Math.min(100, 100 - (transparency || 0))) / 100;
+  const c = hexToRgba(color, alpha);
+  return `0 0 4px ${c}, 0 0 11px ${c}, 0 0 19px ${c}, 0 0 40px ${c}`;
 }
 
 // navigator.clipboard.writeText() is async — a plain try/catch around the call
@@ -2430,6 +2443,23 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
         </div>
       )}
 
+      {current.type === "image" && (
+        <div className="mb-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <FieldLabel>Transparency</FieldLabel>
+            <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.transparency ?? 0}%</span>
+          </div>
+          <input
+            type="range" min={0} max={100} value={current.transparency ?? 0}
+            onChange={(e) => onChangeStyle({ transparency: Number(e.target.value) })}
+            className="w-full" style={{ accentColor: GOLD }}
+          />
+          <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Raise this if the image is too strong or unclear against the background — 0% is fully solid.
+          </p>
+        </div>
+      )}
+
       {!current.fullScreen && (
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -2545,14 +2575,27 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
               />
             </div>
             {current.glow && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Glow color</span>
-                <input
-                  type="color" value={current.glow}
-                  onChange={(e) => onChangeStyle({ glow: e.target.value })}
-                  className="h-7 w-10 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }}
-                />
-              </div>
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Glow color</span>
+                  <input
+                    type="color" value={current.glow}
+                    onChange={(e) => onChangeStyle({ glow: e.target.value })}
+                    className="h-7 w-10 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }}
+                  />
+                </div>
+                <div className="mt-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Glow transparency</span>
+                    <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.glowTransparency ?? 0}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={100} value={current.glowTransparency ?? 0}
+                    onChange={(e) => onChangeStyle({ glowTransparency: Number(e.target.value) })}
+                    className="w-full" style={{ accentColor: GOLD }}
+                  />
+                </div>
+              </>
             )}
           </div>
 
@@ -2571,7 +2614,7 @@ function BlockStylePanel({ isCustom, current, onChangeStyle, onChangeText, onDel
       )}
 
       <div className="mt-4 flex items-center gap-2">
-        {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null })}>Reset style</GhostButton>}
+        {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, glow: null, glowTransparency: null })}>Reset style</GhostButton>}
         {isCustom && (
           <GhostButton danger onClick={onDelete}>
             <Trash2 size={12} /> Delete
@@ -3931,12 +3974,13 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   );
 
   if (block.type === "image") {
+    const imgOpacity = 1 - (block.transparency ?? 0) / 100;
     const img = (
       <img
         src={block.url}
         alt=""
         draggable={false}
-        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8 }}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8, opacity: imgOpacity }}
       />
     );
     // Without this, a link typed as "instagram.com/xxx" (no protocol) gets
@@ -3958,7 +4002,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
               src={block.url}
               alt=""
               draggable={false}
-              style={{ width: "100%", height: "100%", display: "block", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none" }}
+              style={{ width: "100%", height: "100%", display: "block", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none", opacity: imgOpacity }}
             />
           </div>
           {editMode && (
@@ -4083,7 +4127,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
             fontWeight: block.fontWeight || 400,
-            textShadow: glowTextShadow(block.glow),
+            textShadow: glowTextShadow(block.glow, block.glowTransparency),
             lineHeight: 1.4,
             background: "rgba(0,0,0,0.25)",
             borderRadius: 6,
@@ -4122,7 +4166,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             color: block.color || (light ? PAPER : EMERALD),
             fontSize: `${block.fontSize || 16}px`,
             fontWeight: block.fontWeight || 400,
-            textShadow: glowTextShadow(block.glow),
+            textShadow: glowTextShadow(block.glow, block.glowTransparency),
             lineHeight: 1.4,
           }}
         >
@@ -4187,7 +4231,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                 />
               )}
               <div className="relative flex flex-col items-center" style={{ fontSize: namesStyle.fontSize ? `${namesStyle.fontSize}px` : 40, zIndex: 1 }}>
-                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow), lineHeight: 1.3 }}>
+                <div style={{ fontFamily: namesStyle.name1FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow, namesStyle.glowTransparency), lineHeight: 1.3 }}>
                   {content.name1 || ""}
                 </div>
                 {content.name2 ? (
@@ -4197,7 +4241,7 @@ function CoverSlide({ content, bg, fontDisplay, fontScript, layout, editMode, on
                         {ampersandText}
                       </div>
                     )}
-                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow), lineHeight: 1.3 }}>
+                    <div style={{ marginTop: ampersandText ? 0 : "0.35em", fontFamily: namesStyle.name2FontFamily || namesStyle.fontFamily || fontScript, color: namesStyle.color || (light ? PAPER : EMERALD), fontWeight: namesStyle.fontWeight || 400, textShadow: glowTextShadow(namesStyle.glow, namesStyle.glowTransparency), lineHeight: 1.3 }}>
                       {content.name2}
                     </div>
                   </>
