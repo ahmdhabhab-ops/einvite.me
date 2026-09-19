@@ -2244,10 +2244,13 @@ function BackgroundPicker({ bg, onChange }) {
       // reverted once the upload's own stale-bg write lands.
       onChange((current) => ({ ...current, mode: "photo", image: dataUrl, useCustomImage: true }));
     } catch {
-      // If compression fails for any reason, fall back to the raw file.
-      const reader = new FileReader();
-      reader.onload = () => onChange((current) => ({ ...current, mode: "photo", image: reader.result, useCustomImage: true }));
-      reader.readAsDataURL(file);
+      // readImageCompressed failing means the browser can't decode this
+      // format at all (HEIC/HEIF straight off an iPhone is the common
+      // case) — falling back to the raw, undecodable file used to "work"
+      // silently: it set a background image with no error, but nothing
+      // ever rendered. Failing loudly instead of leaving a stuck blank
+      // background.
+      alert("Couldn't use that photo — this format isn't supported by the browser (this is common for HEIC/HEIF photos straight off an iPhone). Please convert it to JPG or PNG and try again.");
     }
   };
 
@@ -10571,9 +10574,16 @@ export default function InvitationBuilder() {
     try {
       addBlock(await readImageCompressed(file, 2400, 0.92));
     } catch {
-      const reader = new FileReader();
-      reader.onload = () => addBlock(reader.result);
-      reader.readAsDataURL(file);
+      // readImageCompressed decodes the file through the browser's own
+      // <img>/canvas — if that fails, the browser genuinely can't display
+      // this image format (HEIC/HEIF photos straight off an iPhone are the
+      // common case). Embedding the raw, undecodable file as a data URI
+      // anyway used to "succeed" silently: it created a block with no error,
+      // but nothing ever rendered — invisible on the canvas AND in this
+      // panel's own thumbnail, with no visible handle left to select,
+      // drag, or delete it by. Failing loudly here is what actually fixes
+      // that stuck state.
+      alert("Couldn't add that image — this photo format isn't supported by the browser (this is common for HEIC/HEIF photos straight off an iPhone). Please convert it to JPG or PNG and try again.");
     }
   };
   // Admin-only: adds one photo or video to the shared Intro-background
