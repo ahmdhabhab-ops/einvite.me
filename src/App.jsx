@@ -5999,8 +5999,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             on filling the full width. */}
         {started && (layoutEditMode ? (
           <>
-            <div className="absolute inset-x-0 bottom-16 z-20 flex justify-center">
-              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.6)", backdropFilter: "blur(4px)" }}>
+            <div className="pointer-events-none absolute inset-x-0 bottom-16 z-20 flex justify-center">
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.35)" }}>
                 <Move size={11} color={GOLD_SOFT} />
                 <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
               </div>
