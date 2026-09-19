@@ -4530,7 +4530,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="flex flex-col gap-3" style={{ width: 232 }}>
               {items.map((loc) => (
-                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light ? "blur(3px)" : "none" }}>
+                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
                   <div className="flex items-center justify-between">
                     <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
