@@ -5595,7 +5595,14 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   const onCanvasPointerDown = (e) => {
     // DraggableBlock's own handleDown calls stopPropagation, so reaching
-    // here means the pointerdown landed on bare canvas, not on a block.
+    // here usually means the pointerdown landed on bare canvas, not on a
+    // block. But a handful of things inside the canvas aren't
+    // DraggableBlocks and don't stop propagation either — the "tap to
+    // start" gate button chief among them — so without this check,
+    // starting the marquee-select gesture (and capturing the pointer on
+    // the canvas) on every such click hijacked their own click handling,
+    // e.g. silently breaking the gate's tap-to-reveal while positioning.
+    if (e.target.closest?.("button")) return;
     if (!layoutEditMode || e.pointerType === "touch") return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
