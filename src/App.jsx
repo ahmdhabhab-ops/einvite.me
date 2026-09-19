@@ -6003,9 +6003,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         {started && (layoutEditMode ? (
           <>
             <div className="pointer-events-none absolute inset-x-0 bottom-16 z-20 flex justify-center">
-              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.35)" }}>
-                <Move size={11} color={GOLD_SOFT} />
-                <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY }}>Drag text blocks to reposition</span>
+              <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ background: "rgba(10,12,10,0.55)" }}>
+                <Move size={11} color={GOLD_SOFT} style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }} />
+                <span className="text-[9.5px]" style={{ color: PAPER, fontFamily: FONT_BODY, textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>Drag text blocks to reposition</span>
               </div>
             </div>
             {activeIndex < steps.length - 1 && (
