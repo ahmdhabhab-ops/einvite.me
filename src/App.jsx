@@ -4561,13 +4561,9 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
           </DraggableBlock>
           )}
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
-            <div className="flex flex-col gap-3" style={{ width: 232 }}>
-              {items.map((loc, locIndex) => (
-                <React.Fragment key={loc.id}>
-                  {locIndex > 0 && (
-                    <div className="h-px" style={{ background: light ? "rgba(255,255,255,0.25)" : "rgba(36,70,61,0.25)" }} />
-                  )}
-                  <div className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
+            <div className="flex flex-col gap-5" style={{ width: 232 }}>
+              {items.map((loc) => (
+                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
                   <div className="flex items-center justify-between">
                     <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
@@ -4577,7 +4573,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`}
                       target="_blank" rel="noreferrer"
                       onClick={(e) => { if (editMode) e.preventDefault(); }}
-                      className="mt-2 flex w-full items-center justify-center gap-1 rounded-full font-semibold"
+                      className="mt-2 inline-flex items-center gap-1 rounded-full font-semibold"
                       style={{
                         background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100),
                         color: ls.directionsTextColor || (light ? INK : PAPER),
@@ -4589,8 +4585,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                       <Navigation2 size={(ls.directionsFontSize || 10)} /> {ls.directionsLabel || t.directions}
                     </a>
                   )}
-                  </div>
-                </React.Fragment>
+                </div>
               ))}
             </div>
           </DraggableBlock>
