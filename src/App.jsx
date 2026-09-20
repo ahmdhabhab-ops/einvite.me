@@ -4578,8 +4578,6 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                 pos={pos}
                 editMode={editMode}
                 onMove={(p) => onMoveLocation(loc.id, p)}
-                noMaxWidth
-                widthPercent={ls.width || 80}
                 label="Location"
                 light={light}
                 selected={selectedBlock === blockId}
