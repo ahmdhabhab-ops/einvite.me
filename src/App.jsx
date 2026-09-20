@@ -1595,7 +1595,7 @@ function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
  * setup as the "template-images" bucket used for template designs
  * (Dashboard -> Storage -> create bucket -> toggle Public).
  */
-async function uploadImageToStorage(file, bucket = "og-images") {
+async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, quality = 0.82) {
   // readImageCompressed below draws the file onto a canvas to re-encode it,
   // which only captures a single frame — fine for a still photo, but it
   // silently flattens an animated GIF into a static picture. Upload the raw
@@ -1613,7 +1613,7 @@ async function uploadImageToStorage(file, bucket = "og-images") {
     }
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
-  const compressedDataUrl = await readImageCompressed(file, 1200, 0.82);
+  const compressedDataUrl = await readImageCompressed(file, maxDim, quality);
   const blob = await (await fetch(compressedDataUrl)).blob(); // convert the compressed data URI back into a real Blob Storage can actually store
   const ext = blob.type === "image/png" ? "png" : "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
@@ -1625,6 +1625,26 @@ async function uploadImageToStorage(file, bucket = "og-images") {
   if (!res.ok) {
     console.error("uploadImageToStorage failed:", res.status, await res.text().catch(() => ""));
     throw new Error("Couldn't upload the image — please try again.");
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+// Uploads an already-compressed data: URI (rather than a raw File) to
+// Storage — used both by callers that already have a data URL in hand and
+// by the one-time migration below that moves existing base64 images (saved
+// before uploads went through Storage) out of the JSON payload.
+async function uploadDataUrlToStorage(dataUrl, bucket) {
+  const blob = await (await fetch(dataUrl)).blob();
+  const ext = blob.type === "image/gif" ? "gif" : blob.type === "image/png" ? "png" : "jpg";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": blob.type },
+    body: blob,
+  });
+  if (!res.ok) {
+    console.error("uploadDataUrlToStorage failed:", res.status, await res.text().catch(() => ""));
+    throw new Error("Upload failed");
   }
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
@@ -2236,21 +2256,27 @@ function BackgroundPicker({ bg, onChange }) {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await readImageCompressed(file);
+      // Uploaded to Storage (not embedded as a base64 data URI) — a
+      // background photo saved inline used to bloat every page's saved
+      // background by the full size of the compressed image, which is what
+      // made loading a step's background slower the more photos a design
+      // accumulated.
+      const url = await uploadImageToStorage(file, "invitation-photos", 2400, 0.92);
       // Functional form: merges onto whatever bg is current when this
-      // (async) compression finishes, not the `bg` prop from when the
-      // upload started — otherwise clicking a preset swatch or another
-      // control right after starting the upload would get silently
-      // reverted once the upload's own stale-bg write lands.
-      onChange((current) => ({ ...current, mode: "photo", image: dataUrl, useCustomImage: true }));
+      // (async) upload finishes, not the `bg` prop from when it started —
+      // otherwise clicking a preset swatch or another control right after
+      // starting the upload would get silently reverted once the upload's
+      // own stale-bg write lands.
+      onChange((current) => ({ ...current, mode: "photo", image: url, useCustomImage: true }));
     } catch {
-      // readImageCompressed failing means the browser can't decode this
-      // format at all (HEIC/HEIF straight off an iPhone is the common
-      // case) — falling back to the raw, undecodable file used to "work"
-      // silently: it set a background image with no error, but nothing
-      // ever rendered. Failing loudly instead of leaving a stuck blank
-      // background.
-      alert("Couldn't use that photo — this format isn't supported by the browser (this is common for HEIC/HEIF photos straight off an iPhone). Please convert it to JPG or PNG and try again.");
+      // Either readImageCompressed couldn't decode this format at all
+      // (HEIC/HEIF straight off an iPhone is the common case), or the
+      // Storage upload itself failed (network, or the "invitation-photos"
+      // bucket doesn't exist yet). Falling back to the raw, undecodable
+      // file used to "work" silently: it set a background image with no
+      // error, but nothing ever rendered. Failing loudly instead of
+      // leaving a stuck blank background.
+      alert("Couldn't use that photo — either this format isn't supported by the browser (common for HEIC/HEIF straight off an iPhone), or the upload failed. Convert it to JPG/PNG, check your connection, and try again.");
     }
   };
 
@@ -10861,18 +10887,25 @@ export default function InvitationBuilder() {
       setSelectedBlockId(`custom:${newBlock.id}`);
     };
     try {
-      addBlock(await readImageCompressed(file, 2400, 0.92));
+      // Uploaded to Storage (not embedded as a base64 data URI) so this
+      // block only ever adds a short URL to the saved design, not the whole
+      // compressed photo — a design with several of these used to bloat the
+      // saved payload by the full size of every one of them, which is what
+      // made both saving and loading the whole design slower the more
+      // photos accumulated across the template.
+      addBlock(await uploadImageToStorage(file, "invitation-photos", 2400, 0.92));
     } catch {
-      // readImageCompressed decodes the file through the browser's own
-      // <img>/canvas — if that fails, the browser genuinely can't display
-      // this image format (HEIC/HEIF photos straight off an iPhone are the
-      // common case). Embedding the raw, undecodable file as a data URI
-      // anyway used to "succeed" silently: it created a block with no error,
-      // but nothing ever rendered — invisible on the canvas AND in this
-      // panel's own thumbnail, with no visible handle left to select,
-      // drag, or delete it by. Failing loudly here is what actually fixes
-      // that stuck state.
-      alert("Couldn't add that image — this photo format isn't supported by the browser (this is common for HEIC/HEIF photos straight off an iPhone). Please convert it to JPG or PNG and try again.");
+      // Either readImageCompressed couldn't decode this file at all — the
+      // browser genuinely can't display this image format (HEIC/HEIF
+      // photos straight off an iPhone are the common case) — or the
+      // Storage upload itself failed (network, or the "invitation-photos"
+      // bucket doesn't exist yet). Embedding the raw, undecodable file as a
+      // data URI anyway used to "succeed" silently: it created a block with
+      // no error, but nothing ever rendered — invisible on the canvas AND
+      // in this panel's own thumbnail, with no visible handle left to
+      // select, drag, or delete it by. Failing loudly here is what actually
+      // fixes that stuck state.
+      alert("Couldn't add that image — either this photo format isn't supported by the browser (common for HEIC/HEIF straight off an iPhone), or the upload failed. Convert it to JPG/PNG, check your connection, and try again.");
     }
   };
   // Admin-only: adds one photo or video to the shared Intro-background
@@ -11698,6 +11731,73 @@ export default function InvitationBuilder() {
     // of the couple's real saved content, since this effect would otherwise
     // only run once, before that async load has had a chance to complete.
   }, [slug, users, invitationsStore, coreDataLoaded]);
+
+  // One-time cleanup, owner sessions only (guestView === false is the
+  // confirmed-not-a-guest-link state — a guest browser has no business
+  // uploading images or writing a save on the couple's behalf). Every
+  // custom image block and page background used to embed its photo
+  // directly as a base64 data: URI (addCustomImage/BackgroundPicker's
+  // onUpload above now upload to Storage instead and save just the URL),
+  // so a design built up over time — one photo at a time — kept growing
+  // its OWN saved payload by the full size of each one, which is what made
+  // this specific design get slower to load the more it grew, even though
+  // nothing was actually broken. This walks whatever's still holding an
+  // old data: URI, uploads it to Storage once, swaps in the real URL, and
+  // saves the result so the shrink actually sticks instead of re-inflating
+  // on every load.
+  const migratedInlineImagesRef = useRef(false);
+  const [needsSaveAfterImageMigration, setNeedsSaveAfterImageMigration] = useState(false);
+  useEffect(() => {
+    if (guestView !== false || !coreDataLoaded || !backgroundsLoaded || migratedInlineImagesRef.current) return;
+    migratedInlineImagesRef.current = true;
+    (async () => {
+      let changed = false;
+      const nextCustomBlocks = JSON.parse(JSON.stringify(customBlocks));
+      for (const lang of LANGS) {
+        for (const step of Object.keys(nextCustomBlocks[lang] || {})) {
+          for (const block of nextCustomBlocks[lang][step]) {
+            if (block.type === "image" && typeof block.url === "string" && block.url.startsWith("data:")) {
+              try {
+                block.url = await uploadDataUrlToStorage(block.url, "invitation-photos");
+                changed = true;
+              } catch {} // leave this one embedded for now — it'll simply be retried the next time this loads
+            }
+          }
+        }
+      }
+      const nextPageBackgrounds = { ...pageBackgrounds };
+      for (const step of Object.keys(nextPageBackgrounds)) {
+        const bg = nextPageBackgrounds[step];
+        if (bg?.image && typeof bg.image === "string" && bg.image.startsWith("data:")) {
+          try {
+            nextPageBackgrounds[step] = { ...bg, image: await uploadDataUrlToStorage(bg.image, "invitation-photos") };
+            changed = true;
+          } catch {}
+        }
+      }
+      if (changed) {
+        setCustomBlocks(nextCustomBlocks);
+        setPageBackgrounds(nextPageBackgrounds);
+        // Deliberately NOT just calling saveDraft() here — this render's
+        // saveDraft still closes over the PRE-migration customBlocks/
+        // pageBackgrounds, so it would save the old, un-shrunk values.
+        // Flagging it instead and saving from a separate effect below lets
+        // that effect run on the NEXT render, once these two setStates
+        // have actually committed, so the saveDraft it calls closes over
+        // the migrated data.
+        setNeedsSaveAfterImageMigration(true);
+      }
+    })();
+    // Deliberately runs once per load (guarded by the ref above), not on
+    // every customBlocks/pageBackgrounds edit — this is a one-time cleanup
+    // of whatever was loaded, not a live sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestView, coreDataLoaded, backgroundsLoaded]);
+  useEffect(() => {
+    if (!needsSaveAfterImageMigration) return;
+    setNeedsSaveAfterImageMigration(false);
+    saveDraft();
+  }, [needsSaveAfterImageMigration]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
     ? (() => {
