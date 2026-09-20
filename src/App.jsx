@@ -3819,15 +3819,43 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
     onDragStateChange?.(true);
     e.target.setPointerCapture?.(e.pointerId);
   };
+  // computeFromPoint scans every OTHER registered block's position on the
+  // slide and every pairwise midpoint between them (for the alignment
+  // guides), which is O(n²) in block count — on a crowded page (a
+  // hand-built timeline with several icon/line/text blocks per entry) that
+  // adds up to real work. Pointer/touch move events can fire far faster
+  // than the screen actually repaints (well over 60Hz on some mice/trackpads),
+  // so doing that full recompute — plus the state update it triggers — on
+  // every single one made dragging visibly laggy on a busy slide. Coalescing
+  // to at most once per animation frame keeps the drag exactly as
+  // responsive as the screen can actually show, without doing the same work
+  // many times over for frames that never even get painted.
+  const dragRafRef = useRef(null);
+  const pendingMoveRef = useRef(null);
+  const flushPendingMove = () => {
+    dragRafRef.current = null;
+    const ev = pendingMoveRef.current;
+    pendingMoveRef.current = null;
+    if (!ev || !draggingRef.current) return;
+    const d = downPointRef.current;
+    const next = computeFromPoint(ev.clientX - (d?.offsetX || 0), ev.clientY - (d?.offsetY || 0));
+    // onMoveRef (declared below) rather than the onMove prop directly — this
+    // is called from a requestAnimationFrame callback that can fire after
+    // the touch-drag effect further down last closed over it, so it needs
+    // the always-current value, not a copy from whichever render scheduled it.
+    if (next) onMoveRef.current(next);
+  };
   const handleMove = (e) => {
     if (!editMode || !draggingRef.current || e.pointerType === "touch") return;
     const d = downPointRef.current;
     if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < MOVE_THRESHOLD) return; // hasn't moved enough yet to count as an actual drag
-    const next = computeFromPoint(e.clientX - (d?.offsetX || 0), e.clientY - (d?.offsetY || 0));
-    if (next) onMove(next);
+    pendingMoveRef.current = { clientX: e.clientX, clientY: e.clientY };
+    if (dragRafRef.current == null) dragRafRef.current = requestAnimationFrame(flushPendingMove);
   };
   const handleUp = (e) => {
     if (e.pointerType === "touch") return;
+    if (dragRafRef.current != null) { cancelAnimationFrame(dragRafRef.current); dragRafRef.current = null; }
+    pendingMoveRef.current = null;
     setSnapGuide({ x: null, y: null }); // guides only show WHILE actively dragging, not once released
     draggingRef.current = false;
     downPointRef.current = null;
@@ -3915,10 +3943,17 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
       if (!t) return;
       const d = downPointRef.current;
       if (d && Math.hypot(t.clientX - d.x, t.clientY - d.y) < MOVE_THRESHOLD) return;
-      const next = computeFromPoint(t.clientX - (d?.offsetX || 0), t.clientY - (d?.offsetY || 0));
-      if (next) onMoveRef.current(next);
+      // Same rAF coalescing as the mouse path above — touchmove can fire
+      // just as fast as pointermove, and the same O(n²) snap-candidate scan
+      // on every single event is what made dragging laggy on a busy slide.
+      pendingMoveRef.current = { clientX: t.clientX, clientY: t.clientY };
+      if (dragRafRef.current == null) dragRafRef.current = requestAnimationFrame(flushPendingMove);
     };
-    const onEnd = () => { draggingRef.current = false; downPointRef.current = null; setIsDraggingNow(false); onDragStateChange?.(false); setSnapGuide({ x: null, y: null }); };
+    const onEnd = () => {
+      if (dragRafRef.current != null) { cancelAnimationFrame(dragRafRef.current); dragRafRef.current = null; }
+      pendingMoveRef.current = null;
+      draggingRef.current = false; downPointRef.current = null; setIsDraggingNow(false); onDragStateChange?.(false); setSnapGuide({ x: null, y: null });
+    };
     el.addEventListener("touchstart", onStart, { passive: false });
     el.addEventListener("touchmove", onMoveTouch, { passive: false });
     el.addEventListener("touchend", onEnd, { passive: false });
