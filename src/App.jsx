@@ -12357,11 +12357,23 @@ export default function InvitationBuilder() {
                 {/* Fades to hide the instant background/style swap behind an
                     opaque cover, then fades back in — this is what makes
                     switching templates look like a smooth, medium-speed
-                    transition rather than the previous instant jump. */}
+                    transition rather than the previous instant jump. Also
+                    covers the canvas until the saved design has actually
+                    loaded (customBlocks/pageBackgrounds/layouts start out
+                    EMPTY and only get filled in once two sequential network
+                    fetches resolve) — without this, a refresh briefly (and,
+                    on a slow connection or a large heavily-decorated design,
+                    not so briefly) rendered every custom icon/line/text block
+                    as gone, which read as the whole design having been wiped
+                    even though nothing was ever lost. */}
                 <div
-                  className="pointer-events-none absolute inset-0 rounded-[32px]"
-                  style={{ background: INK, opacity: templateSwitching ? 1 : 0, transition: "opacity 0.26s ease" }}
-                />
+                  className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-[32px]"
+                  style={{ background: INK, opacity: templateSwitching || !coreDataLoaded ? 1 : 0, transition: "opacity 0.26s ease" }}
+                >
+                  {!templateSwitching && !coreDataLoaded && (
+                    <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>Loading your design…</p>
+                  )}
+                </div>
               </div>
               <GhostButton onClick={previewFromStart}>
                 <Mail size={12} /> Preview from start
