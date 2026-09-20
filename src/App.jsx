@@ -5819,6 +5819,16 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       customBlocks.forEach((b) => {
         if (b.x >= marquee.x1 && b.x <= marquee.x2 && b.y >= marquee.y1 && b.y <= marquee.y2) hits.push(`custom:${b.id}`);
       });
+      // Each location is its own independently positioned block (see
+      // LocationsSlide) but wasn't wired into the marquee at all, so
+      // rubber-band selecting a group of "Get Directions" buttons alongside
+      // other blocks silently skipped every one of them.
+      if (stepKey === "locations") {
+        (data.locations || []).forEach((loc) => {
+          const x = loc.x ?? 50, y = loc.y ?? 50;
+          if (x >= marquee.x1 && x <= marquee.x2 && y >= marquee.y1 && y <= marquee.y2) hits.push(`loc:${loc.id}`);
+        });
+      }
       if (hits.length > 1) { setGroupSelectedIds(hits); onSelectBlock(null); }
     }
     marqueeDownRef.current = null;
@@ -5828,7 +5838,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const groupPositionOf = (id) =>
     id.startsWith("custom:")
       ? customBlocks.find((b) => `custom:${b.id}` === id)
-      : layout?.[id];
+      : id.startsWith("loc:")
+        ? (data.locations || []).find((loc) => `loc:${loc.id}` === id)
+        : layout?.[id];
   const groupBounds = (() => {
     if (groupSelectedIds.length < 2) return null;
     const positions = groupSelectedIds.map(groupPositionOf).filter(Boolean);
@@ -5861,6 +5873,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       const newX = Math.min(92, Math.max(8, x + dx));
       const newY = Math.min(88, Math.max(6, y + dy));
       if (id.startsWith("custom:")) onMoveCustomBlock(stepKey, id.slice(7), { x: newX, y: newY });
+      else if (id.startsWith("loc:")) onMoveLocation(id.slice(4), { x: newX, y: newY });
       else moveBlock(id, { x: newX, y: newY });
     });
   };
