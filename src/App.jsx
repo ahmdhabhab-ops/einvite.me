@@ -3683,6 +3683,19 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   }, [positionsRegistry, id, pos.x, pos.y]);
 
   const SNAP_THRESHOLD = 2.5; // percent — how close to a snap target before it snaps and shows the guide
+  // Once a block is sitting exactly on a snap target (page center, another
+  // block's center, a midpoint between two blocks), ordinary cursor jitter
+  // while dragging keeps landing back inside SNAP_THRESHOLD of that SAME
+  // target every frame, so it just re-snaps to itself — the block can't be
+  // nudged away at all by a small drag, only by a much bigger, deliberate
+  // one. This bit worse on a crowded slide (a timeline with several manually
+  // placed icon/text/line blocks) since every pair of blocks contributes a
+  // midpoint candidate too, densely covering the canvas. A wider "release"
+  // threshold than the "engage" one keeps the block snapped through normal
+  // jitter but lets it go the moment the cursor visibly pulls away.
+  const SNAP_RELEASE_THRESHOLD = 6;
+  const stickyXRef = useRef(null);
+  const stickyYRef = useRef(null);
 
   // Picks the candidate value closest to `val` within SNAP_THRESHOLD, or null.
   const closestSnap = (val, candidates) => {
@@ -3725,8 +3738,14 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
     const candidatesX = [50, ...otherXs, ...midpoints(otherXs)];
     const candidatesY = [50, ...otherYs, ...midpoints(otherYs)];
 
-    const snapXVal = closestSnap(x, candidatesX);
-    const snapYVal = closestSnap(y, candidatesY);
+    const snapXVal = stickyXRef.current != null && Math.abs(x - stickyXRef.current) < SNAP_RELEASE_THRESHOLD
+      ? stickyXRef.current
+      : closestSnap(x, candidatesX);
+    const snapYVal = stickyYRef.current != null && Math.abs(y - stickyYRef.current) < SNAP_RELEASE_THRESHOLD
+      ? stickyYRef.current
+      : closestSnap(y, candidatesY);
+    stickyXRef.current = snapXVal;
+    stickyYRef.current = snapYVal;
     if (snapXVal != null) x = snapXVal;
     if (snapYVal != null) y = snapYVal;
     setSnapGuide({ x: snapXVal, y: snapYVal });
@@ -3768,6 +3787,8 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
     onSelect?.();
     draggingRef.current = true;
     downPointRef.current = { x: e.clientX, y: e.clientY, ...dragOffsetFromCenter(e.clientX, e.clientY) };
+    stickyXRef.current = null;
+    stickyYRef.current = null;
     setIsDraggingNow(true);
     onDragStateChange?.(true);
     e.target.setPointerCapture?.(e.pointerId);
@@ -3856,6 +3877,8 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
       draggingRef.current = true;
       const t0 = e.touches[0];
       downPointRef.current = t0 ? { x: t0.clientX, y: t0.clientY, ...dragOffsetFromCenter(t0.clientX, t0.clientY) } : null;
+      stickyXRef.current = null;
+      stickyYRef.current = null;
       setIsDraggingNow(true);
       onDragStateChange?.(true);
     };
