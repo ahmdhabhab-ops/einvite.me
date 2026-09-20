@@ -2329,7 +2329,7 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder }) {
+function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
@@ -2338,7 +2338,7 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
     <div className="mb-5 rounded-xl p-4" style={{ background: INK_3, border: `1px solid rgba(201,164,76,0.3)` }}>
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
-          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isLine ? "Line" : isIcon ? "Icon" : isImage ? "Custom image" : isCustom ? "Custom text" : "Text style"}
+          {current.type === "video" ? "Custom video" : current.type === "divider" ? "Divider" : isLine ? "Line" : isIcon ? "Icon" : isImage ? "Custom image" : isLocation ? "Location" : isCustom ? "Custom text" : "Text style"}
         </span>
         <button onClick={onDeselect} style={{ color: MUTED }}><X size={14} /></button>
       </div>
@@ -2711,12 +2711,12 @@ function BlockStylePanel({ isCustom, blockId, stepKey, current, onChangeStyle, o
 
       <div className="mt-4 flex items-center gap-2">
         {!isImage && !isLine && <GhostButton onClick={() => onChangeStyle({ fontFamily: null, color: null, fontSize: null, fontWeight: null, italic: null, glow: null, glowTransparency: null })}>Reset style</GhostButton>}
-        {isCustom && (
+        {(isCustom || isLocation) && (
           <GhostButton onClick={onDuplicate}>
             <Copy size={12} /> Duplicate
           </GhostButton>
         )}
-        {isCustom && (
+        {(isCustom || isLocation) && (
           <GhostButton danger onClick={onDelete}>
             <Trash2 size={12} /> Delete
           </GhostButton>
@@ -4549,7 +4549,7 @@ function TimelineSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMo
   );
 }
 
-function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMoveBlock, onMoveLocation, selectedBlock, onSelectBlock }) {
   const hs = layout.heading, ls = layout.list;
   return (
     <StoryPage bg={bg}>
@@ -4560,10 +4560,32 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
             <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10, opacity: hs.hidden ? 0 : 1 }}>{t.celebration}</div>
           </DraggableBlock>
           )}
-          <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Locations" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
-            <div className="flex flex-col gap-8" style={{ width: 232 }}>
-              {items.map((loc) => (
-                <div key={loc.id} className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
+          {/* Each location is its own independently draggable block — they
+              used to all live inside one shared "list" block, positioned via
+              a plain vertical stack, so moving one moved every location
+              together and a newly added one could only ever land glued
+              right after the previous one. Position is per-item; color,
+              font, card background, and the Get Directions button's styling
+              stay shared across every location via the "list" layout entry
+              (see the selection handling in InvitationBuilder). */}
+          {items.map((loc, index) => {
+            const pos = { x: loc.x ?? (50 + (index % 4) * 8), y: loc.y ?? Math.min(88, 30 + index * 16) };
+            const blockId = `loc:${loc.id}`;
+            return (
+              <DraggableBlock
+                key={loc.id}
+                id={blockId}
+                pos={pos}
+                editMode={editMode}
+                onMove={(p) => onMoveLocation(loc.id, p)}
+                noMaxWidth
+                widthPercent={ls.width || 80}
+                label="Location"
+                light={light}
+                selected={selectedBlock === blockId}
+                onSelect={() => onSelectBlock(blockId)}
+              >
+                <div className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
                   <div className="flex items-center justify-between">
                     <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
@@ -4586,9 +4608,9 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                     </a>
                   )}
                 </div>
-              ))}
-            </div>
-          </DraggableBlock>
+              </DraggableBlock>
+            );
+          })}
         </div>
       )}
     </StoryPage>
@@ -5585,7 +5607,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide" }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide" }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -5901,7 +5923,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "timeline":
         return <TimelineSlide items={data.timeline} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "locations":
-        return <LocationsSlide items={data.locations} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
+        return <LocationsSlide items={data.locations} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} onMoveLocation={onMoveLocation} {...common} />;
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
@@ -10487,6 +10509,25 @@ export default function InvitationBuilder() {
   const updateBlockStyle = (stepKey, blockId, patch) =>
     setLayouts((l) => ({ ...l, [activeLang]: { ...l[activeLang], [stepKey]: { ...l[activeLang][stepKey], [blockId]: { ...l[activeLang][stepKey][blockId], ...patch } } } }));
 
+  // Each location on the Locations slide is independently draggable (its
+  // own x/y on the item itself), unlike other slides' single shared "list"
+  // block — moving one was moving every location together, which is what
+  // was reported as them all being "glued" into one group.
+  const moveLocationItem = (id, pos) =>
+    setLocations((list) => list.map((it) => (it.id === id ? { ...it, ...pos } : it)));
+  const removeLocationItem = (id) => setLocations((list) => list.filter((it) => it.id !== id));
+  const duplicateLocationItem = (id) => {
+    setLocations((list) => {
+      const index = list.findIndex((it) => it.id === id);
+      if (index === -1) return list;
+      const clone = { ...list[index], id: uid(), x: Math.min(92, (list[index].x ?? 50) + 6), y: Math.min(88, (list[index].y ?? 50) + 6) };
+      const next = [...list];
+      next.splice(index + 1, 0, clone);
+      setSelectedBlockId(`loc:${clone.id}`);
+      return next;
+    });
+  };
+
   const resetLayout = () => {
     const key = steps[safeIndex].key;
     setLayouts((l) => ({ ...l, [activeLang]: { ...l[activeLang], [key]: { ...DEFAULT_LAYOUTS[key] } } }));
@@ -11805,6 +11846,7 @@ export default function InvitationBuilder() {
           onMoveCustomBlock={() => {}}
           onRemoveCustomBlock={() => {}}
           onDuplicateCustomBlock={() => {}}
+          onMoveLocation={() => {}}
           onSubmitRsvp={submitGuestViewRsvp}
           fullscreen
           slug={guestView.slug}
@@ -12106,20 +12148,40 @@ export default function InvitationBuilder() {
 
               {layoutEditMode && selectedBlockId && (() => {
                 const isCustom = selectedBlockId.startsWith("custom:");
+                const isLocation = selectedBlockId.startsWith("loc:");
                 const customId = isCustom ? selectedBlockId.slice(7) : null;
+                const locId = isLocation ? selectedBlockId.slice(4) : null;
                 const current = isCustom
                   ? customBlocks[activeLang][stepKey].find((b) => b.id === customId) || { fontFamily: null, color: null, fontSize: 16, text: "" }
-                  : layouts[activeLang]?.[stepKey]?.[selectedBlockId] || { fontFamily: null, color: null, fontSize: null };
+                  : isLocation
+                    // Position lives on the location item itself (independently
+                    // draggable per location); everything else — color, card
+                    // background, the Get Directions button's styling — stays
+                    // shared across every location via the same "list" layout
+                    // entry the whole slide already used before each location
+                    // could be moved on its own.
+                    ? { ...(layouts[activeLang]?.locations?.list || {}), ...(locations.find((it) => it.id === locId) || {}) }
+                    : layouts[activeLang]?.[stepKey]?.[selectedBlockId] || { fontFamily: null, color: null, fontSize: null };
                 return (
                   <BlockStylePanel
                     isCustom={isCustom}
-                    blockId={isCustom ? null : selectedBlockId}
+                    isLocation={isLocation}
+                    blockId={isCustom ? null : (isLocation ? "list" : selectedBlockId)}
                     stepKey={stepKey}
                     current={current}
-                    onChangeStyle={(patch) => (isCustom ? updateCustomBlock(stepKey, customId, patch) : updateBlockStyle(stepKey, selectedBlockId, patch))}
+                    onChangeStyle={(patch) => {
+                      if (isCustom) { updateCustomBlock(stepKey, customId, patch); return; }
+                      if (isLocation) {
+                        const { x, y, ...styleRest } = patch;
+                        if (x !== undefined || y !== undefined) moveLocationItem(locId, { ...(x !== undefined ? { x } : {}), ...(y !== undefined ? { y } : {}) });
+                        if (Object.keys(styleRest).length) updateBlockStyle("locations", "list", styleRest);
+                        return;
+                      }
+                      updateBlockStyle(stepKey, selectedBlockId, patch);
+                    }}
                     onChangeText={(v) => updateCustomBlock(stepKey, customId, { text: v })}
-                    onDelete={() => removeCustomBlock(stepKey, customId)}
-                    onDuplicate={isCustom ? () => duplicateCustomBlock(stepKey, customId) : undefined}
+                    onDelete={() => (isLocation ? removeLocationItem(locId) : removeCustomBlock(stepKey, customId))}
+                    onDuplicate={isCustom ? () => duplicateCustomBlock(stepKey, customId) : (isLocation ? () => duplicateLocationItem(locId) : undefined)}
                     onDeselect={() => setSelectedBlockId(null)}
                     onReorder={isCustom ? (action) => reorderCustomBlock(stepKey, customId, action) : undefined}
                   />
@@ -12257,7 +12319,7 @@ export default function InvitationBuilder() {
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto md:sticky md:top-10 md:w-auto md:self-start">
               <div className="relative">
-                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
+                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
                 {/* Fades to hide the instant background/style swap behind an
                     opaque cover, then fades back in — this is what makes
                     switching templates look like a smooth, medium-speed
