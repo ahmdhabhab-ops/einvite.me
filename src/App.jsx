@@ -10308,6 +10308,16 @@ export default function InvitationBuilder() {
   const [actingAsUser, setActingAsUser] = useState(null);
   const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
   const [coreDataLoaded, setCoreDataLoaded] = useState(false);
+  // Separate from coreDataLoaded — every step's page background loads
+  // through its own independent, un-awaited fetch (see the loadBg chain
+  // below), specifically so the Cover page's background isn't stuck racing
+  // nine other pages' images for bandwidth. That's the right way to get the
+  // FIRST paint up fast, but it also means coreDataLoaded alone doesn't
+  // guarantee every background has actually arrived yet — a builder canvas
+  // gated only on it could navigate to, say, page 2 while page 2's own
+  // background fetch is still in flight, and land on a blank/wrong-colored
+  // page until that resolves a moment later.
+  const [backgroundsLoaded, setBackgroundsLoaded] = useState(false);
 
   // Restore a client's logged-in session after a page refresh — without
   // this, actingAsUser always starts at null on every fresh page load
@@ -10573,7 +10583,7 @@ export default function InvitationBuilder() {
   // blob: URLs that only live for the current browser tab, so they can't be restored
   // here — re-upload after loading a draft. Images are saved as data URLs and do restore.
   useEffect(() => {
-    if (!persistentStorage.available()) { setCoreDataLoaded(true); return; } // no storage backend at all in this environment — nothing to wait for
+    if (!persistentStorage.available()) { setCoreDataLoaded(true); setBackgroundsLoaded(true); return; } // no storage backend at all in this environment — nothing to wait for
     let cancelled = false;
     (async () => {
       try {
@@ -10712,7 +10722,9 @@ export default function InvitationBuilder() {
       } catch {}
     })();
     loadBg(firstStep.key).then(() => {
-      restSteps.forEach(({ key }) => loadBg(key));
+      Promise.allSettled(restSteps.map(({ key }) => loadBg(key))).then(() => {
+        if (!cancelled) setBackgroundsLoaded(true);
+      });
     });
     LANGS.forEach((lang) => {
       (async () => {
@@ -12368,9 +12380,9 @@ export default function InvitationBuilder() {
                     even though nothing was ever lost. */}
                 <div
                   className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-[32px]"
-                  style={{ background: INK, opacity: templateSwitching || !coreDataLoaded ? 1 : 0, transition: "opacity 0.26s ease" }}
+                  style={{ background: INK, opacity: templateSwitching || !coreDataLoaded || !backgroundsLoaded ? 1 : 0, transition: "opacity 0.26s ease" }}
                 >
-                  {!templateSwitching && !coreDataLoaded && (
+                  {!templateSwitching && (!coreDataLoaded || !backgroundsLoaded) && (
                     <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 13 }}>Loading your design…</p>
                   )}
                 </div>
