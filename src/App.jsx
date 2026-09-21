@@ -7307,11 +7307,13 @@ function VoiceMessagesPanel({ slug }) {
 // already-checked-in warnings, etc.) only ever shows up here, never on
 // whatever page a guest's own camera app would open if they scanned their
 // own saved code directly.
-function CheckinPanel({ slug }) {
+function CheckinPanel({ slug, siteDomain }) {
   const [rows, setRows] = useState(null); // null = loading
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null); // { status: "checked-in" | "already" | "invalid", name, time }
   const [cameraError, setCameraError] = useState("");
+  const [openQrId, setOpenQrId] = useState(null);
+  const [copiedQrId, setCopiedQrId] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -7465,16 +7467,46 @@ function CheckinPanel({ slug }) {
         <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No check-in codes yet — these are created automatically once a guest RSVPs yes.</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {rows.map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-lg px-3.5 py-2.5" style={{ background: INK_2 }}>
-              <span className="text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{r.guest_names}</span>
-              {r.checked_in_at ? (
-                <span className="text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Checked in · {new Date(r.checked_in_at).toLocaleString()}</span>
-              ) : (
-                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Not arrived yet</span>
-              )}
-            </div>
-          ))}
+          {rows.map((r) => {
+            const checkinLink = `https://${siteDomain}/checkin/${r.token}`;
+            const qrOpen = openQrId === r.id;
+            return (
+              <div key={r.id} className="rounded-lg px-3.5 py-2.5" style={{ background: INK_2 }}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{r.guest_names}</span>
+                  <div className="flex items-center gap-2">
+                    {r.checked_in_at ? (
+                      <span className="text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Checked in · {new Date(r.checked_in_at).toLocaleString()}</span>
+                    ) : (
+                      <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Not arrived yet</span>
+                    )}
+                    <button
+                      onClick={() => setOpenQrId(qrOpen ? null : r.id)}
+                      className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold"
+                      style={{ background: qrOpen ? GOLD : "rgba(201,164,76,0.15)", color: qrOpen ? INK : GOLD_SOFT, fontFamily: FONT_BODY }}
+                    >
+                      <QrCode size={11} /> {qrOpen ? "Hide QR" : "View QR"}
+                    </button>
+                  </div>
+                </div>
+                {qrOpen && (
+                  <div className="mt-3 flex flex-col items-center gap-2 border-t pt-3" style={{ borderColor: "rgba(201,164,76,0.15)" }}>
+                    <img src={qrCodeImageUrl(checkinLink, 140)} alt="Check-in QR code" style={{ display: "block", borderRadius: 8 }} />
+                    <p className="text-center text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      This is this guest's personal check-in QR code — the same one they saw after RSVPing yes. Share it again if they lost it, or print it as a backup.
+                    </p>
+                    <button
+                      onClick={async () => { const ok = await copyToClipboard(checkinLink); setCopiedQrId(ok ? r.id : null); setTimeout(() => setCopiedQrId(null), 2000); }}
+                      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+                      style={{ background: INK_3, color: copiedQrId === r.id ? "#8FBFA3" : IVORY, fontFamily: FONT_BODY }}
+                    >
+                      <Copy size={11} /> {copiedQrId === r.id ? "Copied!" : "Copy link"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -8443,7 +8475,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
           venueElements={venueElements} onAddVenueElement={addVenueElement} onUpdateVenueElement={updateVenueElement} onDeleteVenueElement={deleteVenueElement}
         />
       ) : subTab === "checkin" ? (
-        <CheckinPanel slug={slug} />
+        <CheckinPanel slug={slug} siteDomain={siteDomain} />
       ) : subTab === "voice" ? (
         <VoiceMessagesPanel slug={slug} />
       ) : subTab === "networking" ? (
