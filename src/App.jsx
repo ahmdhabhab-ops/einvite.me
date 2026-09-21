@@ -2390,7 +2390,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             <SegmentedToggle
               value={current.style || "boxes"}
               onChange={(v) => onChangeStyle({ style: v })}
-              options={[{ value: "boxes", label: "Boxes" }, { value: "outline", label: "Outline" }, { value: "minimal", label: "Minimal" }]}
+              options={[{ value: "boxes", label: "Boxes" }, { value: "outline", label: "Outline" }, { value: "circle", label: "Circle" }, { value: "minimal", label: "Minimal" }]}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -4821,23 +4821,37 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
           )}
           <DraggableBlock id="countdown" pos={cs} editMode={editMode} onMove={(p) => onMoveBlock("countdown", p)} label="Countdown" light={light} selected={selectedBlock === "countdown"} onSelect={() => onSelectBlock("countdown")}>
             {cd && !cd.passed ? (
-              <div className={cs.style === "minimal" ? "flex gap-4" : "flex gap-2.5"}>
-                {[[t.days, cd.days], [t.hrs, cd.hours], [t.min, cd.mins], [t.sec, cd.secs]].map(([label, val], i) => (
-                  <div
-                    key={i}
-                    className={cs.style === "minimal" ? "text-center" : "rounded-lg px-2.5 py-2 text-center"}
-                    style={
-                      cs.style === "outline"
-                        ? { border: `1.5px solid ${cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.5)" : GOLD_SOFT)}`, borderRadius: 8, padding: "8px 10px", minWidth: 44 }
-                        : cs.style === "minimal"
-                          ? undefined
+              <div className={cs.style === "minimal" || cs.style === "circle" ? "flex gap-4" : "flex gap-2.5"}>
+                {[[t.days, cd.days], [t.hrs, cd.hours], [t.min, cd.mins], [t.sec, cd.secs]].map(([label, val], i) => {
+                  const number = <div style={{ fontFamily: cs.fontFamily || fontDisplay, fontSize: cs.fontSize ? `${cs.fontSize}px` : 18, color: cs.color || PAPER }}>{String(val).padStart(2, "0")}</div>;
+                  const labelEl = <div className="text-[8.5px] uppercase" style={{ color: cs.labelColor || GOLD_SOFT, fontFamily: FONT_BODY, letterSpacing: "0.08em" }}>{label}</div>;
+                  if (cs.style === "circle") {
+                    return (
+                      <div key={i} className="text-center">
+                        <div className="flex items-center justify-center rounded-full" style={{ width: 44, height: 44, background: cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.14)" : EMERALD) }}>
+                          {number}
+                        </div>
+                        <div className="mt-1">{labelEl}</div>
+                      </div>
+                    );
+                  }
+                  if (cs.style === "minimal") {
+                    return <div key={i} className="text-center">{number}{labelEl}</div>;
+                  }
+                  return (
+                    <div
+                      key={i}
+                      className="rounded-lg px-2.5 py-2 text-center"
+                      style={
+                        cs.style === "outline"
+                          ? { border: `1.5px solid ${cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.5)" : GOLD_SOFT)}`, borderRadius: 8, padding: "8px 10px", minWidth: 44 }
                           : { background: cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.14)" : EMERALD), minWidth: 44 }
-                    }
-                  >
-                    <div style={{ fontFamily: cs.fontFamily || fontDisplay, fontSize: cs.fontSize ? `${cs.fontSize}px` : 18, color: cs.color || PAPER }}>{String(val).padStart(2, "0")}</div>
-                    <div className="text-[8.5px] uppercase" style={{ color: cs.labelColor || GOLD_SOFT, fontFamily: FONT_BODY, letterSpacing: "0.08em" }}>{label}</div>
-                  </div>
-                ))}
+                      }
+                    >
+                      {number}{labelEl}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p style={{ color: light ? PAPER : EMERALD, fontFamily: fontDisplay, fontStyle: "italic" }}>{t.celebrationBegun}</p>
