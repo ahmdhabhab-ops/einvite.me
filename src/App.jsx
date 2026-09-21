@@ -4686,7 +4686,7 @@ function TimelineSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMo
       {(light) => (
         <div className="relative h-full w-full">
           {(!hs.hidden || editMode) && (
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10, opacity: hs.hidden ? 0 : 1 }}>{t.orderOfDay}</div>
           </DraggableBlock>
           )}
@@ -4724,7 +4724,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
       {(light) => (
         <div className="relative h-full w-full">
           {(!hs.hidden || editMode) && (
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center font-semibold uppercase" style={{ color: hs.color || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: hs.fontFamily || FONT_BODY, fontSize: hs.fontSize ? `${hs.fontSize}px` : 10, opacity: hs.hidden ? 0 : 1 }}>{t.celebration}</div>
           </DraggableBlock>
           )}
@@ -4799,7 +4799,7 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
       {(light) => (
         <div className="relative h-full w-full">
           {(!hs.hidden || editMode) && (
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ opacity: hs.hidden ? 0 : 1 }}>
               <div className="text-[10px] font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.15em", fontFamily: FONT_BODY }}>{t.countingDownTo}</div>
               <div style={{ fontFamily: hs.fontFamily || fontScript, fontSize: hs.fontSize ? `${hs.fontSize}px` : 26, color: hs.color || (light ? PAPER : EMERALD), margin: "4px 0 4px" }}>{t.celebrationWord}</div>
@@ -5094,6 +5094,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             editableText={content.heading || "RSVP"}
             onTextEdit={(text) => onUpdateContent({ heading: text })}
             label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}
+            isEmpty={!!hs.hidden}
           >
             <div style={{ opacity: hs.hidden ? 0 : 1 }}>
             {style === "stacked" ? (
@@ -5289,7 +5290,7 @@ function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBloc
       {(light) => (
         <div className="relative h-full w-full">
           {(!hs.hidden || editMode) && (
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 230, opacity: hs.hidden ? 0 : 1 }}>
               <div className="font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.15em", fontFamily: FONT_BODY, fontSize: 10 }}>{t.giftRegistry}</div>
               <p className="mt-1.5 text-[11px] italic" style={{ color: light ? "rgba(244,237,228,0.8)" : EMERALD, fontFamily: fontDisplay }}>{t.registryIntro}</p>
@@ -5348,7 +5349,7 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
       {(light) => (
         <div className="relative h-full w-full">
           {(!hs.hidden || editMode) && (
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0 : 1 }}>
               <Icon size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
               <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
@@ -5423,7 +5424,7 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
       {(light) => (
         <div className="relative h-full w-full">
           {(!hs.hidden || editMode) && (
-          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")}>
+          <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0 : 1 }}>
               <Music2 size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
               <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
