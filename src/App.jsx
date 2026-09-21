@@ -3703,20 +3703,6 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         Button wording is per language; the event date lives on the Countdown page.
       </p>
 
-      <Divider />
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names Required When Declining</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Applies to the open invitation link, when a guest selects "Not Attending"</div>
-        </div>
-        <SegmentedToggle
-          value={rsvpSettings.namesRequiredWhenDeclining}
-          onChange={(v) => updateRsvpSettings({ namesRequiredWhenDeclining: v })}
-          options={[{ value: false, label: "Optional" }, { value: true, label: "Required" }]}
-        />
-      </div>
-
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
   );
@@ -5290,7 +5276,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [nameInput, setNameInput] = useState("");
   const [modalError, setModalError] = useState("");
 
-  const nameNeeded = choice === "yes" ? rsvpSettings.namesRequired : choice === "no" && rsvpSettings.namesRequiredWhenDeclining;
+  const nameNeeded = choice === "yes" ? rsvpSettings.namesRequired : choice === "no";
   const isFull = rsvpSettings.maxTotalRsvps > 0 && totalAttending >= rsvpSettings.maxTotalRsvps;
   // editMode is exempt so the couple can keep previewing/styling the RSVP
   // block on the phone canvas even after their own deadline has passed.
@@ -11112,7 +11098,7 @@ export default function InvitationBuilder() {
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
   const [venueElements, setVenueElements] = useState([]); // [{ id, type: 'stage'|'danceFloor'|'entrance'|'lounge', x, y, width, height, label }]
-  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null });
+  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null });
   const [openInviteLinks, setOpenInviteLinks] = useState([]); // [{ id, label, maxGuests }] — each is its own separately-tracked open invitation link, independent of the single shared one and of each other
   const addOpenInviteLink = (label, maxGuests) => {
     const newLink = { id: uid(), label: label.trim() || "Untitled link", maxGuests: Number(maxGuests) || 0 };
@@ -11223,7 +11209,7 @@ export default function InvitationBuilder() {
     enabledSteps: Object.fromEntries(ALL_STEPS.map((s) => [s.key, true])), pageOrder: ALL_STEPS.map((s) => s.key),
     defaultLang: "en", enabledLanguages: LANGS, layouts: DEFAULT_LAYOUTS, customBlocks: emptyCustomBlocks(),
     og: { image: null, title: "", description: "" }, guestGroups: [], tables: [],
-    rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null },
+    rsvpSettings: { style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null },
     openInviteLinks: [],
     venueElements: [],
     integrations: {
