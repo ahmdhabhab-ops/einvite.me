@@ -8177,6 +8177,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   const [sendNote, setSendNote] = useState("");
   const [subTab, setSubTab] = useState("guests");
   const [copiedLivestream, setCopiedLivestream] = useState(false);
+  const [copiedCheckinStaffLink, setCopiedCheckinStaffLink] = useState(false);
 
   const allMembers = flattenMembers(guestGroups);
   const yes = allMembers.filter((m) => m.status === "yes").length;
@@ -8475,7 +8476,24 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
           venueElements={venueElements} onAddVenueElement={addVenueElement} onUpdateVenueElement={updateVenueElement} onDeleteVenueElement={deleteVenueElement}
         />
       ) : subTab === "checkin" ? (
-        <CheckinPanel slug={slug} siteDomain={siteDomain} />
+        <div>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.2)` }}>
+            <div>
+              <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Link for whoever's working the door</div>
+              <div className="mt-0.5 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                Send this to your check-in staff — it opens the same scanner below, no login needed.
+              </div>
+            </div>
+            <button
+              onClick={async () => { const ok = await copyToClipboard(`https://${siteDomain}/checkin-staff/${slug}`); setCopiedCheckinStaffLink(ok); setTimeout(() => setCopiedCheckinStaffLink(false), 2000); }}
+              className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold"
+              style={{ background: copiedCheckinStaffLink ? "rgba(143,191,163,0.18)" : GOLD, color: copiedCheckinStaffLink ? "#8FBFA3" : INK, fontFamily: FONT_BODY }}
+            >
+              <Copy size={12} /> {copiedCheckinStaffLink ? "Copied!" : "Copy staff link"}
+            </button>
+          </div>
+          <CheckinPanel slug={slug} siteDomain={siteDomain} />
+        </div>
       ) : subTab === "voice" ? (
         <VoiceMessagesPanel slug={slug} />
       ) : subTab === "networking" ? (
@@ -10184,6 +10202,31 @@ function DjDashboard({ slug }) {
 /* match-sorted directory of other opted-in guests, connection requests,   */
 /* and simple messaging once a connection is accepted.                     */
 /* ---------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------- */
+/* Check-in Staff page — served at /checkin-staff/:slug, a private link    */
+/* the couple shares with whoever's working the door. Same scanner + live  */
+/* list as the "Check-in" tab in the couple's own dashboard (CheckinPanel),*/
+/* just reachable without logging in — gated only by knowing the slug,     */
+/* same trust model already used for the DJ dashboard above.               */
+/* ---------------------------------------------------------------------- */
+
+function CheckinStaffPage({ slug }) {
+  return (
+    <div style={{ minHeight: "100vh", background: INK, color: IVORY, fontFamily: FONT_BODY }}>
+      <div className="mx-auto max-w-2xl px-5 py-8">
+        <div className="mb-2 flex items-center gap-2">
+          <QrCode size={20} color={GOLD} />
+          <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic" }}>Guest Check-in</h1>
+        </div>
+        <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>
+          Scan each guest's QR code as they arrive.
+        </p>
+        <CheckinPanel slug={slug} siteDomain={window.location.host} />
+      </div>
+    </div>
+  );
+}
 
 /* ---------------------------------------------------------------------- */
 /* Check-in scan page — served at /checkin/:token. This is what a phone's  */
@@ -12269,6 +12312,7 @@ export default function InvitationBuilder() {
   const [guestActiveIndex, setGuestActiveIndex] = useState(0);
   const [guestStarted, setGuestStarted] = useState(false);
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
+  const [checkinStaffSlug, setCheckinStaffSlug] = useState(null); // null = checking, false = not a check-in staff link, string = the slug
   const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
   const [checkinToken, setCheckinTokenFromUrl] = useState(null); // null = checking, false = not a check-in link, string = the token
   const [quickRsvpSlug, setQuickRsvpSlug] = useState(null); // null = checking, false = not a quick-RSVP link, string = the slug
@@ -12296,6 +12340,11 @@ export default function InvitationBuilder() {
   useEffect(() => {
     const match = window.location.pathname.match(/^\/dj\/([^/]+)\/?$/);
     setDjDashboardSlug(match ? decodeURIComponent(match[1]) : false);
+  }, []);
+
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/checkin-staff\/([^/]+)\/?$/);
+    setCheckinStaffSlug(match ? decodeURIComponent(match[1]) : false);
   }, []);
 
   useEffect(() => {
@@ -12582,6 +12631,13 @@ export default function InvitationBuilder() {
   }
   if (djDashboardSlug) {
     return <DjDashboard slug={djDashboardSlug} />;
+  }
+
+  if (checkinStaffSlug === null) {
+    return <AppLoadingScreen />; // still checking the URL
+  }
+  if (checkinStaffSlug) {
+    return <CheckinStaffPage slug={checkinStaffSlug} />;
   }
 
   if (isShopPath === null) {
