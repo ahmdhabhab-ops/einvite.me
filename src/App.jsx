@@ -943,24 +943,40 @@ function getOrCreateGuestToken() {
   return token;
 }
 
-async function createPaymentSession(invitationSlug, amount, currency) {
-  const res = await fetch(`${EDGE_FUNCTIONS_URL}/create-payment-session`, {
-    method: "POST",
-    headers: supabaseHeaders,
-    body: JSON.stringify({ invitationSlug, amount, currency, guestToken: getOrCreateGuestToken() }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Couldn't start payment — please try again.");
-  return data; // { paymentReference, paymentUrl }
+// The real YouTube/Vimeo video for a "hidden" live stream — kept in its own
+// table server-side (see livestream_secrets), never part of the invitation's
+// normal saved data, so it's absent from both "View Page Source" and the one
+// big snapshot fetch every guest's browser makes. Only reachable through
+// this dedicated call, made once the guest actually opens this page.
+async function getLivestreamVideo(invitationSlug) {
+  try {
+    const res = await fetch(`${EDGE_FUNCTIONS_URL}/get-livestream-video`, {
+      method: "POST",
+      headers: supabaseHeaders,
+      body: JSON.stringify({ invitationSlug }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.videoId ? data : null; // { provider, videoId }
+  } catch {
+    return null;
+  }
 }
 
-async function getStreamUrl(paymentReference) {
-  const res = await fetch(`${EDGE_FUNCTIONS_URL}/get-stream-url`, {
+// Saves the real hidden video for an invitation. The first save for a given
+// slug mints a fresh, per-invitation owner key server-side and hands it
+// back — the caller remembers it locally from then on. Every save after
+// that must present the matching key, or it's rejected — there's no single
+// shared password across every client's invitation.
+async function setLivestreamVideo(invitationSlug, videoUrl, ownerKey) {
+  const res = await fetch(`${EDGE_FUNCTIONS_URL}/set-livestream-video`, {
     method: "POST",
     headers: supabaseHeaders,
-    body: JSON.stringify({ paymentReference }),
+    body: JSON.stringify({ invitationSlug, videoUrl, ownerKey }),
   });
-  return await res.json(); // { authorized, embedUrl? , status? }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Couldn't save — please try again.");
+  return data.ownerKey; // remember this locally — needed for the NEXT save
 }
 
 /**
@@ -3815,6 +3831,72 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
   );
 }
 
+// Lets the couple save the real YouTube/Vimeo video for a "hidden" live
+// stream — see getLivestreamVideo/setLivestreamVideo above for why this is
+// kept out of the invitation's normal saved data entirely. No password to
+// remember: the first save for this invitation mints its own key
+// server-side and this remembers it locally from then on, same as before,
+// just no longer a single code shared across every client's invitation.
+function HiddenStreamVideoSetter({ slug }) {
+  const storageKey = `einvite:stream-owner-key:${slug}`;
+  const [ownerKey, setOwnerKey] = useState(() => (typeof window !== "undefined" ? window.localStorage.getItem(storageKey) || "" : ""));
+  const [videoUrl, setVideoUrl] = useState("");
+  const [status, setStatus] = useState("loading"); // loading | idle | saving | saved | error
+  const [error, setError] = useState("");
+  const [savedInfo, setSavedInfo] = useState(null); // { provider, videoId }
+
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    getLivestreamVideo(slug).then((data) => {
+      if (cancelled) return;
+      setSavedInfo(data);
+      setStatus("idle");
+    });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  const save = async () => {
+    if (!videoUrl.trim()) { setError("Enter the real YouTube or Vimeo link first."); return; }
+    setStatus("saving");
+    setError("");
+    try {
+      const newKey = await setLivestreamVideo(slug, videoUrl.trim(), ownerKey);
+      window.localStorage.setItem(storageKey, newKey);
+      setOwnerKey(newKey);
+      setSavedInfo({ provider: null, videoId: null }); // refetched below, but clears the empty-state message immediately
+      const data = await getLivestreamVideo(slug);
+      setSavedInfo(data);
+      setVideoUrl("");
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 3000);
+    } catch (err) {
+      setStatus("error");
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="rounded-lg p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
+      <FieldLabel>Real stream link (kept hidden from guests' page source)</FieldLabel>
+      {savedInfo?.videoId ? (
+        <p className="mb-2 text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>
+          Currently saved — a {savedInfo.provider === "vimeo" ? "Vimeo" : "YouTube"} video is set.
+        </p>
+      ) : status !== "loading" ? (
+        <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Nothing saved yet.</p>
+      ) : null}
+      <TextInput value={videoUrl} onChange={setVideoUrl} placeholder="https://youtube.com/watch?v=… or a Vimeo link" />
+      {error && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+      <div className="mt-2">
+        <GhostButton onClick={save} active={status === "saved"}>
+          {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden link"}
+        </GhostButton>
+      </div>
+    </div>
+  );
+}
+
 function NetworkingPanel({ heading, setHeading, subtitle, setSubtitle, buttonLabel, setButtonLabel, bg, setBg }) {
   return (
     <div>
@@ -5859,59 +5941,31 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
 
 function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const hs = layout.heading;
-  const [session, setSession] = useState(null); // null=not checked yet, {status,...}
-  const [starting, setStarting] = useState(false);
+  // For a "hidden" (paid) stream, the real video is never part of this
+  // invitation's normal saved data — it's fetched separately here, once the
+  // guest actually opens this page, via getLivestreamVideo (see its own
+  // comment for why). Payment isn't gating this yet — this step is just
+  // about keeping the link out of page source and the bulk snapshot fetch;
+  // a real payment check comes later, in front of this same lookup.
+  const [hiddenVideo, setHiddenVideo] = useState(null); // null=loading, false=nothing saved yet, {provider,videoId}=found
 
-  // For a paid stream, check whether THIS guest's browser already has an
-  // authorized session — this is what makes "leave to pay, come back" and
-  // "revisit later, still unlocked" both work without re-showing the
-  // payment button. Polls while a payment is pending, since the guest may
-  // still be off completing checkout on Whish's own site.
   useEffect(() => {
     if (!paid || editMode || !slug) return;
     let cancelled = false;
-    const storageKey = `einvite:stream-session:${slug}`;
-    const storedRef = typeof window !== "undefined" ? window.localStorage.getItem(storageKey) : null;
-
-    if (!storedRef) {
-      setSession({ status: "unauthorized" });
-      return;
-    }
-
-    setSession({ status: "checking" });
-    const check = async () => {
-      try {
-        const result = await getStreamUrl(storedRef);
-        if (cancelled) return;
-        setSession(result.authorized ? { status: "authorized", embedUrl: result.embedUrl } : { status: "pending" });
-      } catch {
-        if (!cancelled) setSession({ status: "unauthorized" });
-      }
-    };
-    check();
-    const interval = setInterval(check, 4000);
-    return () => { cancelled = true; clearInterval(interval); };
+    getLivestreamVideo(slug).then((data) => { if (!cancelled) setHiddenVideo(data || false); });
+    return () => { cancelled = true; };
   }, [paid, editMode, slug]);
 
-  const startPayment = async () => {
-    setStarting(true);
-    try {
-      const amount = parseFloat(String(price || "").replace(/[^0-9.]/g, "")) || 0;
-      const { paymentReference, paymentUrl: whishUrl } = await createPaymentSession(slug, amount, "USD");
-      window.localStorage.setItem(`einvite:stream-session:${slug}`, paymentReference);
-      window.location.href = whishUrl; // hand off to Whish's own checkout — real payment happens there, not in this app
-    } catch (err) {
-      setSession({ status: "error", error: err.message });
-      setStarting(false);
-    }
-  };
+  const hiddenEmbedUrl = hiddenVideo
+    ? (hiddenVideo.provider === "vimeo" ? `https://player.vimeo.com/video/${hiddenVideo.videoId}` : `https://www.youtube.com/embed/${hiddenVideo.videoId}`)
+    : null;
 
   // Never auto-embed a paid stream from the `url` field — for paid streams
   // the real URL is never even present here at all; it only ever comes
-  // back from getStreamUrl() after a verified payment (see the useEffect
-  // above). Only free streams on a platform that actually supports iframe
-  // embedding get the inline player this way; everything else (paid, or a
-  // non-embeddable URL like Zoom) falls through to the button-based version.
+  // from the hidden lookup above. Only free streams on a platform that
+  // actually supports iframe embedding get the inline player this way;
+  // everything else (paid, or a non-embeddable URL like Zoom) falls
+  // through to the button-based version.
   const embedUrl = !paid ? getEmbedUrl(url) : null;
 
   if (embedUrl && !editMode) {
@@ -5958,12 +6012,12 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
             <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
             {subtitle && <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, maxWidth: 220 }}>{subtitle}</p>}
 
-            {!session || session.status === "checking" ? (
-              <p className="mt-6 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Checking access…</p>
-            ) : session.status === "authorized" ? (
+            {hiddenVideo === null ? (
+              <p className="mt-6 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading…</p>
+            ) : hiddenVideo && hiddenEmbedUrl ? (
               <div className="mt-5 w-full" style={{ maxWidth: 260, aspectRatio: "9 / 16" }}>
                 <iframe
-                  src={session.embedUrl}
+                  src={hiddenEmbedUrl}
                   className="h-full w-full rounded-xl"
                   style={{ border: "none" }}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -5971,32 +6025,8 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
                   title="Live stream"
                 />
               </div>
-            ) : session.status === "pending" ? (
-              <p className="mt-6 text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Waiting for payment confirmation…</p>
             ) : (
-              <>
-                {session.status === "error" && <p className="mt-3 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{session.error}</p>}
-                <button
-                  onClick={() => setSession({ status: "error", error: "Credit card payment isn't set up yet — a Stripe account needs to be connected first." })}
-                  disabled={starting}
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
-                  style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY, opacity: starting ? 0.7 : 1 }}
-                >
-                  <Lock size={11} /> Pay by Credit Card{price ? ` — ${price}` : ""}
-                </button>
-                <div className="mt-4 flex items-center gap-2">
-                  <div className="h-px flex-1" style={{ background: light ? "rgba(244,237,228,0.25)" : "rgba(147,166,155,0.3)" }} />
-                  <span className="text-[9px]" style={{ color: light ? "rgba(244,237,228,0.5)" : MUTED, fontFamily: FONT_BODY }}>TEMPORARY — remove before going live</span>
-                  <div className="h-px flex-1" style={{ background: light ? "rgba(244,237,228,0.25)" : "rgba(147,166,155,0.3)" }} />
-                </div>
-                <button
-                  onClick={() => setSession({ status: "authorized", embedUrl: url })}
-                  className="mt-2 rounded-full px-4 py-1.5 text-[10.5px] font-semibold"
-                  style={{ border: `1px dashed ${light ? "rgba(244,237,228,0.4)" : "rgba(147,166,155,0.4)"}`, color: light ? "rgba(244,237,228,0.7)" : MUTED, fontFamily: FONT_BODY }}
-                >
-                  Skip payment — unlock stream directly (testing only)
-                </button>
-              </>
+              <p className="mt-6 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>The stream link hasn't been set up yet.</p>
             )}
           </div>
         )}
@@ -13297,6 +13327,7 @@ export default function InvitationBuilder() {
                         <FieldLabel>Price to show</FieldLabel>
                         <TextInput value={integrations.livestreamPrice} onChange={(v) => updateIntegrations({ livestreamPrice: v })} placeholder="$10" />
                       </div>
+                      <HiddenStreamVideoSetter slug={slug} />
                     </>
                   )}
                 </div>
