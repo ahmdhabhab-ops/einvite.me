@@ -3815,99 +3815,6 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
   );
 }
 
-// Shared editor panel for pages that link out to a separately-hosted backend
-// (DJ Requests, Guest Networking) — this app can't run those live itself
-// (they need a real server + database for multi-guest real-time sync), so
-// this page is just a nicely designed doorway to wherever you've deployed
-// that project.
-function SecureStreamUrlSetter({ slug }) {
-  const [rememberedSecret] = useState(() => (typeof window !== "undefined" ? window.localStorage.getItem("einvite:owner-secret") || "" : "")); // read once on mount, never reassigned — safe to use as an effect dependency without re-firing per keystroke
-  const [ownerSecret, setOwnerSecret] = useState(rememberedSecret); // the actual input field's editable value
-  const [embedUrl, setEmbedUrl] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | loading | saving | saved | error
-  const [error, setError] = useState("");
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  // If this browser already remembers an owner code, automatically load
-  // what's currently saved — this is what actually fixes "the field always
-  // looks empty after a refresh." Still gated by the same code as writing,
-  // so this doesn't weaken the security model at all.
-  useEffect(() => {
-    if (!rememberedSecret || !slug) return;
-    let cancelled = false;
-    setStatus("loading");
-    fetch(`${EDGE_FUNCTIONS_URL}/get-stream-secret-for-owner`, {
-      method: "POST",
-      headers: supabaseHeaders,
-      body: JSON.stringify({ invitationSlug: slug, ownerSecret: rememberedSecret }),
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) {
-          console.error(`get-stream-secret-for-owner failed (${res.status}) for slug "${slug}":`, data.error);
-          setError(`Couldn't load the saved link: ${data.error || `status ${res.status}`}`);
-          setStatus("idle");
-          return;
-        }
-        if (data.embedUrl) { setEmbedUrl(data.embedUrl); setLastUpdated(data.updatedAt); }
-        else { console.log(`No stream secret saved yet for slug "${slug}".`); } // legitimately empty, not an error — nothing saved for this invitation yet
-        setStatus("idle");
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error("get-stream-secret-for-owner threw:", err);
-        setError("Couldn't reach the server to load the saved link — check your connection.");
-        setStatus("idle");
-      });
-    return () => { cancelled = true; };
-  }, [slug, rememberedSecret]); // rememberedSecret never changes after mount, so this effectively only re-fires when slug itself settles to its real, final value — see the guest-detection fix elsewhere in this file for why that timing matters
-
-  const save = async () => {
-    if (!embedUrl.trim()) { setError("Enter the real stream URL first."); return; }
-    setStatus("saving");
-    setError("");
-    try {
-      const res = await fetch(`${EDGE_FUNCTIONS_URL}/set-stream-secret`, {
-        method: "POST",
-        headers: supabaseHeaders,
-        body: JSON.stringify({ invitationSlug: slug, embedUrl: embedUrl.trim(), ownerSecret }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't save.");
-      window.localStorage.setItem("einvite:owner-secret", ownerSecret); // remember it now that we know it's correct
-      setStatus("saved");
-      setLastUpdated(new Date().toISOString());
-      setTimeout(() => setStatus("idle"), 3000);
-    } catch (err) {
-      setStatus("error");
-      setError(err.message);
-    }
-  };
-
-  return (
-    <div className="rounded-lg p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
-      <div className="mb-1.5 flex items-center justify-between">
-        <FieldLabel>Real stream URL (kept hidden — never shown to guests directly)</FieldLabel>
-        {status === "loading" && <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading current value…</span>}
-      </div>
-      <TextInput value={embedUrl} onChange={setEmbedUrl} placeholder="https://youtube.com/watch?v=… or the actual private stream link" />
-      {lastUpdated && <p className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Currently saved — last updated {new Date(lastUpdated).toLocaleString()}</p>}
-      <div className="mt-2">
-        <FieldLabel>Owner access code</FieldLabel>
-        <TextInput value={ownerSecret} onChange={setOwnerSecret} placeholder="Set by whoever deployed this (see paid-stream-backend setup)" />
-        <p className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-          Remembered on this device after a successful save — you won't need to retype it here every time. A basic safeguard for now, not full per-client security — see the honest note in set-stream-secret's own code.
-        </p>
-      </div>
-      {error && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-      <GhostButton onClick={save} active={status === "saved"}>
-        {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden stream URL"}
-      </GhostButton>
-    </div>
-  );
-}
-
 function NetworkingPanel({ heading, setHeading, subtitle, setSubtitle, buttonLabel, setButtonLabel, bg, setBg }) {
   return (
     <div>
@@ -13369,11 +13276,6 @@ export default function InvitationBuilder() {
 
                   {integrations.livestreamPaid && (
                     <>
-                      <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(201,164,76,0.08)", border: `1px solid rgba(201,164,76,0.2)` }}>
-                        <p className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                          The real stream link is kept genuinely hidden — it's stored server-side and only ever sent to a guest's browser after payment is confirmed. It never sits in this invitation's normal saved data, so there's nothing for a guest to find by inspecting the page, copying a link, or sharing it with someone who hasn't paid.
-                        </p>
-                      </div>
                       <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
                         <p className="text-[11px] font-semibold" style={{ color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>How each payment is split</p>
                         <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
@@ -13395,7 +13297,6 @@ export default function InvitationBuilder() {
                         <FieldLabel>Price to show</FieldLabel>
                         <TextInput value={integrations.livestreamPrice} onChange={(v) => updateIntegrations({ livestreamPrice: v })} placeholder="$10" />
                       </div>
-                      <SecureStreamUrlSetter slug={slug} />
                     </>
                   )}
                 </div>
