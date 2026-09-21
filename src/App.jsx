@@ -2500,6 +2500,33 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               </div>
             </div>
           ))}
+          <div className="mt-1 grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Thank-you heading & icon</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.thankYouText || "#F4EDE4"} onChange={(e) => onChangeStyle({ thankYouText: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.thankYouText && (
+                  <button onClick={() => onChangeStyle({ thankYouText: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Thank-you "coming so far" line</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.thankYouSub || "#C9A44C"} onChange={(e) => onChangeStyle({ thankYouSub: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.thankYouSub && (
+                  <button onClick={() => onChangeStyle({ thankYouSub: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            The thank-you screen only shows after someone actually submits — use the ◀ ▶ arrows above the form on the phone (while this block is selected) to preview it without submitting for real.
+          </p>
         </div>
       )}
 
@@ -5182,12 +5209,21 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     />
   );
 
+  // The confirmation screen normally only shows after a guest actually
+  // submits — with no way to see or style it in the builder without
+  // clicking all the way through the real flow. In edit mode this small
+  // 3-state cycle (Form / Thank you as Yes / Thank you as No) overrides
+  // just what's DISPLAYED, entirely separate from the real submitted/
+  // choice state a guest's own click still drives normally.
+  const [editPreviewState, setEditPreviewState] = useState(0);
+  const effectiveSubmitted = editMode ? editPreviewState > 0 : submitted;
+
   const thankYou = (light) => (
     <div className="text-center">
-      <CheckCircle2 size={22} color={light ? PAPER : EMERALD} style={{ margin: "0 auto 6px" }} />
-      <p style={{ color: light ? PAPER : EMERALD, fontFamily: fontDisplay, fontStyle: "italic", fontSize: 14 }}>Thank you for your response!</p>
+      <CheckCircle2 size={22} color={bs.thankYouText || (light ? PAPER : EMERALD)} style={{ margin: "0 auto 6px" }} />
+      <p style={{ color: bs.thankYouText || (light ? PAPER : EMERALD), fontFamily: fontDisplay, fontStyle: "italic", fontSize: 14 }}>Thank you for your response!</p>
       {rsvpSettings.showTotalAttending && (
-        <p className="mt-2 text-[11.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>
+        <p className="mt-2 text-[11.5px]" style={{ color: bs.thankYouSub || (light ? GOLD_SOFT : ROSE), fontFamily: FONT_BODY }}>
           {totalAttending} {totalAttending === 1 ? "person is" : "people are"} coming so far
         </p>
       )}
@@ -5236,8 +5272,31 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           )}
 
           <DraggableBlock id="buttons" pos={bs} editMode={editMode} onMove={(p) => onMoveBlock("buttons", p)} label="RSVP form" light={light} selected={selectedBlock === "buttons"} onSelect={() => onSelectBlock("buttons")}>
+            {editMode && selectedBlock === "buttons" && (
+              <div className="mb-2 flex items-center justify-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => setEditPreviewState((s) => (s + 2) % 3)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full"
+                  style={{ background: GOLD, color: INK }}
+                  title="Previous preview state"
+                >
+                  <ChevronDown size={12} style={{ transform: "rotate(90deg)" }} />
+                </button>
+                <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.06em" }}>
+                  {["Form", "Thank you — Yes", "Thank you — No"][editPreviewState]}
+                </span>
+                <button
+                  onClick={() => setEditPreviewState((s) => (s + 1) % 3)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full"
+                  style={{ background: GOLD, color: INK }}
+                  title="Next preview state"
+                >
+                  <ChevronDown size={12} style={{ transform: "rotate(-90deg)" }} />
+                </button>
+              </div>
+            )}
             <div style={{ width: 230 }}>
-              {submitted ? (
+              {effectiveSubmitted ? (
                 voiceMessageStage === "recording" && choice === "no" && rsvpSettings.enableGuestVoiceRecorder ? (
                   <VoiceMessageRecorder
                     rsvpStatus={choice}
