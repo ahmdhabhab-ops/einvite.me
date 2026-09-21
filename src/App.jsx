@@ -2366,11 +2366,27 @@ function BackgroundPicker({ bg, onChange }) {
   );
 }
 
-function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder }) {
+function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onChangeStyle, onChangeText, onDelete, onDuplicate, onDeselect, onReorder, onSliderDragChange }) {
   const fontKey = FONT_OPTIONS.find((f) => f.value === current.fontFamily)?.key || "auto";
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
   const isIcon = current.type === "icon";
+  // Safety net for the Horizontal/Vertical sliders' onMouseUp/onTouchEnd
+  // below — a native range input's drag can end with the pointer released
+  // outside the input itself (dragged off then let go), which doesn't
+  // reliably fire mouseup/touchend ON the input in every browser. Without
+  // this, sliderDragging could get stuck true, leaving the block's own
+  // selection chrome hidden even after the drag actually ended.
+  useEffect(() => {
+    if (!onSliderDragChange) return;
+    const clear = () => onSliderDragChange(false);
+    window.addEventListener("mouseup", clear);
+    window.addEventListener("touchend", clear);
+    return () => {
+      window.removeEventListener("mouseup", clear);
+      window.removeEventListener("touchend", clear);
+    };
+  }, [onSliderDragChange]);
   return (
     <div className="mb-5 rounded-xl p-4" style={{ background: INK_3, border: `1px solid rgba(201,164,76,0.3)` }}>
       <div className="mb-3 flex items-center justify-between">
@@ -2660,14 +2676,24 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             <FieldLabel>Horizontal</FieldLabel>
             <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{Math.round(current.x ?? 50)}%</span>
           </div>
-          <input type="range" min={8} max={92} value={current.x ?? 50} onChange={(e) => onChangeStyle({ x: Number(e.target.value) })} className="w-full accent-current" style={{ accentColor: GOLD }} />
+          <input
+            type="range" min={8} max={92} value={current.x ?? 50} onChange={(e) => onChangeStyle({ x: Number(e.target.value) })}
+            onMouseDown={() => onSliderDragChange?.(true)} onTouchStart={() => onSliderDragChange?.(true)}
+            onMouseUp={() => onSliderDragChange?.(false)} onTouchEnd={() => onSliderDragChange?.(false)}
+            className="w-full accent-current" style={{ accentColor: GOLD }}
+          />
         </div>
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <FieldLabel>Vertical</FieldLabel>
             <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{Math.round(current.y ?? 50)}%</span>
           </div>
-          <input type="range" min={6} max={94} value={current.y ?? 50} onChange={(e) => onChangeStyle({ y: Number(e.target.value) })} className="w-full accent-current" style={{ accentColor: GOLD }} />
+          <input
+            type="range" min={6} max={94} value={current.y ?? 50} onChange={(e) => onChangeStyle({ y: Number(e.target.value) })}
+            onMouseDown={() => onSliderDragChange?.(true)} onTouchStart={() => onSliderDragChange?.(true)}
+            onMouseUp={() => onSliderDragChange?.(false)} onTouchEnd={() => onSliderDragChange?.(false)}
+            className="w-full accent-current" style={{ accentColor: GOLD }}
+          />
         </div>
       </div>
       )}
@@ -3767,10 +3793,20 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
 // midpoint between two of them — not just the page's own dead-center.
 const BlockPositionsContext = createContext(null);
 
+// True while the side panel's Horizontal/Vertical position sliders are being
+// actively dragged (mouse/touch held down) — read by DraggableBlock so the
+// selected block's outline/label chrome hides during that too, the same way
+// it already hides while dragging directly on the canvas. BlockStylePanel
+// (which owns those sliders) lives outside PhonePreview's own component
+// tree, so this needs its own top-level context rather than reusing
+// BlockPositionsContext's provider, which only wraps the canvas itself.
+const SliderDragContext = createContext(false);
+
 function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
   const [isDraggingNow, setIsDraggingNow] = useState(false);
+  const sliderDragging = useContext(SliderDragContext);
   const resizingRef = useRef(null); // { startDist, startScale } while a resize drag is in progress
   const [isEditingText, setIsEditingText] = useState(false);
   const textRef = useRef(null);
@@ -4137,7 +4173,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
         touchAction: editMode ? "none" : "auto",
-        outline: editMode && selected && !isTrulyEmpty && !isDraggingNow ? `2px solid ${GOLD}` : "none",
+        outline: editMode && selected && !isTrulyEmpty && !isDraggingNow && !sliderDragging ? `2px solid ${GOLD}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
@@ -4145,7 +4181,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
         zIndex: layerIndex !== undefined ? 30 + layerIndex : editMode ? (selected ? 31 : 30) : 1,
       }}
     >
-      {editMode && selected && !isTrulyEmpty && !isDraggingNow && (
+      {editMode && selected && !isTrulyEmpty && !isDraggingNow && !sliderDragging && (
         <div className="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[8px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
           <Move size={8} /> {label}{onTextEdit ? " · double-tap to edit text" : ""}
         </div>
@@ -5824,7 +5860,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide" }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -6251,6 +6287,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           )}
 
           <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+            <SliderDragContext.Provider value={sliderDragging}>
             <BlockPositionsContext.Provider value={blockPositionsRef}>
             {started && behindCustomBlocks.length > 0 && (
               <div className="absolute inset-0">
@@ -6290,6 +6327,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
               </div>
             )}
             </BlockPositionsContext.Provider>
+            </SliderDragContext.Provider>
             {marquee && (
               <div
                 className="pointer-events-none absolute"
@@ -10473,6 +10511,7 @@ export default function InvitationBuilder() {
   const [editingShopDesignId, setEditingShopDesignId] = useState(null); // set while the admin is editing an existing shop design's styling directly in the Builder
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [sliderDragging, setSliderDragging] = useState(false); // true while BlockStylePanel's Horizontal/Vertical sliders are actively held — see SliderDragContext
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
@@ -12512,6 +12551,7 @@ export default function InvitationBuilder() {
                     onDuplicate={isCustom ? () => duplicateCustomBlock(stepKey, customId) : (isLocation ? () => duplicateLocationItem(locId) : undefined)}
                     onDeselect={() => setSelectedBlockId(null)}
                     onReorder={isCustom ? (action) => reorderCustomBlock(stepKey, customId, action) : undefined}
+                    onSliderDragChange={setSliderDragging}
                   />
                 );
               })()}
@@ -12647,7 +12687,7 @@ export default function InvitationBuilder() {
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto md:sticky md:top-10 md:w-auto md:self-start">
               <div className="relative">
-                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} />
+                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} sliderDragging={sliderDragging} />
                 {/* Fades to hide the instant background/style swap behind an
                     opaque cover, then fades back in — this is what makes
                     switching templates look like a smooth, medium-speed
