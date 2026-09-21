@@ -5451,7 +5451,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       style={
                         isFull
                           ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
-                          : choice === "yes"
+                          : (editMode || choice === "yes")
                           ? { background: bs.optionBg || (light ? GOLD : EMERALD), color: bs.optionText || (light ? INK : PAPER), fontFamily: FONT_BODY }
                           : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
                       }
@@ -5461,7 +5461,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <button
                       onClick={() => setChoice("no")}
                       className="rounded-full py-2.5 text-[12px] font-semibold"
-                      style={choice === "no" ? { background: bs.optionBg || ROSE, color: bs.optionText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
+                      style={(editMode || choice === "no") ? { background: bs.optionBg || ROSE, color: bs.optionText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
                     >
                       {content.noLabel}
                     </button>
