@@ -2349,6 +2349,17 @@ function BackgroundPicker({ bg, onChange }) {
           <p className="mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
             Applied automatically so text stays readable — adjust if the photo looks too dark or too light.
           </p>
+          <div className="mt-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
+            <div>
+              <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Darken shape</div>
+              <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Gradient is darker toward the bottom; Even applies the same darkness everywhere</div>
+            </div>
+            <SegmentedToggle
+              value={bg.darkenStyle === "even" ? "even" : "gradient"}
+              onChange={(v) => onChange({ ...bg, darkenStyle: v })}
+              options={[{ value: "gradient", label: "Gradient" }, { value: "even", label: "Even" }]}
+            />
+          </div>
         </div>
       )}
     </div>
@@ -4568,7 +4579,9 @@ function StoryPage({ bg, children }) {
   // "darken" (0-100) sets the strength of the bottom stop; top/mid scale with it
   // at the same ratios as the original fixed overlay, so 55 looks identical to before.
   const amount = (bg.darken ?? 55) / 100;
-  const overlay = `linear-gradient(180deg, rgba(10,12,10,${(amount * 0.636).toFixed(2)}) 0%, rgba(10,12,10,${(amount * 0.273).toFixed(2)}) 40%, rgba(10,12,10,${amount.toFixed(2)}) 100%)`;
+  const overlay = bg.darkenStyle === "even"
+    ? `rgba(10,12,10,${amount.toFixed(2)})`
+    : `linear-gradient(180deg, rgba(10,12,10,${(amount * 0.636).toFixed(2)}) 0%, rgba(10,12,10,${(amount * 0.273).toFixed(2)}) 40%, rgba(10,12,10,${amount.toFixed(2)}) 100%)`;
   return (
     <div className="relative h-full w-full" style={{ background }}>
       {isPhoto && amount > 0 && <div className="absolute inset-0" style={{ background: overlay }} />}
