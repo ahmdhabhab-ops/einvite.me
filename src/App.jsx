@@ -5264,8 +5264,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
 
   const nameNeeded = choice === "yes" ? rsvpSettings.namesRequired : choice === "no" && rsvpSettings.namesRequiredWhenDeclining;
   const isFull = rsvpSettings.maxTotalRsvps > 0 && totalAttending >= rsvpSettings.maxTotalRsvps;
+  // editMode is exempt so the couple can keep previewing/styling the RSVP
+  // block on the phone canvas even after their own deadline has passed.
+  const isPastDeadline = !!rsvpSettings.deadline && !editMode && new Date() > new Date(`${rsvpSettings.deadline}T23:59:59`);
 
   const submit = async () => {
+    if (isPastDeadline) {
+      setError("The RSVP deadline has passed.");
+      return;
+    }
     if (nameNeeded && !name.trim()) {
       setError("Please enter your name.");
       return;
@@ -5277,7 +5284,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   };
 
   const openGuestModal = () => {
-    if (isFull) return;
+    if (isFull || isPastDeadline) return;
     setChoice("yes");
     setModalGuestCount(1);
     setConfirmedNames([]);
@@ -5445,6 +5452,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 ) : (
                   thankYou(light)
                 )
+              ) : isPastDeadline ? (
+                <div className="text-center">
+                  <AlertTriangle size={28} color={light ? GOLD_SOFT : ROSE} style={{ margin: "0 auto 8px" }} />
+                  <p className="text-[13px] font-semibold" style={{ color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}>RSVP Closed</p>
+                  <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+                    The deadline to respond has passed.
+                  </p>
+                </div>
               ) : style === "stacked" ? (
                 <>
                   <div className="flex flex-col gap-2">
@@ -7027,6 +7042,25 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
       <p className="mb-6 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Controls what guests are asked for on the RSVP page, and what shows publicly.
       </p>
+
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>RSVP Deadline</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Guests can no longer submit "Yes" or "No" after this date. Leave empty for no deadline.</div>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <div style={{ width: 165 }}>
+            <TextInput type="date" value={rsvpSettings.deadline || ""} onChange={(v) => updateRsvpSettings({ deadline: v || null })} />
+          </div>
+          {rsvpSettings.deadline && (
+            <button onClick={() => updateRsvpSettings({ deadline: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+
+      <Divider />
 
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -10324,6 +10358,10 @@ function QuickRsvpPage({ slug }) {
 
   const submit = async (status) => {
     if (!state) return;
+    if (state.snapshot.rsvpSettings?.deadline && new Date() > new Date(`${state.snapshot.rsvpSettings.deadline}T23:59:59`)) {
+      setError("The RSVP deadline has passed.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -10369,6 +10407,7 @@ function QuickRsvpPage({ slug }) {
   const c = state.snapshot.content?.cover || {};
   const photo = state.snapshot.og?.image || (hasActiveCustomImage(state.snapshot.pageBackgrounds?.cover) ? state.snapshot.pageBackgrounds.cover.image : null);
   const coupleNames = [c.name1, c.name2].filter(Boolean).join(" & ");
+  const isPastDeadline = !!state.snapshot.rsvpSettings?.deadline && new Date() > new Date(`${state.snapshot.rsvpSettings.deadline}T23:59:59`);
 
   return (
     <div style={{ minHeight: "100vh", background: INK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -10394,6 +10433,12 @@ function QuickRsvpPage({ slug }) {
           <div>
             <XCircle size={36} color="#E29B9B" style={{ margin: "0 auto 10px" }} />
             <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14 }}>Thanks for letting us know — you'll be missed!</p>
+          </div>
+        ) : isPastDeadline ? (
+          <div>
+            <AlertTriangle size={32} color="#E0B84C" style={{ margin: "0 auto 10px" }} />
+            <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14, fontWeight: 600 }}>RSVP Closed</p>
+            <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 12, marginTop: 6 }}>The deadline to respond has passed.</p>
           </div>
         ) : (
           <>
@@ -11039,7 +11084,7 @@ export default function InvitationBuilder() {
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
   const [venueElements, setVenueElements] = useState([]); // [{ id, type: 'stage'|'danceFloor'|'entrance'|'lounge', x, y, width, height, label }]
-  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true });
+  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null });
   const [openInviteLinks, setOpenInviteLinks] = useState([]); // [{ id, label, maxGuests }] — each is its own separately-tracked open invitation link, independent of the single shared one and of each other
   const addOpenInviteLink = (label, maxGuests) => {
     const newLink = { id: uid(), label: label.trim() || "Untitled link", maxGuests: Number(maxGuests) || 0 };
@@ -11150,7 +11195,7 @@ export default function InvitationBuilder() {
     enabledSteps: Object.fromEntries(ALL_STEPS.map((s) => [s.key, true])), pageOrder: ALL_STEPS.map((s) => s.key),
     defaultLang: "en", enabledLanguages: LANGS, layouts: DEFAULT_LAYOUTS, customBlocks: emptyCustomBlocks(),
     og: { image: null, title: "", description: "" }, guestGroups: [], tables: [],
-    rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true },
+    rsvpSettings: { style: "classic", namesRequired: true, namesRequiredWhenDeclining: false, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null },
     openInviteLinks: [],
     venueElements: [],
     integrations: {
