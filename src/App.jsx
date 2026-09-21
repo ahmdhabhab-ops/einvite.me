@@ -2597,6 +2597,36 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
           <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
             The thank-you screen only shows after someone actually submits — use the ◀ ▶ arrows above the form on the phone (while this block is selected) to preview it without submitting for real.
           </p>
+
+          <div className="mt-3 border-t pt-3" style={{ borderColor: INK_3 }}>
+            <FieldLabel>Voice message screen — heading & mic icon</FieldLabel>
+            <div className="mt-1 grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={current.voiceText || "#F4EDE4"} onChange={(e) => onChangeStyle({ voiceText: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                  {current.voiceText && (
+                    <button onClick={() => onChangeStyle({ voiceText: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div>
+                <FieldLabel>Subtitle text</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={current.voiceSub || "#F4EDE4"} onChange={(e) => onChangeStyle({ voiceSub: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                  {current.voiceSub && (
+                    <button onClick={() => onChangeStyle({ voiceSub: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              Only shown if the voice-message feature is turned on (Settings → RSVP). The Record / Send buttons on this screen use the same color as the "Submit button" above. Use the "Voice message" preview state (◀ ▶ arrows above the form) to see this screen without recording for real.
+            </p>
+          </div>
         </div>
       )}
 
@@ -5047,7 +5077,7 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
   );
 }
 
-function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDone, onSkip, light }) {
+function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDone, onSkip, light, textColor, subColor, buttonBg, buttonText }) {
   const [status, setStatus] = useState("idle"); // idle | recording | recorded | uploading | sent | error
   const [seconds, setSeconds] = useState(0);
   const [audioUrl, setAudioUrl] = useState(null);
@@ -5127,20 +5157,24 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
   const subtitle = rsvpStatus === "yes"
     ? "Record a short congratulations or well-wishes — they'll love hearing your voice."
     : "Record a quick note so they know you're thinking of them.";
-  const accentColor = light ? GOLD_SOFT : EMERALD;
+  const accentColor = textColor || (light ? GOLD_SOFT : EMERALD);
+  const headingColor = textColor || (light ? PAPER : EMERALD);
+  const subtitleColor = subColor || (light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)");
+  const btnBg = buttonBg || (light ? GOLD : EMERALD);
+  const btnText = buttonText || (light ? INK : PAPER);
 
   return (
     <div className="text-center" style={{ width: 220 }}>
       <Mic size={22} color={accentColor} style={{ margin: "0 auto 6px" }} />
-      <p style={{ color: light ? PAPER : EMERALD, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY }}>{heading}</p>
-      <p className="mt-1 text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
+      <p style={{ color: headingColor, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY }}>{heading}</p>
+      <p className="mt-1 text-[10.5px]" style={{ color: subtitleColor, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
 
       <div className="mt-4">
         {status === "idle" && (
           <button
             onClick={startRecording}
             className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11px] font-bold uppercase"
-            style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.08em", fontFamily: FONT_BODY }}
+            style={{ background: btnBg, color: btnText, letterSpacing: "0.08em", fontFamily: FONT_BODY }}
           >
             <Mic size={13} /> Record
           </button>
@@ -5169,7 +5203,7 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
                 <button onClick={reRecord} className="rounded-full px-3.5 py-2 text-[10.5px] font-semibold" style={{ background: "rgba(120,120,120,0.2)", color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}>
                   Record Again
                 </button>
-                <button onClick={send} className="rounded-full px-3.5 py-2 text-[10.5px] font-bold uppercase" style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.06em", fontFamily: FONT_BODY }}>
+                <button onClick={send} className="rounded-full px-3.5 py-2 text-[10.5px] font-bold uppercase" style={{ background: btnBg, color: btnText, letterSpacing: "0.06em", fontFamily: FONT_BODY }}>
                   Send
                 </button>
               </div>
@@ -5382,6 +5416,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     slug={slug}
                     guestGroupId={null}
                     light={light}
+                    textColor={bs.voiceText}
+                    subColor={bs.voiceSub}
+                    buttonBg={bs.submitBg}
+                    buttonText={bs.submitText}
                     onDone={() => setVoiceMessageStage("done")}
                     onSkip={() => setVoiceMessageStage("done")}
                   />
