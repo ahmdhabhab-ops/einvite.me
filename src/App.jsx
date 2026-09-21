@@ -4720,7 +4720,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                       onClick={(e) => { if (editMode) e.preventDefault(); }}
                       className="inline-flex items-center gap-1 rounded-full font-semibold"
                       style={{
-                        marginTop: ls.buttonGap ?? 8,
+                        marginTop: loc.buttonGap ?? ls.buttonGap ?? 8,
                         background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100),
                         color: ls.directionsTextColor || (light ? INK : PAPER),
                         fontFamily: FONT_BODY,
@@ -12395,8 +12395,20 @@ export default function InvitationBuilder() {
                     onChangeStyle={(patch) => {
                       if (isCustom) { updateCustomBlock(stepKey, customId, patch); return; }
                       if (isLocation) {
-                        const { x, y, ...styleRest } = patch;
-                        if (x !== undefined || y !== undefined) moveLocationItem(locId, { ...(x !== undefined ? { x } : {}), ...(y !== undefined ? { y } : {}) });
+                        // Position AND the gap above the button are per-item
+                        // (each location can differ) — everything else
+                        // (color, font, card background, the button's own
+                        // color/label/size) stays shared across every
+                        // location via the "list" layout entry, same as
+                        // before. Gap used to route there too, so adjusting
+                        // it for one location silently moved every other
+                        // location's button as well.
+                        const { x, y, buttonGap, ...styleRest } = patch;
+                        const perItemPatch = {};
+                        if (x !== undefined) perItemPatch.x = x;
+                        if (y !== undefined) perItemPatch.y = y;
+                        if (buttonGap !== undefined) perItemPatch.buttonGap = buttonGap;
+                        if (Object.keys(perItemPatch).length) moveLocationItem(locId, perItemPatch);
                         if (Object.keys(styleRest).length) updateBlockStyle("locations", "list", styleRest);
                         return;
                       }
