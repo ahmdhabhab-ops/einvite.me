@@ -2412,6 +2412,20 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               Scales the whole button — icon, text, and padding — bigger or smaller.
             </p>
           </div>
+          <div className="mt-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <FieldLabel>Gap above button</FieldLabel>
+              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.buttonGap ?? 8}px</span>
+            </div>
+            <input
+              type="range" min={0} max={24} value={current.buttonGap ?? 8}
+              onChange={(e) => onChangeStyle({ buttonGap: Number(e.target.value) })}
+              className="w-full" style={{ accentColor: GOLD }}
+            />
+            <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              How close the button sits under each location's title and time.
+            </p>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
               <FieldLabel>Button background</FieldLabel>
@@ -4704,8 +4718,9 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`}
                       target="_blank" rel="noreferrer"
                       onClick={(e) => { if (editMode) e.preventDefault(); }}
-                      className="mt-2 inline-flex items-center gap-1 rounded-full font-semibold"
+                      className="inline-flex items-center gap-1 rounded-full font-semibold"
                       style={{
+                        marginTop: ls.buttonGap ?? 8,
                         background: hexToRgba(ls.directionsColor || (light ? GOLD : EMERALD), 1 - (ls.directionsTransparency ?? 0) / 100),
                         color: ls.directionsTextColor || (light ? INK : PAPER),
                         fontFamily: FONT_BODY,
