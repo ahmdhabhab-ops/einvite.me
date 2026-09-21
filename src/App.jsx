@@ -2418,7 +2418,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.buttonGap ?? 8}px</span>
             </div>
             <input
-              type="range" min={0} max={24} value={current.buttonGap ?? 8}
+              type="range" min={0} max={48} value={current.buttonGap ?? 8}
               onChange={(e) => onChangeStyle({ buttonGap: Number(e.target.value) })}
               className="w-full" style={{ accentColor: GOLD }}
             />
