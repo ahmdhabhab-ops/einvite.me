@@ -2385,18 +2385,28 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
 
       {stepKey === "countdown" && blockId === "countdown" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="mb-3">
+            <FieldLabel>Style</FieldLabel>
+            <SegmentedToggle
+              value={current.style || "boxes"}
+              onChange={(v) => onChangeStyle({ style: v })}
+              options={[{ value: "boxes", label: "Boxes" }, { value: "outline", label: "Outline" }, { value: "minimal", label: "Minimal" }]}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel>Box background</FieldLabel>
-              <div className="flex items-center gap-2">
-                <input type="color" value={current.boxColor || "#24463D"} onChange={(e) => onChangeStyle({ boxColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
-                {current.boxColor && (
-                  <button onClick={() => onChangeStyle({ boxColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                    Reset
-                  </button>
-                )}
+            {current.style !== "minimal" && (
+              <div>
+                <FieldLabel>{current.style === "outline" ? "Box border" : "Box background"}</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={current.boxColor || "#24463D"} onChange={(e) => onChangeStyle({ boxColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                  {current.boxColor && (
+                    <button onClick={() => onChangeStyle({ boxColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      Reset
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <FieldLabel>Label color</FieldLabel>
               <div className="flex items-center gap-2">
@@ -2409,19 +2419,21 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               </div>
             </div>
           </div>
-          <div className="mt-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <FieldLabel>Box background transparency</FieldLabel>
-              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.boxTransparency ?? 0}%</span>
+          {current.style !== "minimal" && (
+            <div className="mt-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <FieldLabel>{current.style === "outline" ? "Box border transparency" : "Box background transparency"}</FieldLabel>
+                <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.boxTransparency ?? 0}%</span>
+              </div>
+              <input
+                type="range" min={0} max={100} value={current.boxTransparency ?? 0}
+                onChange={(e) => onChangeStyle({ boxTransparency: Number(e.target.value) })}
+                className="w-full" style={{ accentColor: GOLD }}
+              />
             </div>
-            <input
-              type="range" min={0} max={100} value={current.boxTransparency ?? 0}
-              onChange={(e) => onChangeStyle({ boxTransparency: Number(e.target.value) })}
-              className="w-full" style={{ accentColor: GOLD }}
-            />
-          </div>
+          )}
           <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-            The number itself uses the "Color" picker further down — this is just each box's background and the DAYS/HRS/MIN/SEC label underneath.
+            The number itself uses the "Color" picker further down.
           </p>
         </div>
       )}
@@ -4809,9 +4821,19 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
           )}
           <DraggableBlock id="countdown" pos={cs} editMode={editMode} onMove={(p) => onMoveBlock("countdown", p)} label="Countdown" light={light} selected={selectedBlock === "countdown"} onSelect={() => onSelectBlock("countdown")}>
             {cd && !cd.passed ? (
-              <div className="flex gap-2.5">
+              <div className={cs.style === "minimal" ? "flex gap-4" : "flex gap-2.5"}>
                 {[[t.days, cd.days], [t.hrs, cd.hours], [t.min, cd.mins], [t.sec, cd.secs]].map(([label, val], i) => (
-                  <div key={i} className="rounded-lg px-2.5 py-2" style={{ background: cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.14)" : EMERALD), minWidth: 44 }}>
+                  <div
+                    key={i}
+                    className={cs.style === "minimal" ? "text-center" : "rounded-lg px-2.5 py-2 text-center"}
+                    style={
+                      cs.style === "outline"
+                        ? { border: `1.5px solid ${cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.5)" : GOLD_SOFT)}`, borderRadius: 8, padding: "8px 10px", minWidth: 44 }
+                        : cs.style === "minimal"
+                          ? undefined
+                          : { background: cs.boxColor ? hexToRgba(cs.boxColor, 1 - (cs.boxTransparency ?? 0) / 100) : (light ? "rgba(255,255,255,0.14)" : EMERALD), minWidth: 44 }
+                    }
+                  >
                     <div style={{ fontFamily: cs.fontFamily || fontDisplay, fontSize: cs.fontSize ? `${cs.fontSize}px` : 18, color: cs.color || PAPER }}>{String(val).padStart(2, "0")}</div>
                     <div className="text-[8.5px] uppercase" style={{ color: cs.labelColor || GOLD_SOFT, fontFamily: FONT_BODY, letterSpacing: "0.08em" }}>{label}</div>
                   </div>
