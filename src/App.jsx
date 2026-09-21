@@ -6017,7 +6017,7 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
               <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
               {subtitle && <p className="mt-1 text-[10.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.75)" : ROSE), fontFamily: FONT_BODY }}>{subtitle}</p>}
             </div>
-            <div className="flex-1 px-3 pb-6">
+            <div className="flex-1 px-3 pb-4">
               <iframe
                 src={embedUrl}
                 className="h-full w-full rounded-xl"
@@ -6026,6 +6026,15 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
                 allowFullScreen
                 title="Live stream"
               />
+            </div>
+            {/* Some videos/channels have embedding turned off on YouTube/Vimeo's
+                own side, which YouTube shows as "refused to connect" right inside
+                the iframe above with no way for the app to detect or work around
+                it — this link is the guest's escape hatch either way. */}
+            <div className="flex-shrink-0 px-3 pb-6 text-center">
+              <a href={url} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)", fontFamily: FONT_BODY }}>
+                Trouble watching here? Open on YouTube/Vimeo directly ↗
+              </a>
             </div>
           </div>
         )}
