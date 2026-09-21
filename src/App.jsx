@@ -4708,17 +4708,12 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                 selected={selectedBlock === blockId}
                 onSelect={() => onSelectBlock(blockId)}
               >
-                <div className="rounded-xl p-3" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
-                    <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
-                  </div>
+                <div className="rounded-xl p-3 text-center" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
+                  <div className="font-medium" style={{ color: ls.color || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13 }}>{loc.title[lang] || loc.title.en}</div>
+                  {loc.time && (
+                    <div className="text-[10.5px]" style={{ marginTop: 2, color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</div>
+                  )}
                   {loc.address && (
-                    // Left-aligned (normal block flow) so the button starts
-                    // at the same left edge as the title/time row above it —
-                    // that's what actually lines every location's button up
-                    // into one straight column when their cards share the
-                    // same x position, matching the reference design.
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`}
                       target="_blank" rel="noreferrer"
