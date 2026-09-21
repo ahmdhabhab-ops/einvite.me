@@ -4714,14 +4714,11 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                     <span className="text-[10.5px]" style={{ color: light ? GOLD_SOFT : ROSE, fontFamily: FONT_BODY }}>{loc.time}</span>
                   </div>
                   {loc.address && (
-                    // The title/time row above is "justify-between" (title
-                    // left, time right), which can make that row wider than
-                    // the button's own natural width — left as normal block
-                    // flow, the button then sits flush against the card's
-                    // left edge instead of under the middle of that row.
-                    // Centering it here is what actually fixes that,
-                    // independent of the card's own width.
-                    <div style={{ textAlign: "center" }}>
+                    // Left-aligned (normal block flow) so the button starts
+                    // at the same left edge as the title/time row above it —
+                    // that's what actually lines every location's button up
+                    // into one straight column when their cards share the
+                    // same x position, matching the reference design.
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`}
                       target="_blank" rel="noreferrer"
@@ -4738,7 +4735,6 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
                     >
                       <Navigation2 size={(ls.directionsFontSize || 10)} /> {ls.directionsLabel || t.directions}
                     </a>
-                    </div>
                   )}
                 </div>
               </DraggableBlock>
