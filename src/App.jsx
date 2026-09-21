@@ -2465,6 +2465,76 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         </div>
       )}
 
+      {stepKey === "registry" && blockId === "list" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="mb-1.5 flex items-center justify-between">
+            <FieldLabel>Card background</FieldLabel>
+            <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current.cardOpacity ?? 12}%</span>
+          </div>
+          <input
+            type="range" min={0} max={100} value={current.cardOpacity ?? 12}
+            onChange={(e) => onChangeStyle({ cardOpacity: Number(e.target.value) })}
+            className="w-full" style={{ accentColor: GOLD }}
+          />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Item title color</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.titleColor || "#F4EDE4"} onChange={(e) => onChangeStyle({ titleColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.titleColor && (
+                  <button onClick={() => onChangeStyle({ titleColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Note / IBAN text color</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.noteColor || "#F4EDE4"} onChange={(e) => onChangeStyle({ noteColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.noteColor && (
+                  <button onClick={() => onChangeStyle({ noteColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Button background</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.buttonBg || "#C9A44C"} onChange={(e) => onChangeStyle({ buttonBg: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.buttonBg && (
+                  <button onClick={() => onChangeStyle({ buttonBg: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Button text</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.buttonText || "#0F1F1A"} onChange={(e) => onChangeStyle({ buttonText: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.buttonText && (
+                  <button onClick={() => onChangeStyle({ buttonText: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <FieldLabel>Button size</FieldLabel>
+            <TextInput
+              type="number"
+              value={String(current.buttonFontSize || 10)}
+              onChange={(v) => onChangeStyle({ buttonFontSize: v ? Math.max(8, Math.min(28, Number(v))) : 10 })}
+            />
+          </div>
+        </div>
+      )}
+
       {stepKey === "rsvp" && blockId === "buttons" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
           <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
@@ -5495,25 +5565,35 @@ function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBloc
           <DraggableBlock id="list" pos={ls} editMode={editMode} onMove={(p) => onMoveBlock("list", p)} label="Registry list" light={light} selected={selectedBlock === "list"} onSelect={() => onSelectBlock("list")}>
             <div className="flex flex-col gap-3" style={{ width: 220 }}>
               {items.map((item) => (
-                <div key={item.id} className="rounded-xl p-3 text-center" style={{ background: light ? "rgba(255,255,255,0.12)" : PAPER_2, backdropFilter: light ? "blur(3px)" : "none" }}>
-                  <div className="font-medium" style={{ color: light ? PAPER : EMERALD, fontFamily: fontDisplay, fontSize: 13 }}>{item.label}</div>
+                <div key={item.id} className="rounded-xl p-3 text-center" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
+                  <div className="font-medium" style={{ color: ls.titleColor || (light ? PAPER : EMERALD), fontFamily: fontDisplay, fontSize: 13 }}>{item.label}</div>
                   {item.url ? (
-                    <a href={item.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-semibold" style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, fontFamily: FONT_BODY }}>
-                      <ExternalLink size={10} /> {t.viewRegistry}
+                    <a
+                      href={item.url} target="_blank" rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 rounded-full font-semibold"
+                      style={{
+                        background: ls.buttonBg || (light ? GOLD : EMERALD),
+                        color: ls.buttonText || (light ? INK : PAPER),
+                        fontFamily: FONT_BODY,
+                        fontSize: `${ls.buttonFontSize || 10}px`,
+                        padding: `${(ls.buttonFontSize || 10) * 0.5}px ${(ls.buttonFontSize || 10) * 1.2}px`,
+                      }}
+                    >
+                      <ExternalLink size={ls.buttonFontSize || 10} /> {t.viewRegistry}
                     </a>
                   ) : item.note ? (
                     <div className="mt-1.5 flex items-center justify-center gap-1.5">
-                      <div className="text-[11px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY }}>{item.note}</div>
+                      <div className="text-[11px]" style={{ color: ls.noteColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>{item.note}</div>
                       <button
                         onClick={() => copyNote(item)}
                         title="Copy"
                         className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded"
-                        style={{ color: light ? GOLD_SOFT : EMERALD }}
+                        style={{ color: ls.noteColor || (light ? GOLD_SOFT : EMERALD) }}
                       >
                         <Copy size={11} />
                       </button>
                       {copiedId === item.id && (
-                        <span className="text-[10px]" style={{ color: light ? GOLD_SOFT : EMERALD, fontFamily: FONT_BODY }}>Copied!</span>
+                        <span className="text-[10px]" style={{ color: ls.noteColor || (light ? GOLD_SOFT : EMERALD), fontFamily: FONT_BODY }}>Copied!</span>
                       )}
                     </div>
                   ) : null}
