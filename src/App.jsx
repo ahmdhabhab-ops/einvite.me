@@ -3712,14 +3712,19 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   // Once a block is sitting exactly on a snap target (page center, another
   // block's center, a midpoint between two blocks), ordinary cursor jitter
   // while dragging keeps landing back inside SNAP_THRESHOLD of that SAME
-  // target every frame, so it just re-snaps to itself — the block can't be
-  // nudged away at all by a small drag, only by a much bigger, deliberate
-  // one. This bit worse on a crowded slide (a timeline with several manually
-  // placed icon/text/line blocks) since every pair of blocks contributes a
-  // midpoint candidate too, densely covering the canvas. A wider "release"
-  // threshold than the "engage" one keeps the block snapped through normal
-  // jitter but lets it go the moment the cursor visibly pulls away.
-  const SNAP_RELEASE_THRESHOLD = 6;
+  // target every frame, so it just re-snaps to itself. A slightly wider
+  // "release" threshold than the "engage" one absorbs that jitter without
+  // re-triggering the snap. IMPORTANT: while the raw cursor is within this
+  // band, the block's position is pinned to the STICKY value, not the raw
+  // cursor — that's the whole point (ignore small jitter) but it also means
+  // this band is a genuine dead zone where the block stops tracking the
+  // cursor at all. 6 (a first attempt) turned out to be that dead zone on a
+  // crowded slide where a small deliberate nudge often never traveled far
+  // enough to escape it, reading as the block being stuck in place no
+  // matter how much was dragged. Kept just barely above SNAP_THRESHOLD so
+  // it still absorbs same-frame jitter (which is sub-percent) without
+  // swallowing an intentional drag.
+  const SNAP_RELEASE_THRESHOLD = 3.2;
   const stickyXRef = useRef(null);
   const stickyYRef = useRef(null);
 
