@@ -2465,6 +2465,45 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         </div>
       )}
 
+      {stepKey === "rsvp" && blockId === "buttons" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Colors below only apply to the "classic" RSVP style (Settings → RSVP). Each row is that element's background and text color.
+          </p>
+          {[
+            { key: "accept", label: "Accept button (selected)" },
+            { key: "decline", label: "Decline button (selected)" },
+            { key: "submit", label: "Submit button" },
+            { key: "field", label: "Name field / guest count" },
+          ].map(({ key, label }) => (
+            <div key={key} className="mb-3 grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel>{label} — background</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={current[`${key}Bg`] || "#24463D"} onChange={(e) => onChangeStyle({ [`${key}Bg`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                  {current[`${key}Bg`] && (
+                    <button onClick={() => onChangeStyle({ [`${key}Bg`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div>
+                <FieldLabel>Text</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={current[`${key}Text`] || "#F4EDE4"} onChange={(e) => onChangeStyle({ [`${key}Text`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                  {current[`${key}Text`] && (
+                    <button onClick={() => onChangeStyle({ [`${key}Text`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {stepKey === "locations" && blockId === "list" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
           <div className="mb-1.5 flex items-center justify-between">
@@ -5124,12 +5163,12 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   };
 
   const guestStepper = (light) => (
-    <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: light ? "rgba(255,255,255,0.1)" : PAPER_2 }}>
-      <span className="text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY }}>Number of attending</span>
+    <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: bs.fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
+      <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>Number of attending</span>
       <div className="flex items-center gap-2">
-        <button onClick={() => setGuestCount((c) => Math.max(1, c - 1))} style={{ color: light ? PAPER : EMERALD }}><ChevronDown size={13} /></button>
-        <span className="text-[12px] font-semibold" style={{ color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}>{guestCount}</span>
-        <button onClick={() => setGuestCount((c) => Math.min(rsvpSettings.maxGuestsOpenInvite, c + 1))} style={{ color: light ? PAPER : EMERALD }}><ChevronUp size={13} /></button>
+        <button onClick={() => setGuestCount((c) => Math.max(1, c - 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronDown size={13} /></button>
+        <span className="text-[12px] font-semibold" style={{ color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}>{guestCount}</span>
+        <button onClick={() => setGuestCount((c) => Math.min(rsvpSettings.maxGuestsOpenInvite, c + 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronUp size={13} /></button>
       </div>
     </div>
   );
@@ -5140,7 +5179,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       onChange={(e) => setName(e.target.value)}
       placeholder={nameNeeded ? "Your name *" : "Your name (optional)"}
       className="w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
-      style={{ background: light ? "rgba(255,255,255,0.12)" : PAPER_2, color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}
+      style={{ background: bs.fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}
     />
   );
 
@@ -5257,9 +5296,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       disabled={isFull}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: light ? "rgba(255,255,255,0.1)" : PAPER_2,
-                        border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : light ? PAPER : EMERALD,
+                        background: !isFull && choice === "yes" && bs.acceptBg ? bs.acceptBg : (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (bs.acceptBg || (light ? GOLD_SOFT : EMERALD)) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
+                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : choice === "yes" ? (bs.acceptText || (light ? PAPER : EMERALD)) : (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
                       }}
                     >
@@ -5271,7 +5310,12 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <button
                       onClick={() => setChoice("no")}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
-                      style={{ background: light ? "rgba(255,255,255,0.1)" : PAPER_2, border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`, color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}
+                      style={{
+                        background: choice === "no" && bs.declineBg ? bs.declineBg : (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        border: `1.5px solid ${choice === "no" ? (bs.declineBg || (light ? GOLD_SOFT : ROSE)) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
+                        color: choice === "no" ? (bs.declineText || (light ? PAPER : EMERALD)) : (light ? PAPER : EMERALD),
+                        fontFamily: FONT_BODY,
+                      }}
                     >
                       <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
                         {choice === "no" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
@@ -5291,7 +5335,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     onClick={submit}
                     disabled={!choice}
                     className="mt-3 w-full rounded-full py-2.5 text-[11px] font-bold uppercase"
-                    style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
+                    style={{ background: bs.submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
                   >
                     Submit RSVP
                   </button>
