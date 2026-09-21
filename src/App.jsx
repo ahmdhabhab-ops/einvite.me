@@ -2471,8 +2471,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             Colors below only apply to the "classic" RSVP style (Settings → RSVP). Each row is that element's background and text color.
           </p>
           {[
-            { key: "accept", label: "Accept button (selected)" },
-            { key: "decline", label: "Decline button (selected)" },
+            { key: "option", label: "Accept & Decline buttons" },
             { key: "submit", label: "Submit button" },
             { key: "field", label: "Name field / guest count" },
           ].map(({ key, label }) => (
@@ -5296,9 +5295,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       disabled={isFull}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: !isFull && choice === "yes" && bs.acceptBg ? bs.acceptBg : (light ? "rgba(255,255,255,0.1)" : PAPER_2),
-                        border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (bs.acceptBg || (light ? GOLD_SOFT : EMERALD)) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : choice === "yes" ? (bs.acceptText || (light ? PAPER : EMERALD)) : (light ? PAPER : EMERALD),
+                        background: bs.optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
+                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : bs.optionText || (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
                       }}
                     >
@@ -5311,9 +5310,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       onClick={() => setChoice("no")}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: choice === "no" && bs.declineBg ? bs.declineBg : (light ? "rgba(255,255,255,0.1)" : PAPER_2),
-                        border: `1.5px solid ${choice === "no" ? (bs.declineBg || (light ? GOLD_SOFT : ROSE)) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: choice === "no" ? (bs.declineText || (light ? PAPER : EMERALD)) : (light ? PAPER : EMERALD),
+                        background: bs.optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
+                        color: bs.optionText || (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
                       }}
                     >
