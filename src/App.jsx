@@ -1404,17 +1404,21 @@ async function createCheckinToken(slug, guestGroupId, guestNames) {
   return token;
 }
 
+// Returns null (distinct from an empty array) specifically when the fetch
+// itself failed — e.g. a network error or an RLS/permission rejection —
+// so callers can tell "no guests yet" apart from "couldn't load" instead
+// of both silently looking like an empty list.
 async function getCheckinsForSlug(slug) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?invitation_slug=eq.${encodeURIComponent(slug)}&order=checked_in_at.desc.nullslast`, { headers: supabaseHeaders });
     if (!res.ok) {
       console.error("getCheckinsForSlug failed:", res.status, await res.text().catch(() => ""));
-      return [];
+      return null;
     }
     return await res.json();
   } catch (err) {
     console.error("getCheckinsForSlug threw:", err);
-    return [];
+    return null;
   }
 }
 
@@ -7309,6 +7313,7 @@ function VoiceMessagesPanel({ slug }) {
 // own saved code directly.
 function CheckinPanel({ slug, siteDomain }) {
   const [rows, setRows] = useState(null); // null = loading
+  const [loadError, setLoadError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null); // { status: "checked-in" | "already" | "invalid", name, time }
   const [cameraError, setCameraError] = useState("");
@@ -7320,7 +7325,15 @@ function CheckinPanel({ slug, siteDomain }) {
   const rafRef = useRef(null);
   const processingRef = useRef(false);
 
-  const load = async () => setRows(await getCheckinsForSlug(slug));
+  const load = async () => {
+    const result = await getCheckinsForSlug(slug);
+    if (result === null) {
+      setLoadError("Couldn't load the guest list — check your connection and try again.");
+    } else {
+      setLoadError("");
+      setRows(result);
+    }
+  };
   useEffect(() => { load(); }, [slug]);
   useEffect(() => {
     const interval = setInterval(load, 15000); // keeps the list live even while staff are scanning on a different device
@@ -7414,52 +7427,54 @@ function CheckinPanel({ slug, siteDomain }) {
         </div>
       </div>
 
-      {(scanning || scanResult || cameraError) && (
-        <div className="mb-5 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.2)` }}>
-          {cameraError && <p className="text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{cameraError}</p>}
-          {scanning && (
-            <div>
-              <div style={{ position: "relative", width: "100%", maxWidth: 320, margin: "0 auto", borderRadius: 12, overflow: "hidden", background: "#000" }}>
-                <video ref={videoRef} playsInline muted style={{ width: "100%", display: "block" }} />
-                <div style={{ position: "absolute", inset: 24, border: `2px solid ${GOLD}`, borderRadius: 12, pointerEvents: "none" }} />
-              </div>
-              <canvas ref={canvasRef} style={{ display: "none" }} />
-              <p className="mt-3 text-center text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Point the camera at the guest's QR code</p>
-              <div className="mt-2 flex justify-center">
-                <GhostButton onClick={() => { stopCamera(); setScanning(false); }}>Cancel</GhostButton>
-              </div>
-            </div>
-          )}
-          {scanResult && (
-            <div className="text-center">
-              {scanResult.status === "invalid" ? (
-                <>
-                  <XCircle size={32} color="#E29B9B" style={{ margin: "0 auto 8px" }} />
-                  <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Not a valid check-in code</p>
-                </>
-              ) : scanResult.status === "already" ? (
-                <>
-                  <AlertTriangle size={32} color="#E0B84C" style={{ margin: "0 auto 8px" }} />
-                  <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Already checked in</p>
-                  <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
-                  {scanResult.time && <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{new Date(scanResult.time).toLocaleString()}</p>}
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 8px" }} />
-                  <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Checked in</p>
-                  <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
-                </>
-              )}
-              <div className="mt-3 flex justify-center gap-2">
-                <button onClick={scanAgain} className="rounded-full px-4 py-2 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
-                  Scan next guest
-                </button>
-              </div>
-            </div>
-          )}
+      {loadError && <p className="mb-4 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{loadError}</p>}
+
+      {/* The video/canvas are always mounted (just hidden via CSS when idle) rather than
+          conditionally rendered — otherwise videoRef.current is still null the moment
+          startCamera() tries to attach the just-granted camera stream to it, since React
+          hasn't committed the <video> node yet at that point in the async flow. */}
+      <div className="mb-5 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.2)`, display: (scanning || scanResult || cameraError) ? "block" : "none" }}>
+        {cameraError && <p className="text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{cameraError}</p>}
+        <div style={{ display: scanning ? "block" : "none" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: 320, margin: "0 auto", borderRadius: 12, overflow: "hidden", background: "#000" }}>
+            <video ref={videoRef} playsInline muted style={{ width: "100%", display: "block" }} />
+            <div style={{ position: "absolute", inset: 24, border: `2px solid ${GOLD}`, borderRadius: 12, pointerEvents: "none" }} />
+          </div>
+          <p className="mt-3 text-center text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Point the camera at the guest's QR code</p>
+          <div className="mt-2 flex justify-center">
+            <GhostButton onClick={() => { stopCamera(); setScanning(false); }}>Cancel</GhostButton>
+          </div>
         </div>
-      )}
+        {scanResult && (
+          <div className="text-center">
+            {scanResult.status === "invalid" ? (
+              <>
+                <XCircle size={32} color="#E29B9B" style={{ margin: "0 auto 8px" }} />
+                <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Not a valid check-in code</p>
+              </>
+            ) : scanResult.status === "already" ? (
+              <>
+                <AlertTriangle size={32} color="#E0B84C" style={{ margin: "0 auto 8px" }} />
+                <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Already checked in</p>
+                <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
+                {scanResult.time && <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{new Date(scanResult.time).toLocaleString()}</p>}
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 8px" }} />
+                <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Checked in</p>
+                <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
+              </>
+            )}
+            <div className="mt-3 flex justify-center gap-2">
+              <button onClick={scanAgain} className="rounded-full px-4 py-2 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
+                Scan next guest
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <canvas ref={canvasRef} style={{ display: "none" }} />
 
       {rows === null ? (
         <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading…</p>
