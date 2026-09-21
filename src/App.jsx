@@ -2527,6 +2527,46 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         </div>
       )}
 
+      {stepKey === "registry" && blockId === "heading" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="mb-3">
+            <FieldLabel>Title</FieldLabel>
+            <TextInput value={current.titleText || ""} onChange={(v) => onChangeStyle({ titleText: v })} placeholder="GIFT REGISTRY" />
+          </div>
+          <div className="mb-3">
+            <FieldLabel>Subtitle</FieldLabel>
+            <TextInput value={current.subtitleText || ""} onChange={(v) => onChangeStyle({ subtitleText: v })} placeholder="Your presence is the greatest gift — but if you'd like to spoil us anyway:" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>Title color</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.titleColor || "#C9A44C"} onChange={(e) => onChangeStyle({ titleColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.titleColor && (
+                  <button onClick={() => onChangeStyle({ titleColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+            <div>
+              <FieldLabel>Subtitle color</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="color" value={current.subtitleColor || "#F4EDE4"} onChange={(e) => onChangeStyle({ subtitleColor: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                {current.subtitleColor && (
+                  <button onClick={() => onChangeStyle({ subtitleColor: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Leave a text field empty to keep the default wording. Once set, custom text is shared across every language (like the registry names below).
+          </p>
+        </div>
+      )}
+
       {stepKey === "registry" && blockId === "list" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
           <div className="mb-1.5 flex items-center justify-between">
@@ -5673,8 +5713,8 @@ function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBloc
           {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 230, opacity: hs.hidden ? 0 : 1 }}>
-              <div className="font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.15em", fontFamily: FONT_BODY, fontSize: 10 }}>{t.giftRegistry}</div>
-              <p className="mt-1.5 text-[11px] italic" style={{ color: light ? "rgba(244,237,228,0.8)" : EMERALD, fontFamily: fontDisplay }}>{t.registryIntro}</p>
+              <div className="font-semibold uppercase" style={{ color: hs.titleColor || (light ? GOLD_SOFT : ROSE), letterSpacing: "0.15em", fontFamily: FONT_BODY, fontSize: 10 }}>{hs.titleText || t.giftRegistry}</div>
+              <p className="mt-1.5 text-[11px] italic" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : EMERALD), fontFamily: fontDisplay }}>{hs.subtitleText || t.registryIntro}</p>
             </div>
           </DraggableBlock>
           )}
