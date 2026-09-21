@@ -13368,8 +13368,16 @@ export default function InvitationBuilder() {
                       <div className="mb-3 rounded-lg p-3" style={{ background: "rgba(143,191,163,0.08)", border: `1px solid rgba(143,191,163,0.25)` }}>
                         <p className="text-[11px] font-semibold" style={{ color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>How each payment is split</p>
                         <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-                          Paid Live payments are processed by <strong>credit card via Stripe only</strong>. Of each guest's payment: <strong>80%</strong> goes to you, <strong>15%</strong> is the platform fee, and <strong>5%</strong> goes to an environmental charity. The split happens automatically at checkout — you never need to send anything on manually.
+                          Paid Live payments are processed by <strong>credit card via Stripe only</strong>. Of each guest's payment: <strong>{integrations.livestreamCharityOptIn === false ? "85%" : "80%"}</strong> goes to you, <strong>15%</strong> is the platform fee{integrations.livestreamCharityOptIn === false ? "" : <>, and <strong>5%</strong> goes to an environmental charity</>}. The split happens automatically at checkout — you never need to send anything on manually.
                         </p>
+                        <div className="mt-2.5 flex items-center justify-between gap-4">
+                          <span className="text-[11px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>Donate 5% to an environmental charity</span>
+                          <SegmentedToggle
+                            value={integrations.livestreamCharityOptIn !== false}
+                            onChange={(v) => updateIntegrations({ livestreamCharityOptIn: v })}
+                            options={[{ value: true, label: "On" }, { value: false, label: "Off" }]}
+                          />
+                        </div>
                         <p className="mt-2 text-[10px]" style={{ color: "#E2C97E", fontFamily: FONT_BODY }}>
                           Setup pending: this needs a connected Stripe account before it can actually process a real payment — checkout isn't live yet.
                         </p>
