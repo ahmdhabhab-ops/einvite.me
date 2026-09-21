@@ -9,9 +9,10 @@ import {
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
-  Download,
+  Download, QrCode, Camera,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import jsQR from "jsqr";
 
 /* ---------------------------------------------------------------------- */
 /* Tokens                                                                  */
@@ -1403,6 +1404,20 @@ async function createCheckinToken(slug, guestGroupId, guestNames) {
   return token;
 }
 
+async function getCheckinsForSlug(slug) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?invitation_slug=eq.${encodeURIComponent(slug)}&order=checked_in_at.desc.nullslast`, { headers: supabaseHeaders });
+    if (!res.ok) {
+      console.error("getCheckinsForSlug failed:", res.status, await res.text().catch(() => ""));
+      return [];
+    }
+    return await res.json();
+  } catch (err) {
+    console.error("getCheckinsForSlug threw:", err);
+    return [];
+  }
+}
+
 async function getCheckinByToken(token) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?token=eq.${encodeURIComponent(token)}`, { headers: supabaseHeaders });
@@ -2538,7 +2553,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
       {stepKey === "rsvp" && blockId === "buttons" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
           <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-            Colors below only apply to the "classic" RSVP style (Settings → RSVP). Each row is that element's background and text color.
+            Colors below apply to both RSVP styles (Settings → RSVP). Each row is that element's background and text color — on the "stacked" style, the Accept/Decline row colors the filled Attending button, and the Submit-button row colors the underlined Submit link.
           </p>
           {[
             { key: "option", label: "Accept & Decline buttons" },
@@ -5437,7 +5452,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                         isFull
                           ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
                           : choice === "yes"
-                          ? { background: light ? GOLD : EMERALD, color: light ? INK : PAPER, fontFamily: FONT_BODY }
+                          ? { background: bs.optionBg || (light ? GOLD : EMERALD), color: bs.optionText || (light ? INK : PAPER), fontFamily: FONT_BODY }
                           : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
                       }
                     >
@@ -5446,7 +5461,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <button
                       onClick={() => setChoice("no")}
                       className="rounded-full py-2.5 text-[12px] font-semibold"
-                      style={choice === "no" ? { background: ROSE, color: PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
+                      style={choice === "no" ? { background: bs.optionBg || ROSE, color: bs.optionText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
                     >
                       {content.noLabel}
                     </button>
@@ -5456,7 +5471,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <div className="mt-3 flex flex-col gap-2">
                       {nameField(light)}
                       {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-                      <button onClick={submit} className="rounded-full py-2 text-[10.5px] font-semibold underline" style={{ color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}>
+                      <button onClick={submit} className="rounded-full py-2 text-[10.5px] font-semibold underline" style={{ color: bs.submitText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}>
                         Submit
                       </button>
                     </div>
@@ -7286,6 +7301,186 @@ function VoiceMessagesPanel({ slug }) {
   );
 }
 
+// Dashboard panel for the couple: a live guest check-in list plus an
+// in-browser QR scanner (via jsQR reading the device camera) so door staff
+// can scan guests' saved QR codes right from this page — the result (name,
+// already-checked-in warnings, etc.) only ever shows up here, never on
+// whatever page a guest's own camera app would open if they scanned their
+// own saved code directly.
+function CheckinPanel({ slug }) {
+  const [rows, setRows] = useState(null); // null = loading
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null); // { status: "checked-in" | "already" | "invalid", name, time }
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(null);
+  const processingRef = useRef(false);
+
+  const load = async () => setRows(await getCheckinsForSlug(slug));
+  useEffect(() => { load(); }, [slug]);
+  useEffect(() => {
+    const interval = setInterval(load, 15000); // keeps the list live even while staff are scanning on a different device
+    return () => clearInterval(interval);
+  }, [slug]);
+
+  const stopCamera = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+  };
+  useEffect(() => () => stopCamera(), []); // release the camera if the couple navigates away mid-scan
+
+  const handleDecoded = async (text) => {
+    stopCamera();
+    setScanning(false);
+    const match = text.match(/\/checkin\/([^/?#]+)/);
+    const token = match ? decodeURIComponent(match[1]) : null;
+    if (!token) { setScanResult({ status: "invalid" }); return; }
+    const existing = await getCheckinByToken(token);
+    if (!existing) { setScanResult({ status: "invalid" }); return; }
+    if (existing.checked_in_at) {
+      setScanResult({ status: "already", name: existing.guest_names, time: existing.checked_in_at });
+    } else {
+      const marked = await markCheckedIn(token);
+      if (marked) {
+        setScanResult({ status: "checked-in", name: marked.guest_names, time: marked.checked_in_at });
+      } else {
+        // someone else marked it in the instant between the lookup and now
+        const recheck = await getCheckinByToken(token);
+        setScanResult({ status: "already", name: recheck?.guest_names, time: recheck?.checked_in_at });
+      }
+    }
+    load();
+  };
+
+  const tick = () => {
+    const video = videoRef.current, canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code && !processingRef.current) {
+      processingRef.current = true;
+      handleDecoded(code.data);
+      return; // handleDecoded takes over — stop the read loop
+    }
+    rafRef.current = requestAnimationFrame(tick);
+  };
+
+  const startCamera = async () => {
+    setCameraError("");
+    setScanResult(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      processingRef.current = false;
+      setScanning(true);
+      rafRef.current = requestAnimationFrame(tick);
+    } catch {
+      setCameraError("Couldn't access the camera — please allow camera access and try again.");
+    }
+  };
+
+  const scanAgain = () => { setScanResult(null); startCamera(); };
+  const checkedInCount = rows ? rows.filter((r) => r.checked_in_at).length : 0;
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+          {rows ? `${checkedInCount} / ${rows.length} checked in` : "…"}
+        </span>
+        <div className="flex gap-2">
+          {!scanning && (
+            <GhostButton onClick={startCamera}>
+              <span className="flex items-center gap-1.5"><Camera size={13} /> Scan a guest's QR code</span>
+            </GhostButton>
+          )}
+          <GhostButton onClick={load}>Refresh</GhostButton>
+        </div>
+      </div>
+
+      {(scanning || scanResult || cameraError) && (
+        <div className="mb-5 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.2)` }}>
+          {cameraError && <p className="text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{cameraError}</p>}
+          {scanning && (
+            <div>
+              <div style={{ position: "relative", width: "100%", maxWidth: 320, margin: "0 auto", borderRadius: 12, overflow: "hidden", background: "#000" }}>
+                <video ref={videoRef} playsInline muted style={{ width: "100%", display: "block" }} />
+                <div style={{ position: "absolute", inset: 24, border: `2px solid ${GOLD}`, borderRadius: 12, pointerEvents: "none" }} />
+              </div>
+              <canvas ref={canvasRef} style={{ display: "none" }} />
+              <p className="mt-3 text-center text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Point the camera at the guest's QR code</p>
+              <div className="mt-2 flex justify-center">
+                <GhostButton onClick={() => { stopCamera(); setScanning(false); }}>Cancel</GhostButton>
+              </div>
+            </div>
+          )}
+          {scanResult && (
+            <div className="text-center">
+              {scanResult.status === "invalid" ? (
+                <>
+                  <XCircle size={32} color="#E29B9B" style={{ margin: "0 auto 8px" }} />
+                  <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Not a valid check-in code</p>
+                </>
+              ) : scanResult.status === "already" ? (
+                <>
+                  <AlertTriangle size={32} color="#E0B84C" style={{ margin: "0 auto 8px" }} />
+                  <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Already checked in</p>
+                  <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
+                  {scanResult.time && <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{new Date(scanResult.time).toLocaleString()}</p>}
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 8px" }} />
+                  <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Checked in</p>
+                  <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
+                </>
+              )}
+              <div className="mt-3 flex justify-center gap-2">
+                <button onClick={scanAgain} className="rounded-full px-4 py-2 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
+                  Scan next guest
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {rows === null ? (
+        <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No check-in codes yet — these are created automatically once a guest RSVPs yes.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {rows.map((r) => (
+            <div key={r.id} className="flex items-center justify-between rounded-lg px-3.5 py-2.5" style={{ background: INK_2 }}>
+              <span className="text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{r.guest_names}</span>
+              {r.checked_in_at ? (
+                <span className="text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Checked in · {new Date(r.checked_in_at).toLocaleString()}</span>
+              ) : (
+                <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Not arrived yet</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Dashboard panel for the couple: approve/pending status for every guest
 // who registered for Guest Networking (only approved guests are visible to
 // each other — see getNetworkingDirectory), plus a read-only view of
@@ -8198,6 +8393,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       <div className="mb-6 flex gap-2">
         <GhostButton active={subTab === "guests"} onClick={() => setSubTab("guests")}>Guest List</GhostButton>
         <GhostButton active={subTab === "seating"} onClick={() => setSubTab("seating")}>Table Seating</GhostButton>
+        <GhostButton active={subTab === "checkin"} onClick={() => setSubTab("checkin")}>Check-in</GhostButton>
         <GhostButton active={subTab === "voice"} onClick={() => setSubTab("voice")}>Voice Messages</GhostButton>
         <GhostButton active={subTab === "networking"} onClick={() => setSubTab("networking")}>Guest Networking</GhostButton>
       </div>
@@ -8246,6 +8442,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
           onAddTable={addTable} onUpdateTable={updateTable} onDeleteTable={deleteTable} onAssignGuest={assignGuestToTable}
           venueElements={venueElements} onAddVenueElement={addVenueElement} onUpdateVenueElement={updateVenueElement} onDeleteVenueElement={deleteVenueElement}
         />
+      ) : subTab === "checkin" ? (
+        <CheckinPanel slug={slug} />
       ) : subTab === "voice" ? (
         <VoiceMessagesPanel slug={slug} />
       ) : subTab === "networking" ? (
