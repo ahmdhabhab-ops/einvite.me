@@ -1598,6 +1598,34 @@ function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
   });
 }
 
+// readImageCompressed's maxDim/quality are a single guess — a busy, detailed
+// photo can still land well over 1MB even resized to 2400px at quality 0.92,
+// which is exactly what was making invitations slow to load. This wraps it
+// with a few extra passes that progressively cut quality (for JPEG) or
+// dimensions (for PNG/WebP/GIF stills, which have no quality lever) until
+// the result is under the target size, so every upload gets capped
+// automatically instead of relying on whatever maxDim/quality a call site
+// happened to pass.
+async function compressToTarget(file, maxDim, quality, targetBytes = 1024 * 1024) {
+  const preserveTransparency = ["image/png", "image/webp", "image/gif"].includes(file.type);
+  const byteSizeOf = (dataUrl) => Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75);
+
+  let dim = maxDim;
+  let q = quality;
+  let dataUrl = await readImageCompressed(file, dim, q);
+  let attempts = 0;
+  while (byteSizeOf(dataUrl) > targetBytes && attempts < 8) {
+    if (!preserveTransparency && q > 0.4) {
+      q = Math.max(0.4, q - 0.12);
+    } else {
+      dim = Math.round(dim * 0.85);
+    }
+    dataUrl = await readImageCompressed(file, dim, q);
+    attempts++;
+  }
+  return dataUrl;
+}
+
 /**
  * Uploads a file to Supabase Storage's public bucket and returns its real,
  * fetchable https:// URL — as opposed to readImageCompressed above, which
@@ -1632,7 +1660,7 @@ async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, q
     }
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
-  const compressedDataUrl = await readImageCompressed(file, maxDim, quality);
+  const compressedDataUrl = await compressToTarget(file, maxDim, quality);
   const blob = await (await fetch(compressedDataUrl)).blob(); // convert the compressed data URI back into a real Blob Storage can actually store
   const ext = blob.type === "image/png" ? "png" : "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
