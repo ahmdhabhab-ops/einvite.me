@@ -1433,6 +1433,21 @@ async function getCheckinByToken(token) {
   }
 }
 
+// Looks up a guest group's own check-in token — used when a guest who
+// already RSVP'd yes reopens their personal invitation link, so their QR
+// code can be shown again instead of only ever appearing once, right after
+// the original submission.
+async function getCheckinByGroupId(groupId) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?guest_group_id=eq.${encodeURIComponent(groupId)}`, { headers: supabaseHeaders });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows[0]?.token || null;
+  } catch {
+    return null;
+  }
+}
+
 async function markCheckedIn(token) {
   try {
     // Only sets checked_in_at if it's currently null — this is what
@@ -5258,16 +5273,31 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
   );
 }
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, onUpdateContent }) {
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateContent }) {
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
-  const [choice, setChoice] = useState(null);
+  const [choice, setChoice] = useState(prefilledRsvpStatus || null);
   const [name, setName] = useState(prefilledGuestName || "");
   const [guestCount, setGuestCount] = useState(1);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
-  const [voiceMessageStage, setVoiceMessageStage] = useState("recording"); // recording | done — shown after a submitted RSVP, before the final thank-you
+  // Starts at "done" when the guest already responded on a previous visit —
+  // otherwise reopening their link would re-prompt them to record a voice
+  // message every single time instead of just the once, right after they
+  // first declined.
+  const [voiceMessageStage, setVoiceMessageStage] = useState(prefilledRsvpStatus ? "done" : "recording");
+
+  // A guest who already said "yes" and reopens their personal link should
+  // see their QR code again, not just the "you're confirmed" text with no
+  // way to get back to it — this re-fetches the token that was created the
+  // first time they submitted, since it isn't otherwise available on a
+  // fresh page load.
+  useEffect(() => {
+    if (prefilledRsvpStatus === "yes" && guestGroupId) {
+      getCheckinByGroupId(guestGroupId).then((token) => { if (token) setCheckinToken(token); });
+    }
+  }, [prefilledRsvpStatus, guestGroupId]);
 
   const [showModal, setShowModal] = useState(false);
   const [modalGuestCount, setModalGuestCount] = useState(1);
@@ -6136,7 +6166,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
@@ -6469,7 +6499,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
@@ -12632,6 +12662,10 @@ export default function InvitationBuilder() {
     : (guestView && guestView.found ? (guestView.ownSlug ? activeLang : (guestView.snapshot.defaultLang || "en")) : "en");
   const matchedGroup = guestView && guestView.found ? guestView.snapshotGuestGroups.find((g) => g.id === guestView.groupId) : null;
   const resolvedGuestName = matchedGroup?.members?.find((m) => m.status === "yes")?.name || matchedGroup?.members?.[0]?.name || guestView?.guestNameParam || null;
+  // Lets a guest reopening their own personal link see that they already
+  // responded (and their QR code, if they said yes) instead of the RSVP
+  // block silently resetting to a blank form every time.
+  const resolvedRsvpStatus = matchedGroup?.members?.some((m) => m.status === "yes") ? "yes" : matchedGroup?.members?.some((m) => m.status === "no") ? "no" : null;
 
   // Submitting an RSVP from a guest view needs to write into the RIGHT
   // place — the live state if it's this device's own invitation, or the
@@ -12795,6 +12829,8 @@ export default function InvitationBuilder() {
           slug={guestView.slug}
           siteDomain={siteDomain}
           prefilledGuestName={resolvedGuestName}
+          prefilledRsvpStatus={resolvedRsvpStatus}
+          guestGroupId={guestView.groupId}
           onUpdateRsvpContent={() => {}}
           swipeDirection={swipeDirection}
           transitionStyle={transitionStyle}
