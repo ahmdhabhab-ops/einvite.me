@@ -2046,6 +2046,24 @@ function FieldLabel({ children }) {
   );
 }
 
+// A labeled color swatch + Reset button, for the many near-identical
+// "override this default color" rows across the various block style panels.
+function ColorPickerField({ label, value, defaultValue, onChange }) {
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center gap-2">
+        <input type="color" value={value || defaultValue} onChange={(e) => onChange(e.target.value)} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+        {value && (
+          <button onClick={() => onChange(null)} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TextInput({ value, onChange, placeholder, type = "text", disabled = false }) {
   return (
     <input
@@ -2633,6 +2651,40 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               value={String(current.buttonFontSize || 10)}
               onChange={(v) => onChangeStyle({ buttonFontSize: v ? Math.max(8, Math.min(28, Number(v))) : 10 })}
             />
+          </div>
+        </div>
+      )}
+
+      {(stepKey === "djRequests" || stepKey === "networking" || stepKey === "livestream") && blockId === "heading" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="grid grid-cols-2 gap-3">
+            <ColorPickerField label="Title color" value={current.titleColor} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ titleColor: v })} />
+            <ColorPickerField label="Subtitle color" value={current.subtitleColor} defaultValue="#F4EDE4" onChange={(v) => onChangeStyle({ subtitleColor: v })} />
+          </div>
+          <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            The heading text itself is edited from this page's own editor panel below.
+          </p>
+        </div>
+      )}
+
+      {(stepKey === "networking" || stepKey === "livestream") && blockId === "button" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="grid grid-cols-2 gap-3">
+            <ColorPickerField label="Button background" value={current.buttonBg} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ buttonBg: v })} />
+            <ColorPickerField label="Button text" value={current.buttonText} defaultValue="#0F1F1A" onChange={(v) => onChangeStyle({ buttonText: v })} />
+          </div>
+        </div>
+      )}
+
+      {stepKey === "djRequests" && blockId === "form" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="grid grid-cols-2 gap-3">
+            <ColorPickerField label="Field background" value={current.fieldBg} defaultValue="#122820" onChange={(v) => onChangeStyle({ fieldBg: v })} />
+            <ColorPickerField label="Field text" value={current.fieldText} defaultValue="#F4EDE4" onChange={(v) => onChangeStyle({ fieldText: v })} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <ColorPickerField label="Button background" value={current.buttonBg} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ buttonBg: v })} />
+            <ColorPickerField label="Button text" value={current.buttonText} defaultValue="#0F1F1A" onChange={(v) => onChangeStyle({ buttonText: v })} />
           </div>
         </div>
       )}
@@ -5782,9 +5834,9 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
           {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0 : 1 }}>
-              <Icon size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
-              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
-              <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
+              <Icon size={26} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 10px" }} />
+              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+              <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
               {isPaid && price && (
                 <span className="mt-2 inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: light ? "rgba(201,164,76,0.2)" : "rgba(36,70,61,0.15)", color: light ? GOLD_SOFT : EMERALD, fontFamily: FONT_BODY }}>
                   {price} to watch
@@ -5800,7 +5852,7 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[11.5px] font-bold uppercase"
-                style={{ background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.1em", fontFamily: FONT_BODY }}
+                style={{ background: bs.buttonBg || (light ? GOLD : EMERALD), color: bs.buttonText || (light ? INK : PAPER), letterSpacing: "0.1em", fontFamily: FONT_BODY }}
               >
                 {isPaid && <Lock size={11} />} {actionLabel} {!isPaid && <ExternalLink size={12} />}
               </a>
@@ -5844,9 +5896,9 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
   };
 
   const inputStyle = (light) => ({
-    width: "100%", background: light ? "rgba(244,237,228,0.12)" : "rgba(36,70,61,0.08)",
+    width: "100%", background: fs.fieldBg || (light ? "rgba(244,237,228,0.12)" : "rgba(36,70,61,0.08)"),
     border: `1px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, borderRadius: 8,
-    padding: "8px 10px", fontSize: 12, color: light ? PAPER : EMERALD, fontFamily: FONT_BODY, outline: "none",
+    padding: "8px 10px", fontSize: 12, color: fs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY, outline: "none",
     marginBottom: 8, boxSizing: "border-box",
   });
 
@@ -5857,9 +5909,9 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
           {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0 : 1 }}>
-              <Music2 size={26} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 10px" }} />
-              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
-              <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
+              <Music2 size={26} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 10px" }} />
+              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+              <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
             </div>
           </DraggableBlock>
           )}
@@ -5885,7 +5937,7 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
                   onClick={submit}
                   disabled={submitting}
                   className="w-full rounded-full text-[11px] font-bold uppercase"
-                  style={{ padding: "9px 0", background: light ? GOLD : EMERALD, color: light ? INK : PAPER, letterSpacing: "0.08em", fontFamily: FONT_BODY, opacity: submitting ? 0.7 : 1 }}
+                  style={{ padding: "9px 0", background: fs.buttonBg || (light ? GOLD : EMERALD), color: fs.buttonText || (light ? INK : PAPER), letterSpacing: "0.08em", fontFamily: FONT_BODY, opacity: submitting ? 0.7 : 1 }}
                 >
                   {submitting ? "Sending…" : "Send Request"}
                 </button>
@@ -5899,6 +5951,7 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
 }
 
 function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+  const hs = layout.heading;
   const [session, setSession] = useState(null); // null=not checked yet, {status,...}
   const [starting, setStarting] = useState(false);
 
@@ -5960,9 +6013,9 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
         {(light) => (
           <div className="relative flex h-full w-full flex-col">
             <div className="flex-shrink-0 px-4 pb-2 pt-8 text-center">
-              <Video size={18} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 6px" }} />
-              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: light ? PAPER : EMERALD }}>{heading}</div>
-              {subtitle && <p className="mt-1 text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : ROSE, fontFamily: FONT_BODY }}>{subtitle}</p>}
+              <Video size={18} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 6px" }} />
+              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+              {subtitle && <p className="mt-1 text-[10.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.75)" : ROSE), fontFamily: FONT_BODY }}>{subtitle}</p>}
             </div>
             <div className="flex-1 px-3 pb-6">
               <iframe
@@ -5985,9 +6038,9 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
       <StoryPage bg={bg}>
         {(light) => (
           <div className="relative flex h-full w-full flex-col items-center justify-center px-6 text-center">
-            <Video size={26} color={light ? GOLD_SOFT : EMERALD} style={{ marginBottom: 10 }} />
-            <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: light ? PAPER : EMERALD }}>{heading}</div>
-            {subtitle && <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.8)" : ROSE, fontFamily: FONT_BODY, maxWidth: 220 }}>{subtitle}</p>}
+            <Video size={26} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ marginBottom: 10 }} />
+            <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+            {subtitle && <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, maxWidth: 220 }}>{subtitle}</p>}
 
             {!session || session.status === "checking" ? (
               <p className="mt-6 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Checking access…</p>
