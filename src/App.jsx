@@ -5212,11 +5212,19 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // The confirmation screen normally only shows after a guest actually
   // submits — with no way to see or style it in the builder without
   // clicking all the way through the real flow. In edit mode this small
-  // 3-state cycle (Form / Thank you as Yes / Thank you as No) overrides
-  // just what's DISPLAYED, entirely separate from the real submitted/
-  // choice state a guest's own click still drives normally.
+  // preview cycle (Form / Thank you as Yes / Thank you as No / Voice
+  // message, the last only when that feature's on) overrides just what's
+  // DISPLAYED, entirely separate from the real submitted/choice state a
+  // guest's own click still drives normally.
   const [editPreviewState, setEditPreviewState] = useState(0);
+  const editPreviewStates = rsvpSettings.enableGuestVoiceRecorder
+    ? ["Form", "Thank you — Yes", "Thank you — No", "Voice message"]
+    : ["Form", "Thank you — Yes", "Thank you — No"];
   const effectiveSubmitted = editMode ? editPreviewState > 0 : submitted;
+  // No real token exists until an actual submission — this placeholder
+  // lets the QR section (position, size, colors around it) be previewed
+  // and styled too, without needing a real check-in token.
+  const effectiveCheckinToken = editMode && editPreviewState > 0 ? (checkinToken || "preview") : checkinToken;
 
   const thankYou = (light) => (
     <div className="text-center">
@@ -5227,10 +5235,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           {totalAttending} {totalAttending === 1 ? "person is" : "people are"} coming so far
         </p>
       )}
-      {checkinToken && (
+      {effectiveCheckinToken && (
         <div className="mt-4">
           <img
-            src={qrCodeImageUrl(`https://${siteDomain}/checkin/${checkinToken}`, 150)}
+            src={qrCodeImageUrl(`https://${siteDomain}/checkin/${effectiveCheckinToken}`, 150)}
             alt="Check-in QR code"
             style={{ width: 130, height: 130, margin: "0 auto", borderRadius: 10, background: "#fff", padding: 6 }}
           />
@@ -5275,7 +5283,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             {editMode && selectedBlock === "buttons" && (
               <div className="mb-2 flex items-center justify-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => setEditPreviewState((s) => (s + 2) % 3)}
+                  onClick={() => setEditPreviewState((s) => (s + editPreviewStates.length - 1) % editPreviewStates.length)}
                   className="flex h-6 w-6 items-center justify-center rounded-full"
                   style={{ background: GOLD, color: INK }}
                   title="Previous preview state"
@@ -5283,10 +5291,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                   <ChevronDown size={12} style={{ transform: "rotate(90deg)" }} />
                 </button>
                 <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.06em" }}>
-                  {["Form", "Thank you — Yes", "Thank you — No"][editPreviewState]}
+                  {editPreviewStates[editPreviewState]}
                 </span>
                 <button
-                  onClick={() => setEditPreviewState((s) => (s + 1) % 3)}
+                  onClick={() => setEditPreviewState((s) => (s + 1) % editPreviewStates.length)}
                   className="flex h-6 w-6 items-center justify-center rounded-full"
                   style={{ background: GOLD, color: INK }}
                   title="Next preview state"
@@ -5297,7 +5305,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             )}
             <div style={{ width: 230 }}>
               {effectiveSubmitted ? (
-                voiceMessageStage === "recording" && choice === "no" && rsvpSettings.enableGuestVoiceRecorder ? (
+                (editMode ? editPreviewState === 3 : voiceMessageStage === "recording" && choice === "no" && rsvpSettings.enableGuestVoiceRecorder) ? (
                   <VoiceMessageRecorder
                     rsvpStatus={choice}
                     guestName={name.trim() || "Guest"}
