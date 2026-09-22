@@ -4155,6 +4155,12 @@ const BlockPositionsContext = createContext(null);
 // BlockPositionsContext's provider, which only wraps the canvas itself.
 const SliderDragContext = createContext(false);
 
+// A site-wide look (like swipeDirection/transitionStyle) rather than a
+// per-page setting, so it's read via context straight inside StoryPage —
+// deep in every slide's own component tree — instead of threading a new
+// prop through every one of them individually.
+const TornEdgesContext = createContext(false);
+
 function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
@@ -4956,8 +4962,29 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   );
 }
 
+// A ragged, torn-paper-style edge — a strip filled with `color`, flat on
+// one side and irregular on the other, so a photo it sits on top of looks
+// torn away rather than cleanly cropped. `flip` mirrors it for the bottom
+// edge of a photo (flat side flush with the container's own edge, jagged
+// side biting inward).
+function TornEdge({ flip = false, color = INK }) {
+  return (
+    <svg
+      viewBox="0 0 400 32" preserveAspectRatio="none"
+      className="pointer-events-none absolute left-0 w-full"
+      style={{ height: 26, top: flip ? "auto" : 0, bottom: flip ? 0 : "auto", transform: flip ? "scaleY(-1)" : "none" }}
+    >
+      <path
+        d="M0,0 L0,14 L14,9 L30,18 L48,7 L66,16 L86,5 L108,17 L128,8 L150,19 L172,6 L194,16 L216,9 L240,18 L262,7 L286,17 L308,6 L332,15 L356,8 L378,17 L400,10 L400,0 Z"
+        fill={color}
+      />
+    </svg>
+  );
+}
+
 function StoryPage({ bg, children }) {
   const isPhoto = bg.mode === "photo";
+  const tornEdges = useContext(TornEdgesContext);
   // backdropColor sits BEHIND the image in the CSS background shorthand —
   // this is what actually fixes a transparent PNG (like a Canva export
   // with no background) showing as blank/white: without an explicit
@@ -4971,9 +4998,14 @@ function StoryPage({ bg, children }) {
   const overlay = bg.darkenStyle === "even"
     ? `rgba(10,12,10,${amount.toFixed(2)})`
     : `linear-gradient(180deg, rgba(10,12,10,${(amount * 0.636).toFixed(2)}) 0%, rgba(10,12,10,${(amount * 0.273).toFixed(2)}) 40%, rgba(10,12,10,${amount.toFixed(2)}) 100%)`;
+  // Only makes sense on a real uploaded photo — a torn edge on a flat
+  // gradient preset has nothing photographic to look "torn away" from.
+  const showTornEdges = isPhoto && tornEdges && hasActiveCustomImage(bg);
   return (
     <div className="relative h-full w-full" style={{ background }}>
       {isPhoto && amount > 0 && <div className="absolute inset-0" style={{ background: overlay }} />}
+      {showTornEdges && <TornEdge color={bg.backdropColor || INK} />}
+      {showTornEdges && <TornEdge flip color={bg.backdropColor || INK} />}
       <div className="relative z-10 h-full w-full">{children(isPhoto)}</div>
     </div>
   );
@@ -7018,7 +7050,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, integrations, updateIntegrations, isAdmin }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, tornPhotoEdges, setTornPhotoEdges, integrations, updateIntegrations, isAdmin }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -7097,6 +7129,17 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           value={transitionStyle}
           onChange={setTransitionStyle}
           options={[{ value: "slide", label: "Slide (quick)" }, { value: "stack", label: "Stack (slower)" }]}
+        />
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Torn-edge photos</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Gives every uploaded photo background a ragged, torn-paper top and bottom edge instead of a clean crop</div>
+        </div>
+        <SegmentedToggle
+          value={tornPhotoEdges ? "on" : "off"}
+          onChange={(v) => setTornPhotoEdges(v === "on")}
+          options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
         />
       </div>
 
@@ -11239,6 +11282,7 @@ export default function InvitationBuilder() {
   const [showTemplateSwitcher, setShowTemplateSwitcher] = useState(false);
   const [templateSwitching, setTemplateSwitching] = useState(false); // drives the fade overlay during a template switch
   const [swipeDirection, setSwipeDirection] = useState("vertical"); // "vertical" (swipe up) or "horizontal" (swipe left)
+  const [tornPhotoEdges, setTornPhotoEdges] = useState(false); // torn-paper-style top/bottom edges on every uploaded photo background, site-wide
   const [transitionStyle, setTransitionStyle] = useState("slide"); // "slide" (current quick fade) or "stack" (slower, card-emerging-from-a-stack feel)
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
@@ -11372,13 +11416,13 @@ export default function InvitationBuilder() {
     reminderFeatureUnlocked: false, reminderPaymentUrl: "",
     },
     intro: defaultIntroSettings,
-    swipeDirection: "vertical", transitionStyle: "slide",
+    swipeDirection: "vertical", transitionStyle: "slide", tornPhotoEdges: false,
   });
 
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
-    swipeDirection, transitionStyle, openInviteLinks, venueElements,
+    swipeDirection, transitionStyle, tornPhotoEdges, openInviteLinks, venueElements,
   });
 
   const applySnapshot = (snap) => {
@@ -11389,6 +11433,7 @@ export default function InvitationBuilder() {
     setOg(snap.og); setGuestGroups(snap.guestGroups); setTables(snap.tables || []); setRsvpSettings(snap.rsvpSettings);
     setIntegrations(snap.integrations); setIntro(snap.intro);
     setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
+    setTornPhotoEdges(!!snap.tornPhotoEdges);
     setOpenInviteLinks(snap.openInviteLinks || []);
     setVenueElements(snap.venueElements || []);
     setActiveIndex(0); setVisited(new Set([0])); setStarted(false); setSelectedBlockId(null); setLayoutEditMode(false);
@@ -11576,6 +11621,7 @@ export default function InvitationBuilder() {
         if (d.integrations) setIntegrations((i) => ({ ...i, ...d.integrations }));
         if (d.swipeDirection) setSwipeDirection(d.swipeDirection);
         if (d.transitionStyle) setTransitionStyle(d.transitionStyle);
+        if (d.tornPhotoEdges) setTornPhotoEdges(d.tornPhotoEdges);
         if (Array.isArray(d.invitationIds) && d.invitationIds.length) {
           // Only the ACTIVE client's own snapshot needs to block initial
           // load — it's what corrects potentially-stale values above with
@@ -11629,6 +11675,7 @@ export default function InvitationBuilder() {
               if (activeSnapshot.enabledLanguages) setEnabledLanguages(activeSnapshot.enabledLanguages);
               if (activeSnapshot.swipeDirection) setSwipeDirection(activeSnapshot.swipeDirection);
               if (activeSnapshot.transitionStyle) setTransitionStyle(activeSnapshot.transitionStyle);
+              if (activeSnapshot.tornPhotoEdges) setTornPhotoEdges(activeSnapshot.tornPhotoEdges);
             } catch {}
           }
           // The rest of the clients — fire-and-forget, populates
@@ -11765,7 +11812,7 @@ export default function InvitationBuilder() {
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, introMediaLibrary,
+      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, tornPhotoEdges, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
@@ -12976,33 +13023,35 @@ export default function InvitationBuilder() {
             onChange={setGuestLangOverride}
           />
         )}
-        <PhonePreview
-          data={guestData}
-          steps={guestSteps}
-          activeIndex={guestActiveIndex}
-          onNavigate={setGuestActiveIndex}
-          lang={guestLang}
-          layoutEditMode={false}
-          onMoveBlock={() => {}}
-          started={guestStarted}
-          onStart={() => setGuestStarted(true)}
-          selectedBlockId={null}
-          onSelectBlock={() => {}}
-          onMoveCustomBlock={() => {}}
-          onRemoveCustomBlock={() => {}}
-          onDuplicateCustomBlock={() => {}}
-          onMoveLocation={() => {}}
-          onSubmitRsvp={submitGuestViewRsvp}
-          fullscreen
-          slug={guestView.slug}
-          siteDomain={siteDomain}
-          prefilledGuestName={resolvedGuestName}
-          prefilledRsvpStatus={resolvedRsvpStatus}
-          guestGroupId={guestView.groupId}
-          onUpdateRsvpContent={() => {}}
-          swipeDirection={swipeDirection}
-          transitionStyle={transitionStyle}
-        />
+        <TornEdgesContext.Provider value={tornPhotoEdges}>
+          <PhonePreview
+            data={guestData}
+            steps={guestSteps}
+            activeIndex={guestActiveIndex}
+            onNavigate={setGuestActiveIndex}
+            lang={guestLang}
+            layoutEditMode={false}
+            onMoveBlock={() => {}}
+            started={guestStarted}
+            onStart={() => setGuestStarted(true)}
+            selectedBlockId={null}
+            onSelectBlock={() => {}}
+            onMoveCustomBlock={() => {}}
+            onRemoveCustomBlock={() => {}}
+            onDuplicateCustomBlock={() => {}}
+            onMoveLocation={() => {}}
+            onSubmitRsvp={submitGuestViewRsvp}
+            fullscreen
+            slug={guestView.slug}
+            siteDomain={siteDomain}
+            prefilledGuestName={resolvedGuestName}
+            prefilledRsvpStatus={resolvedRsvpStatus}
+            guestGroupId={guestView.groupId}
+            onUpdateRsvpContent={() => {}}
+            swipeDirection={swipeDirection}
+            transitionStyle={transitionStyle}
+          />
+        </TornEdgesContext.Provider>
       </div>
     );
   }
@@ -13482,7 +13531,9 @@ export default function InvitationBuilder() {
 
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto md:sticky md:top-10 md:w-auto md:self-start">
               <div className="relative">
-                <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} sliderDragging={sliderDragging} />
+                <TornEdgesContext.Provider value={tornPhotoEdges}>
+                  <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} sliderDragging={sliderDragging} />
+                </TornEdgesContext.Provider>
                 {/* Fades to hide the instant background/style swap behind an
                     opaque cover, then fades back in — this is what makes
                     switching templates look like a smooth, medium-speed
@@ -13513,7 +13564,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
