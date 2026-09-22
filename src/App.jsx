@@ -2181,12 +2181,12 @@ function Select({ value, onChange, options }) {
 
 function SegmentedToggle({ value, onChange, options }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-lg" style={{ border: `1px solid ${INK_3}` }}>
+    <div className="inline-flex flex-shrink-0 overflow-hidden rounded-lg" style={{ border: `1px solid ${INK_3}` }}>
       {options.map((opt) => (
         <button
           key={String(opt.value)}
           onClick={() => onChange(opt.value)}
-          className="px-4 py-2 text-[12px] font-semibold"
+          className="whitespace-nowrap px-4 py-2 text-[12px] font-semibold"
           style={{ background: value === opt.value ? GOLD : INK_3, color: value === opt.value ? INK : MUTED, fontFamily: FONT_BODY }}
         >
           {opt.label}
