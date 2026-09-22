@@ -12414,6 +12414,11 @@ export default function InvitationBuilder() {
 
   const autoTitle = `${content.en.cover.name1} & ${content.en.cover.name2} — Wedding Invitation`;
   const autoDescription = content.en.cover.intro;
+  // What the slug/link should be based on: the "Link title" override when
+  // one is set (so a birthday, or any event with just one name, isn't
+  // forced through the couple's-two-names Cover fields to get a sensible
+  // link), falling back to the couple's cover-page names otherwise.
+  const slugSourceText = (og.title && og.title.trim()) || `${content.en.cover.name1}-${content.en.cover.name2}`;
   // The REAL, permanent slug guest links actually route against (matched in
   // the guest-detection effect below via u.invitationSlug === urlSlug) — set
   // once, at invitation-creation time, and never recomputed after. Using
@@ -12425,13 +12430,14 @@ export default function InvitationBuilder() {
   // owner's own demo slot, which has no invitationSlug record of its own.
   const activeUserRecord = users.find((u) => u.id === activeInvitationId);
   const slug = activeUserRecord?.invitationSlug
-    || `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+    || slugSourceText.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
 
-  // What the slug WOULD be if generated fresh from the couple's current
-  // cover-page names — compared against the real, saved slug purely to
-  // decide whether to show the "update link to match names" option in
-  // Settings. This value itself is never used as the actual slug anywhere.
-  const nameBasedSlugPreview = `${content.en.cover.name1}-${content.en.cover.name2}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+  // What the slug WOULD be if generated fresh from the Link title override
+  // (or the couple's current cover-page names) — compared against the
+  // real, saved slug purely to decide whether to show the "update link to
+  // match names" option in Settings. This value itself is never used as
+  // the actual slug anywhere.
+  const nameBasedSlugPreview = slugSourceText.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
   const slugMatchesCoupleNames = !activeUserRecord || activeUserRecord.invitationSlug === nameBasedSlugPreview;
 
   // Explicit, one-time action — never automatic — since an automatic
@@ -12441,7 +12447,7 @@ export default function InvitationBuilder() {
   // one), not the per-render display-only value above.
   const regenerateSlugFromCoupleNames = () => {
     if (!activeUserRecord) return;
-    const newSlug = generateUniqueSlug(`${content.en.cover.name1}-${content.en.cover.name2}`, activeUserRecord.id);
+    const newSlug = generateUniqueSlug(slugSourceText, activeUserRecord.id);
     saveUsersDirectly((list) => list.map((u) => (u.id === activeUserRecord.id ? { ...u, invitationSlug: newSlug } : u)));
   };
 
