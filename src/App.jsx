@@ -11272,6 +11272,11 @@ export default function InvitationBuilder() {
   // stay genuinely separate from every other client's and from the owner's
   // own default invitation ("__owner__").
   const OWNER_SLOT = "__owner__";
+  // Fixed, reserved link for the admin's own current design — so it's
+  // always possible to open/share a real /e/... link (and see how it looks
+  // in a WhatsApp preview) while working directly in the Admin builder,
+  // before any real client account exists to own a proper slug.
+  const ADMIN_PREVIEW_SLUG = "admin-preview";
   const [invitationsStore, setInvitationsStore] = useState({});
   const [activeInvitationId, setActiveInvitationId] = useState(OWNER_SLOT);
 
@@ -12276,6 +12281,7 @@ export default function InvitationBuilder() {
   const generateUniqueSlug = (base, excludeUserId) => {
     const cleanBase = base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
     const existingSlugs = new Set(users.filter((u) => u.id !== excludeUserId).map((u) => u.invitationSlug).filter(Boolean));
+    existingSlugs.add(ADMIN_PREVIEW_SLUG); // reserved for the admin's own preview link — never a real client's
     let candidate = cleanBase;
     let suffix = 2;
     while (existingSlugs.has(candidate)) {
@@ -12438,8 +12444,10 @@ export default function InvitationBuilder() {
   // different one. Falls back to a fresh, name-derived slug only for the
   // owner's own demo slot, which has no invitationSlug record of its own.
   const activeUserRecord = users.find((u) => u.id === activeInvitationId);
-  const slug = activeUserRecord?.invitationSlug
-    || slugSourceText.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation";
+  const slug = activeInvitationId === OWNER_SLOT
+    ? ADMIN_PREVIEW_SLUG
+    : (activeUserRecord?.invitationSlug
+      || slugSourceText.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "invitation");
 
   // What the slug WOULD be if generated fresh from the Link title override
   // (or the couple's current cover-page names) — compared against the
@@ -12557,6 +12565,34 @@ export default function InvitationBuilder() {
     if (urlSlug === slug) {
       setGuestView({ found: true, ownSlug: true, slug: urlSlug, snapshotGuestGroups: guestGroups, groupId, guestNameParam, batchId });
       return;
+    }
+    // The admin's fixed preview link — fetch the owner's own current
+    // invitation directly, regardless of what THIS visitor's browser
+    // happens to have loaded as its default active invitation (it won't
+    // always be the owner's, e.g. if this browser was last "acting as" a
+    // specific client).
+    if (urlSlug === ADMIN_PREVIEW_SLUG) {
+      const cachedOwner = invitationsStore[OWNER_SLOT];
+      if (cachedOwner) {
+        setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: OWNER_SLOT, snapshot: cachedOwner, snapshotGuestGroups: cachedOwner.guestGroups || [], groupId, guestNameParam, batchId });
+        return;
+      }
+      (async () => {
+        let snapshot = null;
+        if (persistentStorage.available()) {
+          try {
+            const res = await persistentStorage.get(invitationKey(OWNER_SLOT), false);
+            if (res?.value) snapshot = JSON.parse(res.value);
+          } catch (err) {
+            console.error("Guest view: failed to fetch the admin preview invitation:", err);
+          }
+        }
+        if (cancelled) return;
+        const finalSnapshot = snapshot || freshInvitationSnapshot();
+        if (snapshot) setInvitationsStore((store) => ({ ...store, [OWNER_SLOT]: snapshot }));
+        setGuestView({ found: true, ownSlug: false, slug: urlSlug, userId: OWNER_SLOT, snapshot: finalSnapshot, snapshotGuestGroups: finalSnapshot.guestGroups || [], groupId, guestNameParam, batchId });
+      })();
+      return () => { cancelled = true; };
     }
     // Otherwise, find which client this slug actually belongs to. Don't
     // decide "not found" until the real data has actually finished
