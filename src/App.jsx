@@ -7088,12 +7088,20 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
   };
 
   return (
-    <div dir={dir} style={{ maxWidth: 420, margin: "0 auto", background: PAPER }}>
+    // A self-contained scroll viewport (rather than the whole page scrolling)
+    // so scroll-snap can apply: each section fills one full "screen", and a
+    // scroll/swipe gesture settles on the nearest one instead of a fast
+    // trackpad or wheel flick skipping straight past several sections —
+    // still ordinary scrolling, just paced one section at a time.
+    <div
+      dir={dir}
+      style={{ maxWidth: 420, margin: "0 auto", background: PAPER, height: "100dvh", overflowY: "auto", scrollSnapType: "y mandatory" }}
+    >
       {steps.map((s, i) => {
         const bg = data.pageBackgrounds[s.key];
         const edgeColor = bg?.mode === "photo" ? (bg.backdropColor || INK) : PAPER;
         return (
-          <div key={s.key} className="relative overflow-hidden" style={{ height: "100dvh" }}>
+          <div key={s.key} className="relative overflow-hidden" style={{ height: "100dvh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
             {renderSection(s.key)}
             {i > 0 && <TornEdge color={edgeColor} />}
           </div>
