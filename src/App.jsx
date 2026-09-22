@@ -11667,7 +11667,16 @@ export default function InvitationBuilder() {
       if (Array.isArray(latestUsers)) {
         const localById = new Map(users.map((u) => [u.id, u]));
         const merged = latestUsers.map((u) => localById.get(u.id) || u); // this browser's own edits to a known user win; anything server-only stays
-        const localOnlyNew = users.filter((u) => !latestUsers.some((lu) => lu.id === u.id)); // a user this browser created but the server doesn't have yet
+        // A local user only counts as genuinely new if neither its id NOR
+        // its email already exists server-side. Without the email check,
+        // this tab's initial `useState(seedUsers)` placeholder — which
+        // hasn't been replaced by the real loaded data yet if this save
+        // fires before that load finishes — gets treated as 9 brand-new
+        // signups (fresh random ids) and permanently duplicates the demo
+        // accounts on every such save.
+        const localOnlyNew = coreDataLoaded
+          ? users.filter((u) => !latestUsers.some((lu) => lu.id === u.id || (lu.email && u.email && lu.email === u.email)))
+          : [];
         usersToSave = [...localOnlyNew, ...merged];
       }
     } catch {
