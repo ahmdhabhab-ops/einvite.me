@@ -55,16 +55,28 @@ async function getKvValue(key) {
   }
 }
 
+// Reserved slug for the admin's own current design in the Builder — lets
+// a link be shared/tested (e.g. previewed in WhatsApp) before any real
+// client account exists to own a proper one. Must match ADMIN_PREVIEW_SLUG
+// in src/App.jsx.
+const ADMIN_PREVIEW_SLUG = "admin-preview";
+
 async function renderCrawlerHtml(slug, requestUrl) {
-  const draft = await getKvValue("einvite:draft-core");
-  const matchedUser = (draft?.users || []).find((u) => u.invitationSlug === slug);
+  let snapshotKey = null;
+  if (slug === ADMIN_PREVIEW_SLUG) {
+    snapshotKey = "einvite:invitation-__owner__";
+  } else {
+    const draft = await getKvValue("einvite:draft-core");
+    const matchedUser = (draft?.users || []).find((u) => u.invitationSlug === slug);
+    if (matchedUser) snapshotKey = `einvite:invitation-${matchedUser.id}`;
+  }
 
   let ogImage = null;
   let ogTitle = "You're Invited";
   let ogDescription = "";
 
-  if (matchedUser) {
-    const snapshot = await getKvValue(`einvite:invitation-${matchedUser.id}`);
+  if (snapshotKey) {
+    const snapshot = await getKvValue(snapshotKey);
     if (snapshot?.og) {
       ogImage = snapshot.og.image || null;
       ogTitle = snapshot.og.title || ogTitle;
