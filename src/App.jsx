@@ -7034,6 +7034,76 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   );
 }
 
+// Alternate to PhonePreview's swipe-between-cards navigation: every enabled
+// page renders full-height and stacked in normal document flow, each one
+// `position: sticky` at its own top — the standard CSS-only trick for a
+// "pages pulling down to reveal the next" scroll effect, no JS scroll
+// tracking needed. A torn-paper edge (reusing TornEdge, the same shape
+// used for the individual-photo torn-edge style) sits at the top of every
+// section after the first, so each one visually tears open over whatever
+// was showing before it, rather than sliding over it with a hard edge.
+// Reuses the exact same per-page Slide components as PhonePreview (Cover,
+// Timeline, Registry, Rsvp, ...) and the same already-saved content/layout
+// data — this is a different way of PRESENTING that data, not a separate
+// copy of it.
+function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent }) {
+  const t = PREVIEW_T[lang];
+  const dir = LANG_META[lang].dir;
+  const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
+  const fontScript = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_SCRIPT;
+
+  const renderSection = (key) => {
+    const layout = data.layouts[lang]?.[key] || DEFAULT_LAYOUTS[key];
+    const bg = data.pageBackgrounds[key];
+    const common = { editMode: false, selectedBlock: null, onSelectBlock: () => {}, onMoveBlock: () => {} };
+    switch (key) {
+      case "cover":
+        return <CoverSlide content={data.content[lang].cover} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} layout={layout} {...common} />;
+      case "family":
+        return <FamilySlide content={data.content[lang].family} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
+      case "timeline":
+        return <TimelineSlide items={data.timeline} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
+      case "locations":
+        return <LocationsSlide items={data.locations} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveLocation={() => {}} {...common} />;
+      case "countdown":
+        return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} {...common} />;
+      case "rsvp":
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} onUpdateContent={onUpdateRsvpContent} {...common} />;
+      case "registry":
+        return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
+      case "djRequests":
+        return <DjRequestSlide heading={data.integrations.djHeading} subtitle={data.integrations.djSubtitle} slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
+      case "networking":
+        return <IntegrationSlide icon={Handshake} heading={data.integrations.networkingHeading} subtitle={data.integrations.networkingSubtitle} buttonLabel={data.integrations.networkingButtonLabel} url={slug ? `https://${siteDomain}/network/${slug}` : ""} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
+      case "livestream":
+        return (
+          <LivestreamSlide
+            heading={data.integrations.livestreamHeading} subtitle={data.integrations.livestreamSubtitle} buttonLabel={data.integrations.livestreamButtonLabel}
+            url={data.integrations.livestreamUrl} paid={data.integrations.livestreamPaid} price={data.integrations.livestreamPrice} paymentUrl={data.integrations.livestreamPaymentUrl}
+            slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div dir={dir} style={{ maxWidth: 420, margin: "0 auto", background: PAPER }}>
+      {steps.map((s, i) => {
+        const bg = data.pageBackgrounds[s.key];
+        const edgeColor = bg?.mode === "photo" ? (bg.backdropColor || INK) : PAPER;
+        return (
+          <div key={s.key} className="relative overflow-hidden" style={{ position: "sticky", top: 0, height: "100dvh", zIndex: i + 1, boxShadow: i > 0 ? "0 -8px 24px rgba(0,0,0,0.18)" : "none" }}>
+            {renderSection(s.key)}
+            {i > 0 && <TornEdge color={edgeColor} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------------- */
 /* Settings view (OG / WhatsApp share image)                               */
 /* ---------------------------------------------------------------------- */
@@ -7053,7 +7123,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, tornPhotoEdges, setTornPhotoEdges, integrations, updateIntegrations, isAdmin }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -7114,8 +7184,19 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
       </p>
       <div className="flex items-center justify-between gap-4">
         <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Viewing style</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>"Swipe cards" is one page at a time. "Scroll story" stacks every page as a torn-paper card that reveals the next one as guests scroll down — a single continuous page, no swiping.</div>
+        </div>
+        <SegmentedToggle
+          value={viewStyle}
+          onChange={setViewStyle}
+          options={[{ value: "cards", label: "Swipe cards" }, { value: "scroll", label: "Scroll story" }]}
+        />
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-4" style={{ opacity: viewStyle === "scroll" ? 0.4 : 1 }}>
+        <div>
           <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Swipe direction</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Which way guests swipe to move to the next page</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Which way guests swipe to move to the next page{viewStyle === "scroll" && " — not used in Scroll story"}</div>
         </div>
         <SegmentedToggle
           value={swipeDirection}
@@ -7123,10 +7204,10 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           options={[{ value: "vertical", label: "Swipe up" }, { value: "horizontal", label: "Swipe left" }]}
         />
       </div>
-      <div className="mt-4 flex items-center justify-between gap-4">
+      <div className="mt-4 flex items-center justify-between gap-4" style={{ opacity: viewStyle === "scroll" ? 0.4 : 1 }}>
         <div>
           <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Transition style</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>How each page animates in when guests navigate</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>How each page animates in when guests navigate{viewStyle === "scroll" && " — not used in Scroll story"}</div>
         </div>
         <SegmentedToggle
           value={transitionStyle}
@@ -7137,7 +7218,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
       <div className="mt-4 flex items-center justify-between gap-4">
         <div>
           <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Torn-edge photos</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Gives every uploaded photo background a ragged, torn-paper top and bottom edge instead of a clean crop</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Gives every uploaded photo background a ragged, torn-paper top and bottom edge instead of a clean crop{viewStyle === "scroll" && " (Scroll story already tears every page's edge, regardless of this)"}</div>
         </div>
         <SegmentedToggle
           value={tornPhotoEdges ? "on" : "off"}
@@ -11286,6 +11367,7 @@ export default function InvitationBuilder() {
   const [templateSwitching, setTemplateSwitching] = useState(false); // drives the fade overlay during a template switch
   const [swipeDirection, setSwipeDirection] = useState("vertical"); // "vertical" (swipe up) or "horizontal" (swipe left)
   const [tornPhotoEdges, setTornPhotoEdges] = useState(false); // torn-paper-style top/bottom edges on every uploaded photo background, site-wide
+  const [viewStyle, setViewStyle] = useState("cards"); // "cards" (swipe between pages, current default) or "scroll" (ScrollStoryPreview — pages stack and reveal on scroll)
   const [transitionStyle, setTransitionStyle] = useState("slide"); // "slide" (current quick fade) or "stack" (slower, card-emerging-from-a-stack feel)
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
@@ -11419,13 +11501,13 @@ export default function InvitationBuilder() {
     reminderFeatureUnlocked: false, reminderPaymentUrl: "",
     },
     intro: defaultIntroSettings,
-    swipeDirection: "vertical", transitionStyle: "slide", tornPhotoEdges: false,
+    swipeDirection: "vertical", transitionStyle: "slide", tornPhotoEdges: false, viewStyle: "cards",
   });
 
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
-    swipeDirection, transitionStyle, tornPhotoEdges, openInviteLinks, venueElements,
+    swipeDirection, transitionStyle, tornPhotoEdges, viewStyle, openInviteLinks, venueElements,
   });
 
   const applySnapshot = (snap) => {
@@ -11437,6 +11519,7 @@ export default function InvitationBuilder() {
     setIntegrations(snap.integrations); setIntro(snap.intro);
     setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
     setTornPhotoEdges(!!snap.tornPhotoEdges);
+    setViewStyle(snap.viewStyle || "cards");
     setOpenInviteLinks(snap.openInviteLinks || []);
     setVenueElements(snap.venueElements || []);
     setActiveIndex(0); setVisited(new Set([0])); setStarted(false); setSelectedBlockId(null); setLayoutEditMode(false);
@@ -11625,6 +11708,7 @@ export default function InvitationBuilder() {
         if (d.swipeDirection) setSwipeDirection(d.swipeDirection);
         if (d.transitionStyle) setTransitionStyle(d.transitionStyle);
         if (d.tornPhotoEdges) setTornPhotoEdges(d.tornPhotoEdges);
+        if (d.viewStyle) setViewStyle(d.viewStyle);
         if (Array.isArray(d.invitationIds) && d.invitationIds.length) {
           // Only the ACTIVE client's own snapshot needs to block initial
           // load — it's what corrects potentially-stale values above with
@@ -11679,6 +11763,7 @@ export default function InvitationBuilder() {
               if (activeSnapshot.swipeDirection) setSwipeDirection(activeSnapshot.swipeDirection);
               if (activeSnapshot.transitionStyle) setTransitionStyle(activeSnapshot.transitionStyle);
               if (activeSnapshot.tornPhotoEdges) setTornPhotoEdges(activeSnapshot.tornPhotoEdges);
+              if (activeSnapshot.viewStyle) setViewStyle(activeSnapshot.viewStyle);
             } catch {}
           }
           // The rest of the clients — fire-and-forget, populates
@@ -11815,7 +11900,7 @@ export default function InvitationBuilder() {
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, tornPhotoEdges, introMediaLibrary,
+      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, tornPhotoEdges, viewStyle, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
@@ -13027,33 +13112,48 @@ export default function InvitationBuilder() {
           />
         )}
         <TornEdgesContext.Provider value={tornPhotoEdges}>
-          <PhonePreview
-            data={guestData}
-            steps={guestSteps}
-            activeIndex={guestActiveIndex}
-            onNavigate={setGuestActiveIndex}
-            lang={guestLang}
-            layoutEditMode={false}
-            onMoveBlock={() => {}}
-            started={guestStarted}
-            onStart={() => setGuestStarted(true)}
-            selectedBlockId={null}
-            onSelectBlock={() => {}}
-            onMoveCustomBlock={() => {}}
-            onRemoveCustomBlock={() => {}}
-            onDuplicateCustomBlock={() => {}}
-            onMoveLocation={() => {}}
-            onSubmitRsvp={submitGuestViewRsvp}
-            fullscreen
-            slug={guestView.slug}
-            siteDomain={siteDomain}
-            prefilledGuestName={resolvedGuestName}
-            prefilledRsvpStatus={resolvedRsvpStatus}
-            guestGroupId={guestView.groupId}
-            onUpdateRsvpContent={() => {}}
-            swipeDirection={swipeDirection}
-            transitionStyle={transitionStyle}
-          />
+          {(guestView.ownSlug ? viewStyle : (guestData?.viewStyle || "cards")) === "scroll" ? (
+            <ScrollStoryPreview
+              data={guestData}
+              steps={guestSteps}
+              lang={guestLang}
+              slug={guestView.slug}
+              siteDomain={siteDomain}
+              onSubmitRsvp={submitGuestViewRsvp}
+              prefilledGuestName={resolvedGuestName}
+              prefilledRsvpStatus={resolvedRsvpStatus}
+              guestGroupId={guestView.groupId}
+              onUpdateRsvpContent={() => {}}
+            />
+          ) : (
+            <PhonePreview
+              data={guestData}
+              steps={guestSteps}
+              activeIndex={guestActiveIndex}
+              onNavigate={setGuestActiveIndex}
+              lang={guestLang}
+              layoutEditMode={false}
+              onMoveBlock={() => {}}
+              started={guestStarted}
+              onStart={() => setGuestStarted(true)}
+              selectedBlockId={null}
+              onSelectBlock={() => {}}
+              onMoveCustomBlock={() => {}}
+              onRemoveCustomBlock={() => {}}
+              onDuplicateCustomBlock={() => {}}
+              onMoveLocation={() => {}}
+              onSubmitRsvp={submitGuestViewRsvp}
+              fullscreen
+              slug={guestView.slug}
+              siteDomain={siteDomain}
+              prefilledGuestName={resolvedGuestName}
+              prefilledRsvpStatus={resolvedRsvpStatus}
+              guestGroupId={guestView.groupId}
+              onUpdateRsvpContent={() => {}}
+              swipeDirection={swipeDirection}
+              transitionStyle={transitionStyle}
+            />
+          )}
         </TornEdgesContext.Provider>
       </div>
     );
@@ -13567,7 +13667,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} viewStyle={viewStyle} setViewStyle={setViewStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
