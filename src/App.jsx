@@ -948,16 +948,21 @@ function getOrCreateGuestToken() {
 // normal saved data, so it's absent from both "View Page Source" and the one
 // big snapshot fetch every guest's browser makes. Only reachable through
 // this dedicated call, made once the guest actually opens this page.
-async function getLivestreamVideo(invitationSlug) {
+// ownerKey is optional — pass it only from the couple's own Builder
+// (HiddenStreamVideoSetter). A guest's own call (no ownerKey) still gets
+// back just { provider, videoId }, enough to build the embed; the edge
+// function only includes the real, human-readable videoUrl when the
+// matching ownerKey is presented, so it's never exposed to a guest.
+async function getLivestreamVideo(invitationSlug, ownerKey) {
   try {
     const res = await fetch(`${EDGE_FUNCTIONS_URL}/get-livestream-video`, {
       method: "POST",
       headers: supabaseHeaders,
-      body: JSON.stringify({ invitationSlug }),
+      body: JSON.stringify({ invitationSlug, ownerKey }),
     });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.videoId ? data : null; // { provider, videoId }
+    return data.videoId ? data : null; // { provider, videoId, videoUrl? }
   } catch {
     return null;
   }
@@ -3848,9 +3853,15 @@ function HiddenStreamVideoSetter({ slug }) {
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
-    getLivestreamVideo(slug).then((data) => {
+    getLivestreamVideo(slug, ownerKey).then((data) => {
       if (cancelled) return;
       setSavedInfo(data);
+      // Pre-fill the field with the actual saved link (only possible when
+      // this browser holds the matching ownerKey) — so the field doesn't
+      // look mysteriously empty after a refresh even though something IS
+      // saved. Only on this initial load, never overwriting what's being
+      // typed afterward.
+      if (data?.videoUrl) setVideoUrl(data.videoUrl);
       setStatus("idle");
     });
     return () => { cancelled = true; };
@@ -3864,7 +3875,7 @@ function HiddenStreamVideoSetter({ slug }) {
       const newKey = await setLivestreamVideo(slug, videoUrl.trim(), ownerKey);
       window.localStorage.setItem(storageKey, newKey);
       setOwnerKey(newKey);
-      const data = await getLivestreamVideo(slug);
+      const data = await getLivestreamVideo(slug, newKey);
       setSavedInfo(data);
       // Deliberately NOT clearing videoUrl here — wiping the field right
       // after a successful save made it look like the link had vanished
@@ -3894,9 +3905,11 @@ function HiddenStreamVideoSetter({ slug }) {
           {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden link"}
         </GhostButton>
       </div>
-      <p className="mt-2.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
-        This hides the link until someone actually opens the page — it doesn't stop a guest from sharing it after they're watching. For that, you'd need a dedicated ticketed platform like Vimeo OTT.
-      </p>
+      <div className="mt-2.5 rounded-md p-2" style={{ background: "rgba(201,164,76,0.1)", border: "1px solid rgba(201,164,76,0.3)" }}>
+        <p className="text-[10.5px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+          <strong>Note:</strong> this hides the link until someone actually opens the page — it doesn't stop a guest from sharing it after they're watching. For that, you'd need a dedicated ticketed platform like Vimeo OTT.
+        </p>
+      </div>
     </div>
   );
 }
