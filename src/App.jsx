@@ -7100,9 +7100,32 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       {steps.map((s, i) => {
         const bg = data.pageBackgrounds[s.key];
         const edgeColor = bg?.mode === "photo" ? (bg.backdropColor || INK) : PAPER;
+        // The "position text/image" custom blocks (Add text / Add image /
+        // Elements in the Builder) are a separate overlay layer PhonePreview
+        // renders on top of each page — not part of the Slide components
+        // themselves — so they need the same treatment here, or they simply
+        // never appear in Scroll story at all.
+        const customBlocks = data.customBlocks[lang]?.[s.key] || [];
+        const behind = customBlocks.filter((b) => b.behindContent);
+        const front = customBlocks.filter((b) => !b.behindContent);
+        const light = bg?.mode === "photo";
         return (
           <div key={s.key} className="relative overflow-hidden" style={{ height: "100dvh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
+            {behind.length > 0 && (
+              <div className="absolute inset-0">
+                {behind.map((block, index) => (
+                  <CustomTextBlock key={block.id} block={block} layerIndex={index} light={light} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
+                ))}
+              </div>
+            )}
             {renderSection(s.key)}
+            {front.length > 0 && (
+              <div className="absolute inset-0">
+                {front.map((block, index) => (
+                  <CustomTextBlock key={block.id} block={block} layerIndex={index} light={light} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
+                ))}
+              </div>
+            )}
             {i > 0 && <TornEdge color={edgeColor} />}
           </div>
         );
