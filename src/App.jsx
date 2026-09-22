@@ -2727,29 +2727,45 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             { key: "submit", label: "Submit button" },
             { key: "field", label: "Name field / guest count" },
           ].map(({ key, label }) => (
-            <div key={key} className="mb-3 grid grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>{label} — background</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={current[`${key}Bg`] || "#24463D"} onChange={(e) => onChangeStyle({ [`${key}Bg`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
-                  {current[`${key}Bg`] && (
-                    <button onClick={() => onChangeStyle({ [`${key}Bg`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                      Reset
-                    </button>
-                  )}
+            <div key={key} className="mb-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>{label} — background</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={current[`${key}Bg`] || "#24463D"} onChange={(e) => onChangeStyle({ [`${key}Bg`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                    {current[`${key}Bg`] && (
+                      <button onClick={() => onChangeStyle({ [`${key}Bg`]: null, [`${key}BgTransparency`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Text</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={current[`${key}Text`] || "#F4EDE4"} onChange={(e) => onChangeStyle({ [`${key}Text`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                    {current[`${key}Text`] && (
+                      <button onClick={() => onChangeStyle({ [`${key}Text`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div>
-                <FieldLabel>Text</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={current[`${key}Text`] || "#F4EDE4"} onChange={(e) => onChangeStyle({ [`${key}Text`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
-                  {current[`${key}Text`] && (
-                    <button onClick={() => onChangeStyle({ [`${key}Text`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                      Reset
-                    </button>
-                  )}
+              {current[`${key}Bg`] && (
+                <div className="mt-1.5">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{label} — transparency</span>
+                    <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{current[`${key}BgTransparency`] ?? 0}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={100} value={current[`${key}BgTransparency`] ?? 0}
+                    onChange={(e) => onChangeStyle({ [`${key}BgTransparency`]: Number(e.target.value) })}
+                    className="w-full" style={{ accentColor: GOLD }}
+                  />
+                  <p className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Raise this to let the photo behind show through — e.g. for a frosted-glass look.</p>
                 </div>
-              </div>
+              )}
             </div>
           ))}
           <div className="mt-1 grid grid-cols-2 gap-3">
@@ -5389,6 +5405,13 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
 function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateContent }) {
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
+  // Lets the couple fade a customized button background toward the photo
+  // behind it (a "frosted glass" look) instead of only ever a flat color —
+  // null while no color has been customized yet, so the untouched default
+  // colors above are unaffected.
+  const optionBg = bs.optionBg ? hexToRgba(bs.optionBg, 1 - (bs.optionBgTransparency ?? 0) / 100) : null;
+  const submitBg = bs.submitBg ? hexToRgba(bs.submitBg, 1 - (bs.submitBgTransparency ?? 0) / 100) : null;
+  const fieldBg = bs.fieldBg ? hexToRgba(bs.fieldBg, 1 - (bs.fieldBgTransparency ?? 0) / 100) : null;
   const [choice, setChoice] = useState(prefilledRsvpStatus || null);
   const [name, setName] = useState(prefilledGuestName || "");
   const [guestCount, setGuestCount] = useState(1);
@@ -5476,7 +5499,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   };
 
   const guestStepper = (light) => (
-    <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: bs.fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
+    <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
       <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>Number of attending</span>
       <div className="flex items-center gap-2">
         <button onClick={() => setGuestCount((c) => Math.max(1, c - 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronDown size={13} /></button>
@@ -5492,7 +5515,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       onChange={(e) => setName(e.target.value)}
       placeholder={nameNeeded ? "Your name *" : "Your name (optional)"}
       className="w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
-      style={{ background: bs.fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}
+      style={{ background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}
     />
   );
 
@@ -5601,7 +5624,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     light={light}
                     textColor={bs.voiceText}
                     subColor={bs.voiceSub}
-                    buttonBg={bs.submitBg}
+                    buttonBg={submitBg}
                     buttonText={bs.submitText}
                     onDone={() => setVoiceMessageStage("done")}
                     onSkip={() => setVoiceMessageStage("done")}
@@ -5628,7 +5651,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                         isFull
                           ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
                           : (editMode || choice === "yes")
-                          ? { background: bs.optionBg || (light ? GOLD : EMERALD), color: bs.optionText || (light ? INK : PAPER), fontFamily: FONT_BODY }
+                          ? { background: optionBg || (light ? GOLD : EMERALD), color: bs.optionText || (light ? INK : PAPER), fontFamily: FONT_BODY }
                           : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
                       }
                     >
@@ -5637,7 +5660,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <button
                       onClick={() => setChoice("no")}
                       className="rounded-full py-2.5 text-[12px] font-semibold"
-                      style={(editMode || choice === "no") ? { background: bs.optionBg || ROSE, color: bs.optionText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
+                      style={(editMode || choice === "no") ? { background: optionBg || ROSE, color: bs.optionText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
                     >
                       {content.noLabel}
                     </button>
@@ -5661,7 +5684,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       disabled={isFull}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: bs.optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        background: optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
                         border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
                         color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : bs.optionText || (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
@@ -5676,7 +5699,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       onClick={() => setChoice("no")}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: bs.optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        background: optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
                         border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
                         color: bs.optionText || (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
@@ -5700,7 +5723,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     onClick={submit}
                     disabled={!choice}
                     className="mt-3 w-full rounded-full py-2.5 text-[11px] font-bold uppercase"
-                    style={{ background: bs.submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
+                    style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
                   >
                     Submit RSVP
                   </button>
