@@ -3864,10 +3864,11 @@ function HiddenStreamVideoSetter({ slug }) {
       const newKey = await setLivestreamVideo(slug, videoUrl.trim(), ownerKey);
       window.localStorage.setItem(storageKey, newKey);
       setOwnerKey(newKey);
-      setSavedInfo({ provider: null, videoId: null }); // refetched below, but clears the empty-state message immediately
       const data = await getLivestreamVideo(slug);
       setSavedInfo(data);
-      setVideoUrl("");
+      // Deliberately NOT clearing videoUrl here — wiping the field right
+      // after a successful save made it look like the link had vanished
+      // or the save had failed, with nothing left to visually confirm.
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 3000);
     } catch (err) {
