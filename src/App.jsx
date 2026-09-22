@@ -4977,6 +4977,9 @@ function TornEdge({ flip = false, color = INK }) {
       <path
         d="M0,0 L0,14 L14,9 L30,18 L48,7 L66,16 L86,5 L108,17 L128,8 L150,19 L172,6 L194,16 L216,9 L240,18 L262,7 L286,17 L308,6 L332,15 L356,8 L378,17 L400,10 L400,0 Z"
         fill={color}
+        stroke="rgba(255,255,255,0.3)"
+        strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
