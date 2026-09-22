@@ -3894,6 +3894,9 @@ function HiddenStreamVideoSetter({ slug }) {
           {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden link"}
         </GhostButton>
       </div>
+      <p className="mt-2.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+        This hides the link until someone actually opens the page — it doesn't stop a guest from sharing it after they're watching. For that, you'd need a dedicated ticketed platform like Vimeo OTT.
+      </p>
     </div>
   );
 }
