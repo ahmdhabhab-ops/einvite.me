@@ -7,8 +7,13 @@ create table if not exists public.livestream_secrets (
   invitation_slug text primary key,
   provider text not null,
   video_id text not null,
+  video_url text,
   owner_key text not null,
   updated_at timestamptz not null default now()
 );
 
 alter table public.livestream_secrets enable row level security;
+
+-- Ran once, live, to add video_url to a table created before this column
+-- existed (kept here so a fresh deploy's CREATE TABLE above already has it):
+-- alter table public.livestream_secrets add column if not exists video_url text;

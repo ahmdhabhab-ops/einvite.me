@@ -9,6 +9,12 @@
 // — this step is only about keeping the link out of the page's static
 // data. A real payment/auth check belongs right here, before the SELECT
 // below, once that's built.
+//
+// An optional ownerKey lets the couple's OWN Builder (HiddenStreamVideoSetter)
+// see the real, human-readable videoUrl again (e.g. after a refresh) —
+// only when it matches the invitation's stored owner_key. Any other
+// caller (a guest, or a wrong/missing key) never gets videoUrl back, only
+// provider/videoId — just enough to build the embed, never the plain link.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS_HEADERS = {
@@ -24,7 +30,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
   try {
-    const { invitationSlug } = await req.json();
+    const { invitationSlug, ownerKey } = await req.json();
     if (!invitationSlug) {
       return jsonResponse({ error: "invitationSlug is required" }, 400);
     }
@@ -32,7 +38,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data, error } = await supabase
       .from("livestream_secrets")
-      .select("provider, video_id")
+      .select("provider, video_id, video_url, owner_key")
       .eq("invitation_slug", invitationSlug)
       .maybeSingle();
 
@@ -41,7 +47,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Couldn't load." }, 500);
     }
 
-    return jsonResponse({ provider: data?.provider || null, videoId: data?.video_id || null });
+    const isOwner = !!ownerKey && !!data?.owner_key && ownerKey === data.owner_key;
+    return jsonResponse({
+      provider: data?.provider || null,
+      videoId: data?.video_id || null,
+      videoUrl: isOwner ? data?.video_url || null : undefined,
+    });
   } catch (err) {
     console.error("get-livestream-video threw:", err);
     return jsonResponse({ error: "Something went wrong." }, 500);

@@ -84,6 +84,7 @@ Deno.serve(async (req) => {
       invitation_slug: invitationSlug,
       provider: parsed.provider,
       video_id: parsed.videoId,
+      video_url: videoUrl.trim(),
       owner_key: keyToUse,
       updated_at: new Date().toISOString(),
     });
