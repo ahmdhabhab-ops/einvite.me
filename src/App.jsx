@@ -7051,9 +7051,16 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
   const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
   const fontScript = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_SCRIPT;
 
+  // A page's own photo/gradient background is rendered as its own separate
+  // bounded, torn-edge block above the page's content (see the main render
+  // below) instead of filling the whole page — so every Slide component
+  // here always gets a forced plain-paper background instead of its real
+  // one, keeping every page's own text on a clean white background exactly
+  // like the rest of the page, rather than repeating the photo/color as a
+  // second, full-bleed layer behind it too.
   const renderSection = (key) => {
     const layout = data.layouts[lang]?.[key] || DEFAULT_LAYOUTS[key];
-    const bg = data.pageBackgrounds[key];
+    const bg = { mode: "paper" };
     const common = { editMode: false, selectedBlock: null, onSelectBlock: () => {}, onMoveBlock: () => {} };
     switch (key) {
       case "cover":
@@ -7097,36 +7104,46 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       dir={dir}
       style={{ maxWidth: 420, margin: "0 auto", background: PAPER, height: "100dvh", overflowY: "auto", scrollSnapType: "y mandatory" }}
     >
-      {steps.map((s, i) => {
+      {steps.map((s) => {
         const bg = data.pageBackgrounds[s.key];
-        const edgeColor = bg?.mode === "photo" ? (bg.backdropColor || INK) : PAPER;
+        const hasPhoto = hasActiveCustomImage(bg);
         // The "position text/image" custom blocks (Add text / Add image /
         // Elements in the Builder) are a separate overlay layer PhonePreview
         // renders on top of each page — not part of the Slide components
         // themselves — so they need the same treatment here, or they simply
-        // never appear in Scroll story at all.
+        // never appear in Scroll story at all. Forced light: false to match
+        // this page's own content now always sitting on a plain white
+        // background (see renderSection above) rather than whatever this
+        // page's real background actually is.
         const customBlocks = data.customBlocks[lang]?.[s.key] || [];
         const behind = customBlocks.filter((b) => b.behindContent);
         const front = customBlocks.filter((b) => !b.behindContent);
-        const light = bg?.mode === "photo";
         return (
-          <div key={s.key} className="relative overflow-hidden" style={{ height: "100dvh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
-            {behind.length > 0 && (
-              <div className="absolute inset-0">
-                {behind.map((block, index) => (
-                  <CustomTextBlock key={block.id} block={block} layerIndex={index} light={light} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
-                ))}
+          <div key={s.key} className="relative flex flex-col overflow-hidden" style={{ height: "100dvh", scrollSnapAlign: "start", scrollSnapStop: "always", background: PAPER }}>
+            {hasPhoto && (
+              <div className="relative w-full flex-shrink-0" style={{ height: "40%", overflow: "hidden" }}>
+                <img src={bg.image} alt="" className="h-full w-full object-cover" style={{ display: "block" }} />
+                <TornEdge color={PAPER} />
+                <TornEdge flip color={PAPER} />
               </div>
             )}
-            {renderSection(s.key)}
-            {front.length > 0 && (
-              <div className="absolute inset-0">
-                {front.map((block, index) => (
-                  <CustomTextBlock key={block.id} block={block} layerIndex={index} light={light} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
-                ))}
-              </div>
-            )}
-            {i > 0 && <TornEdge color={edgeColor} />}
+            <div className="relative flex-1">
+              {behind.length > 0 && (
+                <div className="absolute inset-0">
+                  {behind.map((block, index) => (
+                    <CustomTextBlock key={block.id} block={block} layerIndex={index} light={false} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
+                  ))}
+                </div>
+              )}
+              {renderSection(s.key)}
+              {front.length > 0 && (
+                <div className="absolute inset-0">
+                  {front.map((block, index) => (
+                    <CustomTextBlock key={block.id} block={block} layerIndex={index} light={false} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
