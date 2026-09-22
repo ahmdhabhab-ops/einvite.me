@@ -2472,6 +2472,13 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
   const isIcon = current.type === "icon";
+  // The DJ/Networking/Livestream "heading" block's title/subtitle color is
+  // already set above, in its own dedicated section — the generic Color
+  // swatch and Width/Glow controls below don't apply to it (its box isn't
+  // resizable and has no glow effect), so they're hidden here. Font, Size,
+  // Bold and Italic DO apply — see the DjRequestSlide/IntegrationSlide/
+  // LivestreamSlide heading style, which reads them.
+  const isFixedWidthHeading = (stepKey === "djRequests" || stepKey === "networking" || stepKey === "livestream") && blockId === "heading";
   // Safety net for the Horizontal/Vertical sliders' onMouseUp/onTouchEnd
   // below — a native range input's drag can end with the pointer released
   // outside the input itself (dragged off then let go), which doesn't
@@ -3092,6 +3099,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         </div>
       ) : (
         <>
+          {!isFixedWidthHeading && (
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between">
               <FieldLabel>Width (% of screen) — drag the box's corners on the phone works too</FieldLabel>
@@ -3103,6 +3111,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               className="w-full" style={{ accentColor: GOLD }}
             />
           </div>
+          )}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div>
@@ -3133,6 +3142,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             />
           </div>
 
+          {!isFixedWidthHeading && (
           <div className="mt-3 rounded-lg p-3" style={{ background: INK_2 }}>
             <div className="flex items-center justify-between">
               <FieldLabel>Glow</FieldLabel>
@@ -3166,18 +3176,23 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               </>
             )}
           </div>
+          )}
 
-          <div className="mt-3 flex items-center gap-3">
-            <FieldLabel>Color</FieldLabel>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="color" value={current.color || "#F4EDE4"} onChange={(e) => onChangeStyle({ color: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
-            {current.color && (
-              <button onClick={() => onChangeStyle({ color: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                Reset to default
-              </button>
-            )}
-          </div>
+          {!isFixedWidthHeading && (
+          <>
+            <div className="mt-3 flex items-center gap-3">
+              <FieldLabel>Color</FieldLabel>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="color" value={current.color || "#F4EDE4"} onChange={(e) => onChangeStyle({ color: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+              {current.color && (
+                <button onClick={() => onChangeStyle({ color: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                  Reset to default
+                </button>
+              )}
+            </div>
+          </>
+          )}
         </>
       )}
 
@@ -5841,7 +5856,7 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0 : 1 }}>
               <Icon size={26} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 10px" }} />
-              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+              <div style={{ fontFamily: hs.fontFamily || fontDisplay, fontStyle: hs.italic === false ? "normal" : "italic", fontWeight: hs.fontWeight || 600, fontSize: hs.fontSize ? `${hs.fontSize}px` : 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
               <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
               {isPaid && price && (
                 <span className="mt-2 inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: light ? "rgba(201,164,76,0.2)" : "rgba(36,70,61,0.15)", color: light ? GOLD_SOFT : EMERALD, fontFamily: FONT_BODY }}>
@@ -5916,7 +5931,7 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ width: 220, opacity: hs.hidden ? 0 : 1 }}>
               <Music2 size={26} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 10px" }} />
-              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+              <div style={{ fontFamily: hs.fontFamily || fontDisplay, fontStyle: hs.italic === false ? "normal" : "italic", fontWeight: hs.fontWeight || 600, fontSize: hs.fontSize ? `${hs.fontSize}px` : 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
               <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
             </div>
           </DraggableBlock>
@@ -5992,7 +6007,7 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
           <div className="relative flex h-full w-full flex-col">
             <div className="flex-shrink-0 px-4 pb-2 pt-8 text-center">
               <Video size={18} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 6px" }} />
-              <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+              <div style={{ fontFamily: hs.fontFamily || fontDisplay, fontStyle: hs.italic === false ? "normal" : "italic", fontWeight: hs.fontWeight || 600, fontSize: hs.fontSize ? `${hs.fontSize}px` : 15, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
               {subtitle && <p className="mt-1 text-[10.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.75)" : ROSE), fontFamily: FONT_BODY }}>{subtitle}</p>}
             </div>
             <div className="flex-1 px-3 pb-4">
@@ -6026,7 +6041,7 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
         {(light) => (
           <div className="relative flex h-full w-full flex-col items-center justify-center px-6 text-center">
             <Video size={26} color={hs.titleColor || (light ? GOLD_SOFT : EMERALD)} style={{ marginBottom: 10 }} />
-            <div className="font-semibold" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
+            <div style={{ fontFamily: hs.fontFamily || fontDisplay, fontStyle: hs.italic === false ? "normal" : "italic", fontWeight: hs.fontWeight || 600, fontSize: hs.fontSize ? `${hs.fontSize}px` : 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
             {subtitle && <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, maxWidth: 220 }}>{subtitle}</p>}
 
             {hiddenVideo === null ? (
