@@ -2720,19 +2720,20 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
       {stepKey === "rsvp" && blockId === "buttons" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
           <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-            Colors below apply to both RSVP styles (Settings → RSVP). Each row is that element's background and text color — on the "stacked" style, the Accept/Decline row colors the filled Attending button, and the Submit-button row colors the underlined Submit link.
+            Colors below apply to both RSVP styles (Settings → RSVP). Each row is that element's background and text color — on the "stacked" style, the Accept/Decline rows color the filled buttons, and the Submit-button row colors the underlined Submit link.
           </p>
           {[
-            { key: "option", label: "Accept & Decline buttons" },
-            { key: "submit", label: "Submit button" },
-            { key: "field", label: "Name field / guest count" },
-          ].map(({ key, label }) => (
+            { key: "yes", label: "Accept button", defaultColor: "#C9A44C" },
+            { key: "no", label: "Decline button", defaultColor: "#B76E6E" },
+            { key: "submit", label: "Submit button", defaultColor: "#24463D" },
+            { key: "field", label: "Name field / guest count", defaultColor: "#24463D" },
+          ].map(({ key, label, defaultColor }) => (
             <div key={key} className="mb-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <FieldLabel>{label} — background</FieldLabel>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={current[`${key}Bg`] || "#24463D"} onChange={(e) => onChangeStyle({ [`${key}Bg`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
+                    <input type="color" value={current[`${key}Bg`] || defaultColor} onChange={(e) => onChangeStyle({ [`${key}Bg`]: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
                     {current[`${key}Bg`] && (
                       <button onClick={() => onChangeStyle({ [`${key}Bg`]: null, [`${key}BgTransparency`]: null })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
                         Reset
@@ -5409,7 +5410,19 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // behind it (a "frosted glass" look) instead of only ever a flat color —
   // null while no color has been customized yet, so the untouched default
   // colors above are unaffected.
-  const optionBg = bs.optionBg ? hexToRgba(bs.optionBg, 1 - (bs.optionBgTransparency ?? 0) / 100) : null;
+  // Accept and Decline used to share one "optionBg"/"optionText" field —
+  // customizing it made both buttons the same color, losing the
+  // gold-vs-rose distinction they have by default. Now separate yesBg/noBg
+  // fields exist; an invitation that already set the old shared field keeps
+  // using it (as a shared fallback) until yes/no are set individually.
+  const yesBgColor = bs.yesBg || bs.optionBg;
+  const yesBgTransparency = (bs.yesBg ? bs.yesBgTransparency : bs.optionBgTransparency) ?? 0;
+  const yesBg = yesBgColor ? hexToRgba(yesBgColor, 1 - yesBgTransparency / 100) : null;
+  const yesText = bs.yesText || bs.optionText;
+  const noBgColor = bs.noBg || bs.optionBg;
+  const noBgTransparency = (bs.noBg ? bs.noBgTransparency : bs.optionBgTransparency) ?? 0;
+  const noBg = noBgColor ? hexToRgba(noBgColor, 1 - noBgTransparency / 100) : null;
+  const noText = bs.noText || bs.optionText;
   const submitBg = bs.submitBg ? hexToRgba(bs.submitBg, 1 - (bs.submitBgTransparency ?? 0) / 100) : null;
   const fieldBg = bs.fieldBg ? hexToRgba(bs.fieldBg, 1 - (bs.fieldBgTransparency ?? 0) / 100) : null;
   const [choice, setChoice] = useState(prefilledRsvpStatus || null);
@@ -5651,7 +5664,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                         isFull
                           ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
                           : (editMode || choice === "yes")
-                          ? { background: optionBg || (light ? GOLD : EMERALD), color: bs.optionText || (light ? INK : PAPER), fontFamily: FONT_BODY }
+                          ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), fontFamily: FONT_BODY }
                           : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
                       }
                     >
@@ -5660,7 +5673,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <button
                       onClick={() => setChoice("no")}
                       className="rounded-full py-2.5 text-[12px] font-semibold"
-                      style={(editMode || choice === "no") ? { background: optionBg || ROSE, color: bs.optionText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
+                      style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
                     >
                       {content.noLabel}
                     </button>
@@ -5684,9 +5697,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       disabled={isFull}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        background: yesBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
                         border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : bs.optionText || (light ? PAPER : EMERALD),
+                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : yesText || (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
                       }}
                     >
@@ -5699,9 +5712,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       onClick={() => setChoice("no")}
                       className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
                       style={{
-                        background: optionBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+                        background: noBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
                         border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: bs.optionText || (light ? PAPER : EMERALD),
+                        color: noText || (light ? PAPER : EMERALD),
                         fontFamily: FONT_BODY,
                       }}
                     >
