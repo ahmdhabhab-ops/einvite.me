@@ -7035,13 +7035,12 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 }
 
 // Alternate to PhonePreview's swipe-between-cards navigation: every enabled
-// page renders full-height and stacked in normal document flow, each one
-// `position: sticky` at its own top — the standard CSS-only trick for a
-// "pages pulling down to reveal the next" scroll effect, no JS scroll
-// tracking needed. A torn-paper edge (reusing TornEdge, the same shape
-// used for the individual-photo torn-edge style) sits at the top of every
-// section after the first, so each one visually tears open over whatever
-// was showing before it, rather than sliding over it with a hard edge.
+// page renders full-height in normal document flow, one below the next —
+// an ordinary scrolling page, not a swipeable card deck. A torn-paper edge
+// (reusing TornEdge, the same shape used for the individual-photo
+// torn-edge style) sits at the top of every section after the first, as a
+// purely decorative divider guests scroll past — the actual scrolling
+// itself is plain browser scroll, nothing pinned or sticky.
 // Reuses the exact same per-page Slide components as PhonePreview (Cover,
 // Timeline, Registry, Rsvp, ...) and the same already-saved content/layout
 // data — this is a different way of PRESENTING that data, not a separate
@@ -7094,7 +7093,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
         const bg = data.pageBackgrounds[s.key];
         const edgeColor = bg?.mode === "photo" ? (bg.backdropColor || INK) : PAPER;
         return (
-          <div key={s.key} className="relative overflow-hidden" style={{ position: "sticky", top: 0, height: "100dvh", zIndex: i + 1, boxShadow: i > 0 ? "0 -8px 24px rgba(0,0,0,0.18)" : "none" }}>
+          <div key={s.key} className="relative overflow-hidden" style={{ height: "100dvh" }}>
             {renderSection(s.key)}
             {i > 0 && <TornEdge color={edgeColor} />}
           </div>
