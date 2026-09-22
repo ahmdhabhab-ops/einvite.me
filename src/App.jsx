@@ -2472,13 +2472,17 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
   const isImage = current.type === "image" || current.type === "video";
   const isLine = current.type === "line";
   const isIcon = current.type === "icon";
-  // The DJ/Networking/Livestream "heading" block's title/subtitle color is
-  // already set above, in its own dedicated section — the generic Color
-  // swatch and Width/Glow controls below don't apply to it (its box isn't
-  // resizable and has no glow effect), so they're hidden here. Font, Size,
-  // Bold and Italic DO apply — see the DjRequestSlide/IntegrationSlide/
-  // LivestreamSlide heading style, which reads them.
-  const isFixedWidthHeading = (stepKey === "djRequests" || stepKey === "networking" || stepKey === "livestream") && blockId === "heading";
+  // The DJ/Networking/Livestream "heading" block's title/subtitle color, and
+  // the Registry "list" block's item title/button colors, are already set
+  // above, in their own dedicated sections — the generic Color swatch and
+  // Width/Glow controls below don't apply to either (neither box is
+  // resizable, and neither has a glow effect), so they're hidden here.
+  // Font, Size, Bold and Italic DO apply — see DjRequestSlide/
+  // IntegrationSlide/LivestreamSlide's heading style and RegistrySlide's
+  // item title style, which read them.
+  const isFixedWidthHeading =
+    ((stepKey === "djRequests" || stepKey === "networking" || stepKey === "livestream") && blockId === "heading") ||
+    (stepKey === "registry" && blockId === "list");
   // Safety net for the Horizontal/Vertical sliders' onMouseUp/onTouchEnd
   // below — a native range input's drag can end with the pointer released
   // outside the input itself (dragged off then let go), which doesn't
@@ -5831,7 +5835,7 @@ function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBloc
             <div className="flex flex-col gap-3" style={{ width: 220 }}>
               {items.map((item) => (
                 <div key={item.id} className="rounded-xl p-3 text-center" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
-                  <div className="font-medium" style={{ color: ls.titleColor || (light ? PAPER : EMERALD), fontFamily: fontDisplay, fontSize: 13 }}>{item.label}</div>
+                  <div style={{ color: ls.titleColor || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13, fontWeight: ls.fontWeight || 500, fontStyle: ls.italic ? "italic" : "normal" }}>{item.label}</div>
                   {item.url ? (
                     <a
                       href={item.url} target="_blank" rel="noreferrer"
