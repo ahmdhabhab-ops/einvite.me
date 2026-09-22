@@ -2693,6 +2693,12 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             <ColorPickerField label="Title color" value={current.titleColor} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ titleColor: v })} />
             <ColorPickerField label="Subtitle color" value={current.subtitleColor} defaultValue="#F4EDE4" onChange={(v) => onChangeStyle({ subtitleColor: v })} />
           </div>
+          {stepKey === "livestream" && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <ColorPickerField label="Price badge background" value={current.priceBg} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ priceBg: v })} />
+              <ColorPickerField label="Price badge text" value={current.priceText} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ priceText: v })} />
+            </div>
+          )}
           <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
             The heading text itself is edited from this page's own editor panel below.
           </p>
@@ -5899,7 +5905,7 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
               <div style={{ fontFamily: hs.fontFamily || fontDisplay, fontStyle: hs.italic === false ? "normal" : "italic", fontWeight: hs.fontWeight || 600, fontSize: hs.fontSize ? `${hs.fontSize}px` : 18, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
               <p className="mt-1.5 text-[11.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY, lineHeight: 1.5 }}>{subtitle}</p>
               {isPaid && price && (
-                <span className="mt-2 inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: light ? "rgba(201,164,76,0.2)" : "rgba(36,70,61,0.15)", color: light ? GOLD_SOFT : EMERALD, fontFamily: FONT_BODY }}>
+                <span className="mt-2 inline-flex rounded-full px-2.5 py-1 text-[10.5px] font-bold" style={{ background: hs.priceBg ? hexToRgba(hs.priceBg, 0.2) : (light ? "rgba(201,164,76,0.2)" : "rgba(36,70,61,0.15)"), color: hs.priceText || (light ? GOLD_SOFT : EMERALD), fontFamily: FONT_BODY }}>
                   {price} to watch
                 </span>
               )}
