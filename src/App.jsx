@@ -6469,23 +6469,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     setTimeout(() => (wheelLockRef.current = false), 550);
   };
 
-  // True fullscreen (no browser chrome at all — address bar, on-screen nav
-  // buttons, all of it) is the actual, complete fix for a real device's
-  // chrome eating into the space a full-width, Builder-proportioned card
-  // needs — Fullscreen API calls only ever succeed from within a real user
-  // gesture, and the tap-to-start gate is exactly that, so this is called
-  // right from its own tap handlers below. Best-effort: iOS Safari doesn't
-  // support requestFullscreen on iPhone at all (silently a no-op there —
-  // harmless, since iOS's own chrome takes up much less space to begin
-  // with), and any browser that blocks/denies it just keeps the CSS-only
-  // fallback (the calc(100dvh * 292/600) floor a few components up).
-  const enterFullscreen = () => {
-    if (!fullscreen || typeof document === "undefined") return;
-    const el = document.documentElement;
-    const request = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-    if (request) { try { request.call(el)?.catch?.(() => {}); } catch {} }
-  };
-
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
   const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
@@ -6724,25 +6707,19 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
         /* Always locked to the same 292:600 proportions the Builder's own
-           canvas uses — on a real device whose actual screen doesn't match
-           that ratio, the card letterboxes (INK bars) rather than
-           stretching to fill the real height. The card's content, AND the
-           swipe-hint/action-icon chrome positioned against the card's own
-           edges (not the scaled canvas), only ever line up consistently
-           with each other when both share the exact same box — a
-           real-device-height card, like before, made the two drift apart
-           by however far the real screen's ratio differed from 292:600,
-           which could put the swipe-hint on top of a page's own bottom text. */
-        /* Same 292:600 proportions as the Builder, full width up to 420px,
-           AND no scrolling needed to see all of it — all three together —
-           relies on the tiny scroll below (see the effect that calls
-           window.scrollTo) nudging the browser's own address bar to
-           auto-hide right on load, before this is first painted, so
-           100dvh is already the LARGEST it can be by the time this CSS
-           reads it: full width fits within that on all but the most
-           extreme devices. calc(100dvh * 292/600) is a last-resort floor
-           under min() for the rare case that trick doesn't take (still
-           shrinks by width rather than ever needing a scroll). */
+           canvas uses, so a page's own content and its swipe-hint/action-icon
+           chrome (positioned against the card's own edges, not the scaled
+           canvas within it) never drift apart the way they could when the
+           card stretched to fill a real device's own, differently-shaped
+           screen. Width is the smallest of the 420px cap, the available
+           space, or whatever width keeps the resulting height within
+           100dvh — so on a device whose visible height is too short for a
+           420px-wide card at this ratio (address bar + on-screen nav both
+           showing, mainly Android), the card shrinks and letterboxes
+           (INK bars) rather than needing a scroll to see its own top or
+           bottom. The scroll-nudge effect below still helps reclaim some
+           of that height first, where the browser responds to it — this
+           floor is what the card falls back to either way. */
         .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%, calc(100dvh * 292 / 600)); }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
@@ -6871,7 +6848,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 <button
                   onClick={() => {
                     if (gateClosing) return;
-                    enterFullscreen();
                     if (introMedia?.type === "video" && gateVideoRef.current) {
                       gateVideoRef.current.muted = true;
                       gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
@@ -6926,7 +6902,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   <button
                     onClick={() => {
                       if (gateClosing) return;
-                      enterFullscreen();
                       // A tap is a real user gesture, so play() here succeeds even in
                       // sandboxed/embedded contexts that silently block autoplay before
                       // any interaction — the gate stays paused until tap otherwise (see
@@ -7310,6 +7285,9 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
         />
       </div>
+      <p className="mt-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+        The design a guest sees always matches this preview's own proportions exactly. On a phone whose browser leaves less room than usual for the page (mainly some Android browsers, with both the address bar and on-screen navigation buttons showing), the invitation shows slightly smaller — with thin bars on either side — rather than stretching and breaking that match. This is automatic and expected, not a bug.
+      </p>
 
       <Divider />
 
