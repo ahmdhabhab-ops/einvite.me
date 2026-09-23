@@ -6367,6 +6367,25 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [fullscreen]);
 
   useEffect(() => {
+    if (!fullscreen || typeof document === "undefined") return;
+    // Letting the browser handle vertical scrolling natively (touchAction:
+    // "pan-y" on the canvas below) also hands it back its own overscroll
+    // gestures — most importantly pull-to-refresh, which a plain swipe down
+    // now triggers the instant a guest is scrolled to the very top of a
+    // page, silently reloading the whole invitation back to the tap-to-
+    // start gate. "contain" tells the browser not to treat an overscroll as
+    // a navigation gesture, without touching ordinary scrolling at all.
+    const prevHtml = document.documentElement.style.overscrollBehaviorY;
+    const prevBody = document.body.style.overscrollBehaviorY;
+    document.documentElement.style.overscrollBehaviorY = "contain";
+    document.body.style.overscrollBehaviorY = "contain";
+    return () => {
+      document.documentElement.style.overscrollBehaviorY = prevHtml;
+      document.body.style.overscrollBehaviorY = prevBody;
+    };
+  }, [fullscreen]);
+
+  useEffect(() => {
     if (!fullscreen || !wrapRef.current) return;
     // 292 is the fixed design width every layout/font size in this app was
     // built against. Scale is deliberately based on WIDTH ONLY — this is
