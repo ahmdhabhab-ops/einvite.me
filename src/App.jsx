@@ -6694,14 +6694,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
            real-device-height card, like before, made the two drift apart
            by however far the real screen's ratio differed from 292:600,
            which could put the swipe-hint on top of a page's own bottom text. */
-        /* width is the smallest of: the 420px cap, the available container
-           width, or whatever width would make the 292:600-ratio height
-           exactly fill the viewport — so on a device where 100dvh isn't
-           tall enough for a 420px-wide card (common on Android, where the
-           address bar and on-screen nav buttons both eat into the visible
-           height), the card shrinks by WIDTH instead of overflowing
-           vertically and needing a scroll to see its own top or bottom. */
-        .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%, calc(100dvh * 292 / 600)); }
+        /* Always full width (up to 420px) — matching the Builder's own
+           292:600 proportions exactly means the height this produces is
+           whatever it is; on a device whose visible height is unusually
+           short (address bar + on-screen nav both showing, mainly
+           Android), that can need a small scroll to reach the very
+           bottom of a page rather than shrinking the card's width to
+           avoid it — deliberately, since it's still the exact same
+           design the Builder shows, just possibly needing a scroll on
+           top of the swipe/tap navigation, rather than ever showing
+           empty space on either side of a narrower card. */
+        .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%); }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
