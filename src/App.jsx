@@ -4685,6 +4685,18 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
   const [editingText, setEditingText] = useState(false);
   const [draft, setDraft] = useState(block.text || "");
   const editRef = useRef(null);
+  // A "line"/"divider" block's length/height (below) is set as a raw pixel
+  // count, calibrated by eye in the Builder against a canvas that's always
+  // exactly 600 design-units tall — unlike every OTHER block here, it isn't
+  // a percentage of the canvas, so it never moved when the canvas's own
+  // design-space height started compressing/stretching on the real guest
+  // page (see CanvasHeightContext) to guarantee full width with zero
+  // scrolling. The result: a vertical line calibrated to reach exactly to
+  // some point on the page would overshoot past it on a device whose
+  // canvas ended up shorter than 600, or fall short on one where it ended
+  // up taller. Scaling by this ratio keeps a line's real proportion of the
+  // page the same as it is in the Builder, on every device.
+  const yStretch = useContext(CanvasHeightContext) / 600;
 
   useEffect(() => {
     if (!editingText || !editRef.current) return;
@@ -4898,7 +4910,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     return (
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} onScale={(s) => onMove({ scale: s })} label="Line" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
-        <div style={{ width: isVertical ? thickness : length, height: isVertical ? length : thickness, background: lineColor }} />
+        <div style={{ width: isVertical ? thickness : length, height: (isVertical ? length : thickness) * yStretch, background: lineColor }} />
       </DraggableBlock>
     );
   }
@@ -4909,7 +4921,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Divider" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         {isVertical ? (
-          <div style={{ width: 1, height: `${(block.width || 40) * 4}px`, background: `linear-gradient(to bottom, transparent, ${dividerColor}, transparent)` }} />
+          <div style={{ width: 1, height: `${(block.width || 40) * 4 * yStretch}px`, background: `linear-gradient(to bottom, transparent, ${dividerColor}, transparent)` }} />
         ) : (
           <div className="flex items-center gap-2" style={{ width: `${(block.width || 40) * 3}px` }}>
             <div style={{ flex: 1, height: 1, background: `linear-gradient(to right, transparent, ${dividerColor})` }} />
