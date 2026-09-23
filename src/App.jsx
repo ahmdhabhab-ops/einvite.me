@@ -4536,12 +4536,29 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
         boxSizing: "border-box",
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
-        touchAction: editMode ? "none" : "auto",
+        // "auto" here (outside edit mode) was handing each block back the
+        // browser's full default touch handling — pinch-zoom, double-tap-
+        // zoom, and everything else — on top of the fullscreen canvas's own
+        // "pan-y", instead of just the vertical panning a guest actually
+        // needs. Matching the canvas keeps every block consistent with it
+        // rather than quietly re-widening what touch can do per block.
+        touchAction: editMode ? "none" : "pan-y",
         outline: editMode && selected && !isTrulyEmpty && !isDraggingNow && !sliderDragging ? `2px solid ${GOLD}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
         padding: editMode ? 4 : 0,
-        userSelect: editMode && !isEditingText ? "none" : "auto",
+        // Was "editMode && !isEditingText ? none : auto" — which meant
+        // "auto" (normal, selectable) everywhere OUTSIDE the Builder's own
+        // edit mode, including the live guest page, where every block on
+        // every slide is one of these. That's what was still letting a
+        // guest's drag-to-swipe select the block's own text and pop up the
+        // phone's dictionary/copy menu even after the fullscreen canvas
+        // itself was set to userSelect: "none" — this inline style, being
+        // on the closer/more specific element, was overriding that. Only
+        // actively double-tap-editing (Builder-only; isEditingText can't be
+        // true without editMode, see startEditingText above) still needs
+        // selection at all.
+        userSelect: isEditingText ? "auto" : "none",
         zIndex: layerIndex !== undefined ? 30 + layerIndex : editMode ? (selected ? 31 : 30) : 1,
       }}
     >
