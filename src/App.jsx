@@ -1635,14 +1635,19 @@ function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
 }
 
 // readImageCompressed's maxDim/quality are a single guess — a busy, detailed
-// photo can still land well over 1MB even resized to 2400px at quality 0.92,
-// which is exactly what was making invitations slow to load. This wraps it
-// with a few extra passes that progressively cut quality (for JPEG) or
+// photo can still land well over the target size even resized to 2400px at
+// quality 0.92, which is exactly what was making invitations slow to load
+// (and, once photos are Storage URLs rather than inline data, slow to
+// actually display for a guest waiting on each one to download). This wraps
+// it with a few extra passes that progressively cut quality (for JPEG) or
 // dimensions (for PNG/WebP/GIF stills, which have no quality lever) until
-// the result is under the target size, so every upload gets capped
-// automatically instead of relying on whatever maxDim/quality a call site
-// happened to pass.
-async function compressToTarget(file, maxDim, quality, targetBytes = 1024 * 1024) {
+// the result is under the target size — 800KB by default, e.g. a typical
+// 5MB phone photo — so every upload gets capped automatically instead of
+// relying on whatever maxDim/quality a call site happened to pass. A call
+// site can still opt out of that default (a higher targetBytes, or skipping
+// this path) when a photo's own clarity matters more than hitting a small
+// target — see handleIntroMediaUpload's call to uploadImageToStorage below.
+async function compressToTarget(file, maxDim, quality, targetBytes = 800 * 1024) {
   const preserveTransparency = ["image/png", "image/webp", "image/gif"].includes(file.type);
   const byteSizeOf = (dataUrl) => Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75);
 
@@ -1678,7 +1683,7 @@ async function compressToTarget(file, maxDim, quality, targetBytes = 1024 * 1024
  * setup as the "template-images" bucket used for template designs
  * (Dashboard -> Storage -> create bucket -> toggle Public).
  */
-async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, quality = 0.82) {
+async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, quality = 0.82, targetBytes) {
   // readImageCompressed below draws the file onto a canvas to re-encode it,
   // which only captures a single frame — fine for a still photo, but it
   // silently flattens an animated GIF into a static picture. Upload the raw
@@ -1696,7 +1701,7 @@ async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, q
     }
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
-  const compressedDataUrl = await compressToTarget(file, maxDim, quality);
+  const compressedDataUrl = await compressToTarget(file, maxDim, quality, targetBytes);
   const blob = await (await fetch(compressedDataUrl)).blob(); // convert the compressed data URI back into a real Blob Storage can actually store
   const ext = blob.type === "image/png" ? "png" : "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
@@ -12703,7 +12708,16 @@ export default function InvitationBuilder() {
       // whether or not this field had actually changed, which is what was
       // making saves so slow. uploadImageToStorage already handles GIFs
       // (preserving their animation) the same way it handles any other image.
-      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
+      //
+      // This is the very first thing a guest sees (the tap-to-start gate's
+      // own background), full-bleed on their whole screen — the one photo in
+      // the app where losing sharpness is the most noticeable. So unlike an
+      // ordinary page background (capped to ~800KB), this only gets resized/
+      // re-encoded at all once a photo is already large (3MB+), and even
+      // then stays at the same 2400px/0.92 ceiling every other full-screen
+      // background photo in the app uses, rather than being squeezed down
+      // toward a small target size.
+      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations", 2400, 0.92, 3 * 1024 * 1024);
       // A GIF also gets a static poster frame uploaded alongside it — see
       // uploadGifPosterFrame — so the gate can show that instead of the
       // animated GIF before the tap.
