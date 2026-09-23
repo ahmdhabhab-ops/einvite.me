@@ -1635,14 +1635,19 @@ function readImageCompressed(file, maxDim = 2400, quality = 0.92) {
 }
 
 // readImageCompressed's maxDim/quality are a single guess — a busy, detailed
-// photo can still land well over 1MB even resized to 2400px at quality 0.92,
-// which is exactly what was making invitations slow to load. This wraps it
-// with a few extra passes that progressively cut quality (for JPEG) or
+// photo can still land well over the target size even resized to 2400px at
+// quality 0.92, which is exactly what was making invitations slow to load
+// (and, once photos are Storage URLs rather than inline data, slow to
+// actually display for a guest waiting on each one to download). This wraps
+// it with a few extra passes that progressively cut quality (for JPEG) or
 // dimensions (for PNG/WebP/GIF stills, which have no quality lever) until
-// the result is under the target size, so every upload gets capped
-// automatically instead of relying on whatever maxDim/quality a call site
-// happened to pass.
-async function compressToTarget(file, maxDim, quality, targetBytes = 1024 * 1024) {
+// the result is under the target size — 800KB by default, e.g. a typical
+// 5MB phone photo — so every upload gets capped automatically instead of
+// relying on whatever maxDim/quality a call site happened to pass. A call
+// site can still opt out of that default (a higher targetBytes, or skipping
+// this path) when a photo's own clarity matters more than hitting a small
+// target — see handleIntroMediaUpload's call to uploadImageToStorage below.
+async function compressToTarget(file, maxDim, quality, targetBytes = 800 * 1024) {
   const preserveTransparency = ["image/png", "image/webp", "image/gif"].includes(file.type);
   const byteSizeOf = (dataUrl) => Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75);
 
@@ -1678,7 +1683,7 @@ async function compressToTarget(file, maxDim, quality, targetBytes = 1024 * 1024
  * setup as the "template-images" bucket used for template designs
  * (Dashboard -> Storage -> create bucket -> toggle Public).
  */
-async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, quality = 0.82) {
+async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, quality = 0.82, targetBytes) {
   // readImageCompressed below draws the file onto a canvas to re-encode it,
   // which only captures a single frame — fine for a still photo, but it
   // silently flattens an animated GIF into a static picture. Upload the raw
@@ -1696,7 +1701,7 @@ async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, q
     }
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
-  const compressedDataUrl = await compressToTarget(file, maxDim, quality);
+  const compressedDataUrl = await compressToTarget(file, maxDim, quality, targetBytes);
   const blob = await (await fetch(compressedDataUrl)).blob(); // convert the compressed data URI back into a real Blob Storage can actually store
   const ext = blob.type === "image/png" ? "png" : "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
@@ -6394,6 +6399,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const audioRef = useRef(null);
   const gateVideoRef = useRef(null);
   const touchStartRef = useRef(null);
+  const scrollStartRef = useRef(0);
   const wheelLockRef = useRef(false);
 
   useEffect(() => setAnimKey((k) => k + 1), [activeIndex]);
@@ -6454,11 +6460,25 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   const isHorizontal = swipeDirection === "horizontal";
-  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
+  const onTouchStart = (e) => {
+    if (!layoutEditMode && started) {
+      touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY;
+      scrollStartRef.current = window.scrollY;
+    }
+  };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
     const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
+    // On a short viewport the fullscreen card can now be taller than the
+    // screen (see the card-height comment below), so the browser is left
+    // free to scroll it natively (touchAction: "pan-y" on the canvas). A
+    // gesture that actually moved that scroll position was the guest
+    // scrolling to see more of the current page, not a swipe to the next
+    // one — treating it as both at once was what made the page feel stuck/
+    // laggy (every scroll also fired a section change right as it ended).
+    const scrolledPage = !isHorizontal && Math.abs(window.scrollY - scrollStartRef.current) > 4;
     touchStartRef.current = null;
+    if (scrolledPage) return;
     if (delta < -40) goDir(1); else if (delta > 40) goDir(-1);
   };
   const onWheel = (e) => {
@@ -6733,7 +6753,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           className="relative overflow-hidden"
           style={
             fullscreen
-              ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
+              ? // "pan-y" (not "none") lets a real vertical drag scroll the page
+                // natively — needed now that the card's own real height can
+                // exceed the viewport (see the height comment below) and the
+                // browser is what has to move that scroll, not this component.
+                // onTouchStart/onTouchEnd still see every gesture either way
+                // (that only governs the BROWSER's own default handling), and
+                // ignore one that turned out to be a scroll — see the comment
+                // in onTouchEnd.
+                { touchAction: "pan-y", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
@@ -6963,11 +6991,21 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             dimensions instead of the fixed reference canvas. This is what
             keeps them always visible regardless of how a real device's
             aspect ratio compares to 292:600, without needing to compromise
-            on filling the full width. */}
+            on filling the full width.
+
+            In fullscreen they're pinned with `fixed`, not `absolute` — the
+            card's own real height can now exceed the viewport (a guest
+            scrolls to reach the rest of it, see the height comment below),
+            so `absolute` against the card would put them below the fold,
+            invisible until scrolled all the way down. `fixed` keeps them at
+            the visible screen's own bottom edge no matter how tall the card
+            is or how far into it the guest has scrolled. In the Builder
+            preview (non-fullscreen) the card always fits its own frame
+            exactly, so `absolute` there is unchanged. */}
         {started && (layoutEditMode ? (
           <>
             {activeIndex < steps.length - 1 && (
-              <div className="absolute bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+              <div className={`${fullscreen ? "fixed" : "absolute"} bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1`}>
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -6982,7 +7020,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
-              <button onClick={() => goDir(1)} className="absolute bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
+              <button onClick={() => goDir(1)} className={`${fullscreen ? "fixed" : "absolute"} bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1`}>
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -6995,7 +7033,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             )}
 
             {/* Bottom-right action icons — data-driven so more than the music toggle can be added here */}
-            <div className="absolute bottom-5 right-3 z-20 flex flex-col items-center gap-2">
+            <div className={`${fullscreen ? "fixed" : "absolute"} bottom-5 right-3 z-20 flex flex-col items-center gap-2`}>
               {bottomRightActions.map((action) => (
                 <button
                   key={action.key}
@@ -12670,7 +12708,16 @@ export default function InvitationBuilder() {
       // whether or not this field had actually changed, which is what was
       // making saves so slow. uploadImageToStorage already handles GIFs
       // (preserving their animation) the same way it handles any other image.
-      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
+      //
+      // This is the very first thing a guest sees (the tap-to-start gate's
+      // own background), full-bleed on their whole screen — the one photo in
+      // the app where losing sharpness is the most noticeable. So unlike an
+      // ordinary page background (capped to ~800KB), this only gets resized/
+      // re-encoded at all once a photo is already large (3MB+), and even
+      // then stays at the same 2400px/0.92 ceiling every other full-screen
+      // background photo in the app uses, rather than being squeezed down
+      // toward a small target size.
+      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations", 2400, 0.92, 3 * 1024 * 1024);
       // A GIF also gets a static poster frame uploaded alongside it — see
       // uploadGifPosterFrame — so the gate can show that instead of the
       // animated GIF before the tap.
