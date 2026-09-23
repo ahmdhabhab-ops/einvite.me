@@ -6774,6 +6774,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
       `}</style>
     <div ref={wrapRef} className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
+      {/* Temporary: ?debug=1 on a guest link shows the live scale numbers
+          this device actually computed, to verify the compression math
+          against a real report without guessing. Safe to remove once the
+          line-length investigation is settled. */}
+      {fullscreen && typeof window !== "undefined" && window.location.search.includes("debug=1") && (
+        <div className="fixed left-1 top-1 z-[999] rounded px-2 py-1 text-[10px]" style={{ background: "rgba(0,0,0,0.85)", color: "#0f0", fontFamily: "monospace", pointerEvents: "none" }}>
+          fsScale={fsScale.toFixed(3)} canvasDesignHeight={canvasDesignHeight.toFixed(1)} winW={typeof window !== "undefined" ? window.innerWidth : "?"} winH={typeof window !== "undefined" ? window.innerHeight : "?"}
+        </div>
+      )}
       <div
         ref={cardRef}
         className={fullscreen ? "relative" : "relative flex-shrink-0"}
