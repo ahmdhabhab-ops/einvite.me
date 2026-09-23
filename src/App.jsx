@@ -4536,13 +4536,7 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
         boxSizing: "border-box",
         maxWidth: noMaxWidth ? "none" : "88%",
         cursor: editMode ? (isEditingText ? "text" : "grab") : "default",
-        // "auto" here (outside edit mode) was handing each block back the
-        // browser's full default touch handling — pinch-zoom, double-tap-
-        // zoom, and everything else — on top of the fullscreen canvas's own
-        // "pan-y", instead of just the vertical panning a guest actually
-        // needs. Matching the canvas keeps every block consistent with it
-        // rather than quietly re-widening what touch can do per block.
-        touchAction: editMode ? "none" : "pan-y",
+        touchAction: editMode ? "none" : "auto",
         outline: editMode && selected && !isTrulyEmpty && !isDraggingNow && !sliderDragging ? `2px solid ${GOLD}` : "none",
         outlineOffset: 6,
         borderRadius: 10,
@@ -6384,46 +6378,37 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [fullscreen]);
 
   useEffect(() => {
-    if (!fullscreen || typeof document === "undefined") return;
-    // Letting the browser handle vertical scrolling natively (touchAction:
-    // "pan-y" on the canvas below) also hands it back its own overscroll
-    // gestures — most importantly pull-to-refresh, which a plain swipe down
-    // now triggers the instant a guest is scrolled to the very top of a
-    // page, silently reloading the whole invitation back to the tap-to-
-    // start gate. "contain" tells the browser not to treat an overscroll as
-    // a navigation gesture, without touching ordinary scrolling at all.
-    const prevHtml = document.documentElement.style.overscrollBehaviorY;
-    const prevBody = document.body.style.overscrollBehaviorY;
-    document.documentElement.style.overscrollBehaviorY = "contain";
-    document.body.style.overscrollBehaviorY = "contain";
-    return () => {
-      document.documentElement.style.overscrollBehaviorY = prevHtml;
-      document.body.style.overscrollBehaviorY = prevBody;
-    };
-  }, [fullscreen]);
-
-  useEffect(() => {
     if (!fullscreen || !wrapRef.current) return;
-    // 292 is the fixed design width every layout/font size in this app was
-    // built against. Scale is deliberately based on WIDTH ONLY — this is
-    // what keeps every page pixel-for-pixel identical to the Builder's own
-    // 292:600 reference design on any device: nothing about a real
-    // screen's actual height ever compresses, stretches, or repositions
-    // any content. The card's own real height is set from this same scale
-    // (600 * scale) rather than the device's viewport height — on a
-    // device where that's taller than what's actually visible, the page
-    // just scrolls a little to reach it, the same as any ordinary web
-    // page, rather than distorting the design to avoid that scroll.
+    // 292x600 is the fixed design size every layout/font size in this app
+    // was built against. The card is scaled UNIFORMLY (one factor for both
+    // width and height, never stretched on one axis only) by whichever of
+    // width-available/292 or height-available/600 is smaller — so it's
+    // always exactly Builder-proportioned, at the largest size that still
+    // fits the real screen with zero scrolling. On a device whose visible
+    // height (after browser chrome) is short relative to its width, that
+    // means the card ends up a little narrower than the full screen
+    // (letterboxed left/right) rather than needing a scroll to reach the
+    // rest of it — full width and zero scroll can't both hold on every
+    // device shape, and a guest ending up scrolling mid-invitation is the
+    // one of the two trade-offs actually chosen against here.
     //
     // Measured from the outer WRAPPER, not the card itself — the card's
-    // own height is set from this same measurement a moment later, and
+    // own size is set from this same measurement a moment later, and
     // observing an element while also resizing it from its own callback
-    // risks an observe/resize feedback loop (which reads as the page
-    // going janky/slow, or elements flickering in and out).  The wrapper
-    // is always exactly window width and never touched by this effect, so
-    // there's nothing for it to react to but a genuine viewport resize.
+    // risks an observe/resize feedback loop (which reads as the page going
+    // janky/slow, or elements flickering in and out). The wrapper is
+    // always exactly window width and 100dvh tall and never touched by
+    // this effect, so there's nothing for it to react to but a genuine
+    // viewport resize.
     const el = wrapRef.current;
-    const update = () => setFsScale(el.offsetWidth / 292);
+    const update = () => {
+      const widthScale = el.offsetWidth / 292;
+      const heightScale = el.offsetHeight / 600;
+      // Capped so a very tall/wide window (mainly desktop browsers, since
+      // real phones never get anywhere near this) doesn't blow the card up
+      // past the same ~420px-wide ceiling it always had.
+      setFsScale(Math.min(widthScale, heightScale, 420 / 292));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -6435,7 +6420,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const audioRef = useRef(null);
   const gateVideoRef = useRef(null);
   const touchStartRef = useRef(null);
-  const scrollStartRef = useRef(0);
   const wheelLockRef = useRef(false);
 
   useEffect(() => setAnimKey((k) => k + 1), [activeIndex]);
@@ -6496,25 +6480,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   const isHorizontal = swipeDirection === "horizontal";
-  const onTouchStart = (e) => {
-    if (!layoutEditMode && started) {
-      touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY;
-      scrollStartRef.current = window.scrollY;
-    }
-  };
+  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
     const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
-    // On a short viewport the fullscreen card can now be taller than the
-    // screen (see the card-height comment below), so the browser is left
-    // free to scroll it natively (touchAction: "pan-y" on the canvas). A
-    // gesture that actually moved that scroll position was the guest
-    // scrolling to see more of the current page, not a swipe to the next
-    // one — treating it as both at once was what made the page feel stuck/
-    // laggy (every scroll also fired a section change right as it ended).
-    const scrolledPage = !isHorizontal && Math.abs(window.scrollY - scrollStartRef.current) > 4;
     touchStartRef.current = null;
-    if (scrolledPage) return;
     if (delta < -40) goDir(1); else if (delta > 40) goDir(-1);
   };
   const onWheel = (e) => {
@@ -6763,24 +6733,14 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
-        /* Full width, up to the 420px cap — always the exact same design as
-           the Builder's own 292:600 canvas, pixel for pixel, since neither
-           the card nor the canvas is ever stretched, shrunk, or
-           recompressed to fit a real device's own height. The card's own
-           height is set directly from fsScale (600 * scale) below, not the
-           viewport — so on a device where that's taller than what's
-           currently visible, the page just scrolls a little to reach the
-           rest of it, exactly like an ordinary web page, rather than the
-           design compressing or letterboxing to avoid that scroll. */
-        .pv-fullscreen-card { width: min(420px, 100%); }
       `}</style>
     <div ref={wrapRef} className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
         ref={cardRef}
-        className={fullscreen ? "relative pv-fullscreen-card" : "relative flex-shrink-0"}
+        className={fullscreen ? "relative" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { height: fsScale * 600, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
+            ? { width: fsScale * 292, height: fsScale * 600, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
             : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden" }
         }
       >
@@ -6789,25 +6749,14 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           className="relative overflow-hidden"
           style={
             fullscreen
-              ? // "pan-y" (not "none") lets a real vertical drag scroll the page
-                // natively — needed now that the card's own real height can
-                // exceed the viewport (see the height comment below) and the
-                // browser is what has to move that scroll, not this component.
-                // onTouchStart/onTouchEnd still see every gesture either way
-                // (that only governs the BROWSER's own default handling), and
-                // ignore one that turned out to be a scroll — see the comment
-                // in onTouchEnd.
-                //
-                // touchAction: "none" used to block the browser's own
-                // touch-and-hold text selection too, as a side effect —
-                // switching to "pan-y" brought that back, so a guest
-                // dragging (rather than a quick tap) on any text can select
-                // it and pop up the phone's own dictionary/copy menu, right
-                // over the swipe-hint. userSelect: "none" (and the -webkit
-                // long-press callout it needs on iOS/Android) is what
-                // actually disabled selecting text, so restoring it directly
-                // here keeps that instead of relying on touchAction for it.
-                { touchAction: "pan-y", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
+              ? // userSelect: "none" (and the -webkit long-press-callout/
+                // selection properties Android and iOS each want) stops a
+                // guest's drag-to-swipe from selecting text and popping up
+                // the phone's own dictionary/copy menu instead of navigating
+                // — kept even though touchAction: "none" below also blocks
+                // that as a side effect, since it's what's actually doing
+                // the job and shouldn't depend on touchAction staying "none".
+                { touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
@@ -7034,24 +6983,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         {/* Swipe-up hint and bottom-right action icons live OUTSIDE the scaled
             292x600 canvas on purpose — they're UI chrome, not invitation
             content, so they're positioned against the card's own real
-            dimensions instead of the fixed reference canvas. This is what
-            keeps them always visible regardless of how a real device's
-            aspect ratio compares to 292:600, without needing to compromise
-            on filling the full width.
-
-            In fullscreen they're pinned with `fixed`, not `absolute` — the
-            card's own real height can now exceed the viewport (a guest
-            scrolls to reach the rest of it, see the height comment below),
-            so `absolute` against the card would put them below the fold,
-            invisible until scrolled all the way down. `fixed` keeps them at
-            the visible screen's own bottom edge no matter how tall the card
-            is or how far into it the guest has scrolled. In the Builder
-            preview (non-fullscreen) the card always fits its own frame
-            exactly, so `absolute` there is unchanged. */}
+            dimensions instead of the fixed reference canvas. This works
+            because the card is always scaled (uniformly, never stretched)
+            to fit fully within the visible viewport with room to spare — see
+            the fsScale effect above — so the card's own bottom edge is
+            always on-screen, never past a scrolled-off fold. */}
         {started && (layoutEditMode ? (
           <>
             {activeIndex < steps.length - 1 && (
-              <div className={`${fullscreen ? "fixed" : "absolute"} bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1`}>
+              <div className="absolute bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -7066,7 +7006,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
-              <button onClick={() => goDir(1)} className={`${fullscreen ? "fixed" : "absolute"} bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1`}>
+              <button onClick={() => goDir(1)} className="absolute bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -7079,7 +7019,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             )}
 
             {/* Bottom-right action icons — data-driven so more than the music toggle can be added here */}
-            <div className={`${fullscreen ? "fixed" : "absolute"} bottom-5 right-3 z-20 flex flex-col items-center gap-2`}>
+            <div className="absolute bottom-5 right-3 z-20 flex flex-col items-center gap-2">
               {bottomRightActions.map((action) => (
                 <button
                   key={action.key}
@@ -7366,7 +7306,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         />
       </div>
       <p className="mt-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
-        The design a guest sees always matches this preview's own proportions exactly, at full width, on every device. On a phone whose browser leaves less room than usual for the page (mainly some Android browsers, with both the address bar and on-screen navigation buttons showing), a guest may need to scroll a little further to reach the very bottom of a page, rather than the design ever compressing, stretching, or shrinking to avoid that. This is automatic and expected, not a bug.
+        The design a guest sees always matches this preview's own proportions exactly, at the largest size that fits their screen without ever needing to scroll. On a phone whose browser leaves less room than usual for the page (mainly some Android browsers, with both the address bar and on-screen navigation buttons showing), that can mean a little empty space on the sides rather than filling the full width — the design itself never compresses, stretches, or gets cut off to avoid that. This is automatic and expected, not a bug.
       </p>
 
       <Divider />
