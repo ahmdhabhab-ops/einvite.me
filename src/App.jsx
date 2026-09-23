@@ -6322,8 +6322,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
-  const [fsViewportHeight, setFsViewportHeight] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 700));
-  const [fsIsNarrow, setFsIsNarrow] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 420 : true));
 
   useEffect(() => {
     // Preloads every page's background photo as soon as the invitation
@@ -6339,25 +6337,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       }
     });
   }, [data.pageBackgrounds]);
-
-  useEffect(() => {
-    if (!fullscreen || typeof window === "undefined") return;
-    // window.visualViewport tracks the ACTUALLY-visible area on mobile as the
-    // browser's own address bar shrinks/grows — this is what makes the card's
-    // height reliable across different mobile browsers, regardless of
-    // whether a given browser supports the dvh CSS unit at all.
-    const update = () => {
-      setFsViewportHeight(window.visualViewport?.height || window.innerHeight);
-      setFsIsNarrow(window.innerWidth <= 420);
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("resize", update);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("resize", update);
-    };
-  }, [fullscreen]);
 
   useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
@@ -6705,10 +6684,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
+        /* Always locked to the same 292:600 proportions the Builder's own
+           canvas uses — on a real device whose actual screen doesn't match
+           that ratio, the card letterboxes (INK bars) rather than
+           stretching to fill the real height. The card's content, AND the
+           swipe-hint/action-icon chrome positioned against the card's own
+           edges (not the scaled canvas), only ever line up consistently
+           with each other when both share the exact same box — a
+           real-device-height card, like before, made the two drift apart
+           by however far the real screen's ratio differed from 292:600,
+           which could put the swipe-hint on top of a page's own bottom text. */
         .pv-fullscreen-card { max-width: 420px; aspect-ratio: 292 / 600; }
-        @media (max-width: 420px) {
-          .pv-fullscreen-card { max-width: 100%; aspect-ratio: unset; height: 100vh; height: 100svh; }
-        }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
@@ -6716,7 +6702,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden", ...(fsIsNarrow ? { height: "100svh" } : {}) }
+            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
             : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden" }
         }
       >
