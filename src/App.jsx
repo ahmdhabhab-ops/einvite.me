@@ -6322,7 +6322,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
-  const [fsCanvasHeight, setFsCanvasHeight] = useState(600);
 
   useEffect(() => {
     // Preloads every page's background photo as soon as the invitation
@@ -6365,23 +6364,31 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
     // 292 is the fixed design width every layout/font size in this app was
-    // built against — fsScale (font sizes, icon sizes, spacing) is always
-    // derived from WIDTH alone, so typography stays consistent with the
-    // Builder's own reference design regardless of device. But the card's
-    // real HEIGHT is now whatever the actual device gives it (full-bleed,
-    // no fixed 292:600 ratio forced on the card itself) — so the canvas's
-    // own design-space height is recomputed to match it exactly (real
-    // height ÷ fsScale), instead of a fixed 600. That's what makes content
-    // positioned by Y-percentage spread across the real available space
-    // rather than ever needing to shrink the card or scroll to see all of
-    // it — full width, always, on any device.
-    const update = () => {
-      const scale = el.offsetWidth / 292;
-      setFsScale(scale);
-      setFsCanvasHeight(el.offsetHeight / scale);
-    };
+    // built against. Scale is deliberately based on WIDTH ONLY, and only
+    // reacts to width changes — this is what keeps every page pixel-for-
+    // pixel identical to the Builder's own 292:600 reference design on any
+    // device: nothing about a real screen's actual height ever compresses,
+    // stretches, or repositions any content. The card's own real height is
+    // set from this same scale (600 * scale) rather than the device's
+    // viewport height — on a device where that's taller than what's
+    // actually visible, the page just scrolls a little to reach it, the
+    // same as any ordinary web page, rather than distorting the design to
+    // avoid that scroll.
+    const update = () => setFsScale(el.offsetWidth / 292);
     update();
-    const ro = new ResizeObserver(update);
+    const ro = new ResizeObserver((entries) => {
+      // Only recompute if the width actually changed — ResizeObserver also
+      // fires on height-only changes (which this component itself causes,
+      // by setting the card's height from fsScale below), which would
+      // otherwise loop.
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        if (w !== el.dataset.lastWidth) {
+          el.dataset.lastWidth = w;
+          update();
+        }
+      }
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
@@ -6704,18 +6711,16 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
-        /* Full width, full real height, always — no fixed aspect ratio
-           forced on the card itself, so it never letterboxes or needs a
-           scroll on any device. What used to keep this in sync with the
-           Builder's own 292:600 canvas was locking the CARD to that ratio;
-           now it's the canvas's own design-space HEIGHT that's recomputed
-           (see fsCanvasHeight) to exactly match whatever real height this
-           card actually has, so Y-percentage content always spreads across
-           the real available space instead of a fixed 600px reference —
-           and the swipe-hint/action-icon chrome positioned against the
-           card's own edges still always lines up with it, since the
-           canvas is made to exactly fill the card either way. */
-        .pv-fullscreen-card { width: min(420px, 100%); height: 100dvh; }
+        /* Full width, up to the 420px cap — always the exact same design as
+           the Builder's own 292:600 canvas, pixel for pixel, since neither
+           the card nor the canvas is ever stretched, shrunk, or
+           recompressed to fit a real device's own height. The card's own
+           height is set directly from fsScale (600 * scale) below, not the
+           viewport — so on a device where that's taller than what's
+           currently visible, the page just scrolls a little to reach the
+           rest of it, exactly like an ordinary web page, rather than the
+           design compressing or letterboxing to avoid that scroll. */
+        .pv-fullscreen-card { width: min(420px, 100%); }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
@@ -6723,7 +6728,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
+            ? { height: fsScale * 600, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
             : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden" }
         }
       >
@@ -6732,7 +6737,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           className="relative overflow-hidden"
           style={
             fullscreen
-              ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: fsCanvasHeight, transform: `translate(-50%, -50%) scale(${fsScale})` }
+              ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
@@ -7281,7 +7286,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         />
       </div>
       <p className="mt-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
-        The design a guest sees always matches this preview's own proportions exactly. On a phone whose browser leaves less room than usual for the page (mainly some Android browsers, with both the address bar and on-screen navigation buttons showing), the invitation shows slightly smaller — with thin bars on either side — rather than stretching and breaking that match. This is automatic and expected, not a bug.
+        The design a guest sees always matches this preview's own proportions exactly, at full width, on every device. On a phone whose browser leaves less room than usual for the page (mainly some Android browsers, with both the address bar and on-screen navigation buttons showing), a guest may need to scroll a little further to reach the very bottom of a page, rather than the design ever compressing, stretching, or shrinking to avoid that. This is automatic and expected, not a bug.
       </p>
 
       <Divider />
