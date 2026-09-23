@@ -6322,6 +6322,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
+  const [fsCanvasHeight, setFsCanvasHeight] = useState(600);
 
   useEffect(() => {
     // Preloads every page's background photo as soon as the invitation
@@ -6364,26 +6365,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
     // 292 is the fixed design width every layout/font size in this app was
-    // built against. Scale is deliberately based on WIDTH ONLY, and only
-    // reacts to width changes — a mobile browser's address bar showing or
-    // hiding changes the available HEIGHT, never the width, so tying scale
-    // to width alone guarantees it can never jump/reflow from that specific
-    // interaction. Any vertical mismatch between the 600px-tall design and
-    // the real device's height is handled by the container's overflow:hidden
-    // plus the content being centered, not by reacting to height here.
-    const update = () => setFsScale(el.offsetWidth / 292);
+    // built against — fsScale (font sizes, icon sizes, spacing) is always
+    // derived from WIDTH alone, so typography stays consistent with the
+    // Builder's own reference design regardless of device. But the card's
+    // real HEIGHT is now whatever the actual device gives it (full-bleed,
+    // no fixed 292:600 ratio forced on the card itself) — so the canvas's
+    // own design-space height is recomputed to match it exactly (real
+    // height ÷ fsScale), instead of a fixed 600. That's what makes content
+    // positioned by Y-percentage spread across the real available space
+    // rather than ever needing to shrink the card or scroll to see all of
+    // it — full width, always, on any device.
+    const update = () => {
+      const scale = el.offsetWidth / 292;
+      setFsScale(scale);
+      setFsCanvasHeight(el.offsetHeight / scale);
+    };
     update();
-    const ro = new ResizeObserver((entries) => {
-      // Only recompute if the width actually changed — ResizeObserver also
-      // fires on height-only changes, which is exactly what we're avoiding.
-      for (const entry of entries) {
-        const w = entry.contentRect.width;
-        if (w !== el.dataset.lastWidth) {
-          el.dataset.lastWidth = w;
-          update();
-        }
-      }
-    });
+    const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
@@ -6706,21 +6704,18 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes sealPulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
-        /* Always locked to the same 292:600 proportions the Builder's own
-           canvas uses, so a page's own content and its swipe-hint/action-icon
-           chrome (positioned against the card's own edges, not the scaled
-           canvas within it) never drift apart the way they could when the
-           card stretched to fill a real device's own, differently-shaped
-           screen. Width is the smallest of the 420px cap, the available
-           space, or whatever width keeps the resulting height within
-           100dvh — so on a device whose visible height is too short for a
-           420px-wide card at this ratio (address bar + on-screen nav both
-           showing, mainly Android), the card shrinks and letterboxes
-           (INK bars) rather than needing a scroll to see its own top or
-           bottom. The scroll-nudge effect below still helps reclaim some
-           of that height first, where the browser responds to it — this
-           floor is what the card falls back to either way. */
-        .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%, calc(100dvh * 292 / 600)); }
+        /* Full width, full real height, always — no fixed aspect ratio
+           forced on the card itself, so it never letterboxes or needs a
+           scroll on any device. What used to keep this in sync with the
+           Builder's own 292:600 canvas was locking the CARD to that ratio;
+           now it's the canvas's own design-space HEIGHT that's recomputed
+           (see fsCanvasHeight) to exactly match whatever real height this
+           card actually has, so Y-percentage content always spreads across
+           the real available space instead of a fixed 600px reference —
+           and the swipe-hint/action-icon chrome positioned against the
+           card's own edges still always lines up with it, since the
+           canvas is made to exactly fill the card either way. */
+        .pv-fullscreen-card { width: min(420px, 100%); height: 100dvh; }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
@@ -6737,7 +6732,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           className="relative overflow-hidden"
           style={
             fullscreen
-              ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
+              ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: fsCanvasHeight, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
