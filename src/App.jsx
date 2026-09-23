@@ -4840,8 +4840,17 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         </>
       );
     }
+    // widthPercent scaled by yStretch: an image's own rendered HEIGHT here
+    // comes from its intrinsic aspect ratio against this WIDTH (an X-axis
+    // percentage, never touched by the canvas's Y-axis compression/
+    // stretch) via object-fit: contain — not from maxHeightPercent below,
+    // which only ever kicks in if that aspect-ratio height would exceed
+    // it, and is itself already a correctly-scaling Y-axis percentage.
+    // Without this, an image's real footprint on the page grew relative to
+    // everything else (Y-percentage-positioned text especially) exactly
+    // the way a line's fixed pixel length did — see CanvasHeightContext.
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 40} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom image" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={(block.width || 40) * yStretch} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         {!editMode && normalizedLinkUrl ? (
           <a href={normalizedLinkUrl} target="_blank" rel="noreferrer">{img}</a>
@@ -4877,8 +4886,9 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         </>
       );
     }
+    // Same yStretch correction as the image block above, and for the same reason.
     return (
-      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={block.width || 55} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
+      <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y }} editMode={editMode} onMove={onMove} label="Custom video" light={light} selected={selected} onSelect={onSelect} noMaxWidth widthPercent={(block.width || 55) * yStretch} maxHeightPercent={PHONE_IMAGE_MAX_HEIGHT_PCT} layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
         <video
           src={block.url}
@@ -4897,7 +4907,8 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     return (
       <DraggableBlock id={block.id} pos={{ x: block.x, y: block.y, scale: block.scale }} editMode={editMode} onMove={onMove} onScale={(scale) => onMove({ scale })} label="Icon" light={light} selected={selected} onSelect={onSelect} noMaxWidth layerIndex={layerIndex} onDragStateChange={setIsDragging}>
         {toolbar}
-        <Icon size={block.iconSize || 32} color={block.color || (light ? PAPER : EMERALD)} />
+        {/* Same reasoning as the line/image blocks — a raw pixel size, so it needs the same yStretch correction. */}
+        <Icon size={(block.iconSize || 32) * yStretch} color={block.color || (light ? PAPER : EMERALD)} />
       </DraggableBlock>
     );
   }
