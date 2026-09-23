@@ -6780,7 +6780,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 // (that only governs the BROWSER's own default handling), and
                 // ignore one that turned out to be a scroll — see the comment
                 // in onTouchEnd.
-                { touchAction: "pan-y", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
+                //
+                // touchAction: "none" used to block the browser's own
+                // touch-and-hold text selection too, as a side effect —
+                // switching to "pan-y" brought that back, so a guest
+                // dragging (rather than a quick tap) on any text can select
+                // it and pop up the phone's own dictionary/copy menu, right
+                // over the swipe-hint. userSelect: "none" (and the -webkit
+                // long-press callout it needs on iOS/Android) is what
+                // actually disabled selecting text, so restoring it directly
+                // here keeps that instead of relying on touchAction for it.
+                { touchAction: "pan-y", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
