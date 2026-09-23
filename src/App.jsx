@@ -6394,6 +6394,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const audioRef = useRef(null);
   const gateVideoRef = useRef(null);
   const touchStartRef = useRef(null);
+  const scrollStartRef = useRef(0);
   const wheelLockRef = useRef(false);
 
   useEffect(() => setAnimKey((k) => k + 1), [activeIndex]);
@@ -6454,11 +6455,25 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   const isHorizontal = swipeDirection === "horizontal";
-  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
+  const onTouchStart = (e) => {
+    if (!layoutEditMode && started) {
+      touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY;
+      scrollStartRef.current = window.scrollY;
+    }
+  };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
     const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
+    // On a short viewport the fullscreen card can now be taller than the
+    // screen (see the card-height comment below), so the browser is left
+    // free to scroll it natively (touchAction: "pan-y" on the canvas). A
+    // gesture that actually moved that scroll position was the guest
+    // scrolling to see more of the current page, not a swipe to the next
+    // one — treating it as both at once was what made the page feel stuck/
+    // laggy (every scroll also fired a section change right as it ended).
+    const scrolledPage = !isHorizontal && Math.abs(window.scrollY - scrollStartRef.current) > 4;
     touchStartRef.current = null;
+    if (scrolledPage) return;
     if (delta < -40) goDir(1); else if (delta > 40) goDir(-1);
   };
   const onWheel = (e) => {
@@ -6733,7 +6748,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           className="relative overflow-hidden"
           style={
             fullscreen
-              ? { touchAction: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
+              ? // "pan-y" (not "none") lets a real vertical drag scroll the page
+                // natively — needed now that the card's own real height can
+                // exceed the viewport (see the height comment below) and the
+                // browser is what has to move that scroll, not this component.
+                // onTouchStart/onTouchEnd still see every gesture either way
+                // (that only governs the BROWSER's own default handling), and
+                // ignore one that turned out to be a scroll — see the comment
+                // in onTouchEnd.
+                { touchAction: "pan-y", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
@@ -6963,11 +6986,21 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             dimensions instead of the fixed reference canvas. This is what
             keeps them always visible regardless of how a real device's
             aspect ratio compares to 292:600, without needing to compromise
-            on filling the full width. */}
+            on filling the full width.
+
+            In fullscreen they're pinned with `fixed`, not `absolute` — the
+            card's own real height can now exceed the viewport (a guest
+            scrolls to reach the rest of it, see the height comment below),
+            so `absolute` against the card would put them below the fold,
+            invisible until scrolled all the way down. `fixed` keeps them at
+            the visible screen's own bottom edge no matter how tall the card
+            is or how far into it the guest has scrolled. In the Builder
+            preview (non-fullscreen) the card always fits its own frame
+            exactly, so `absolute` there is unchanged. */}
         {started && (layoutEditMode ? (
           <>
             {activeIndex < steps.length - 1 && (
-              <div className="absolute bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+              <div className={`${fullscreen ? "fixed" : "absolute"} bottom-7 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1`}>
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -6982,7 +7015,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         ) : (
           <>
             {activeIndex < steps.length - 1 && (
-              <button onClick={() => goDir(1)} className="absolute bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1">
+              <button onClick={() => goDir(1)} className={`${fullscreen ? "fixed" : "absolute"} bottom-7 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-1`}>
                 {isHorizontal ? (
                   <ChevronsLeft size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceLeft 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 ) : (
@@ -6995,7 +7028,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             )}
 
             {/* Bottom-right action icons — data-driven so more than the music toggle can be added here */}
-            <div className="absolute bottom-5 right-3 z-20 flex flex-col items-center gap-2">
+            <div className={`${fullscreen ? "fixed" : "absolute"} bottom-5 right-3 z-20 flex flex-col items-center gap-2`}>
               {bottomRightActions.map((action) => (
                 <button
                   key={action.key}
