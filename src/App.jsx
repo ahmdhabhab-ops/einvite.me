@@ -6469,6 +6469,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     setTimeout(() => (wheelLockRef.current = false), 550);
   };
 
+  // True fullscreen (no browser chrome at all — address bar, on-screen nav
+  // buttons, all of it) is the actual, complete fix for a real device's
+  // chrome eating into the space a full-width, Builder-proportioned card
+  // needs — Fullscreen API calls only ever succeed from within a real user
+  // gesture, and the tap-to-start gate is exactly that, so this is called
+  // right from its own tap handlers below. Best-effort: iOS Safari doesn't
+  // support requestFullscreen on iPhone at all (silently a no-op there —
+  // harmless, since iOS's own chrome takes up much less space to begin
+  // with), and any browser that blocks/denies it just keeps the CSS-only
+  // fallback (the calc(100dvh * 292/600) floor a few components up).
+  const enterFullscreen = () => {
+    if (!fullscreen || typeof document === "undefined") return;
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (request) { try { request.call(el)?.catch?.(() => {}); } catch {} }
+  };
+
   const layout = data.layouts[lang]?.[stepKey];
   const moveBlock = (blockId, pos) => onMoveBlock(stepKey, blockId, pos);
   const customBlocks = data.customBlocks[lang]?.[stepKey] || [];
@@ -6854,6 +6871,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 <button
                   onClick={() => {
                     if (gateClosing) return;
+                    enterFullscreen();
                     if (introMedia?.type === "video" && gateVideoRef.current) {
                       gateVideoRef.current.muted = true;
                       gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
@@ -6908,6 +6926,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   <button
                     onClick={() => {
                       if (gateClosing) return;
+                      enterFullscreen();
                       // A tap is a real user gesture, so play() here succeeds even in
                       // sandboxed/embedded contexts that silently block autoplay before
                       // any interaction — the gate stays paused until tap otherwise (see
