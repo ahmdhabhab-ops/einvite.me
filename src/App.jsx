@@ -11505,6 +11505,16 @@ export default function InvitationBuilder() {
   const [actingAsUser, setActingAsUser] = useState(null);
   const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
   const [coreDataLoaded, setCoreDataLoaded] = useState(false);
+  // Separate from coreDataLoaded, which the 12s fallback below can also set
+  // to true while the real fetch is still hung — this only flips once the
+  // actual load attempt has genuinely finished (fetched real data, or
+  // legitimately found none and fell back to fresh defaults). saveDraft
+  // refuses to write until this is true, specifically so a slow/failed
+  // initial load can never result in still-default (blank) content
+  // silently overwriting whatever's actually saved on the server — which is
+  // exactly what happened when a save fired after the 12s timeout forced
+  // the Builder open before the real fetch had come back.
+  const coreLoadCompletedRef = useRef(false);
   // Separate from coreDataLoaded — every step's page background loads
   // through its own independent, un-awaited fetch (see the loadBg chain
   // below), specifically so the Cover page's background isn't stuck racing
@@ -11566,7 +11576,11 @@ export default function InvitationBuilder() {
     // stays false forever. Without this, login would be permanently
     // stuck showing "still loading" with no way out, exactly as reported.
     // This one genuinely does need to be a fixed, independent timer —
-    // it's the one thing that has no other signal to wait on.
+    // it's the one thing that has no other signal to wait on. Note this
+    // deliberately does NOT set coreLoadCompletedRef — this is the UI
+    // giving up on WAITING for the real load, not the real load actually
+    // finishing, and saveDraft needs to be able to tell those apart (see
+    // coreLoadCompletedRef's own comment above).
     const timeout = setTimeout(() => setCoreDataLoaded(true), 12000);
     return () => clearTimeout(timeout);
   }, []);
@@ -11640,6 +11654,12 @@ export default function InvitationBuilder() {
   // saving the outgoing one first so nothing is lost, then loading (or
   // freshly creating) the incoming one.
   const switchActiveInvitation = async (nextId) => {
+    // Same protection as saveDraft — switching away from a client before
+    // the initial load has genuinely finished would persist THIS client's
+    // still-blank/default state as "outgoing", permanently overwriting
+    // whatever's really saved for them. Switching between clients only
+    // makes sense once the real data is in anyway, so this just waits.
+    if (!coreLoadCompletedRef.current) return;
     const outgoing = getActiveSnapshot();
     const incoming = invitationsStore[nextId] || freshInvitationSnapshot();
     setInvitationsStore((store) => ({ ...store, [activeInvitationId]: outgoing, [nextId]: incoming }));
@@ -11787,7 +11807,7 @@ export default function InvitationBuilder() {
   // blob: URLs that only live for the current browser tab, so they can't be restored
   // here — re-upload after loading a draft. Images are saved as data URLs and do restore.
   useEffect(() => {
-    if (!persistentStorage.available()) { setCoreDataLoaded(true); setBackgroundsLoaded(true); return; } // no storage backend at all in this environment — nothing to wait for
+    if (!persistentStorage.available()) { coreLoadCompletedRef.current = true; setCoreDataLoaded(true); setBackgroundsLoaded(true); return; } // no storage backend at all in this environment — nothing to wait for
     let cancelled = false;
     (async () => {
       try {
@@ -11912,7 +11932,7 @@ export default function InvitationBuilder() {
       } catch {
         // No saved draft yet — start fresh with the defaults.
       } finally {
-        if (!cancelled) setCoreDataLoaded(true);
+        if (!cancelled) { coreLoadCompletedRef.current = true; setCoreDataLoaded(true); }
       }
     })();
     // The Cover page's background is the one thing a guest actually needs
@@ -11972,6 +11992,20 @@ export default function InvitationBuilder() {
     if (!persistentStorage.available()) {
       setSaveStatus("unavailable");
       setTimeout(() => setSaveStatus("idle"), 4000);
+      return;
+    }
+    // THE ACTUAL FIX for real content getting wiped: if the initial load
+    // (DRAFT_KEY + this invitation's own saved snapshot) never actually
+    // finished — a slow/hung request that the 12s fallback timeout gave up
+    // waiting on, letting the Builder open anyway so login/editing isn't
+    // stuck forever — every field below is still sitting at its blank
+    // useState default. Saving at that point overwrites whatever's really
+    // saved on the server with those blanks, permanently. Refusing to save
+    // until the load has genuinely completed is what actually prevents
+    // that; the fallback timeout still keeps the Builder itself usable.
+    if (!coreLoadCompletedRef.current) {
+      setSaveStatus("notLoaded");
+      setTimeout(() => setSaveStatus("idle"), 5000);
       return;
     }
     setSaveStatus("saving");
@@ -12402,7 +12436,8 @@ export default function InvitationBuilder() {
   const saveGuestGroupsDebounced = (newList) => {
     if (guestGroupsSaveTimeout.current) clearTimeout(guestGroupsSaveTimeout.current);
     guestGroupsSaveTimeout.current = setTimeout(async () => {
-      if (!persistentStorage.available()) return;
+      // Same guard as saveDraft — see its own comment.
+      if (!persistentStorage.available() || !coreLoadCompletedRef.current) return;
       try {
         const snapshot = { ...getActiveSnapshot(), guestGroups: newList };
         const ok = await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
@@ -12422,7 +12457,12 @@ export default function InvitationBuilder() {
     // reflect this update — the setGuestGroups call above hasn't committed
     // at this point in execution (React state updates aren't synchronous)
     // — so newGuestGroups is used explicitly instead.
-    if (persistentStorage.available()) {
+    //
+    // Same guard as saveDraft: getActiveSnapshot() pulls every OTHER field
+    // (content, customBlocks, ...) from local state too, which is still
+    // blank if the initial load hasn't genuinely finished — writing that
+    // here would wipe them exactly the same way an early save would.
+    if (persistentStorage.available() && coreLoadCompletedRef.current) {
       try {
         const snapshot = { ...getActiveSnapshot(), guestGroups: newGuestGroups };
         const ok = await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
@@ -12499,7 +12539,8 @@ export default function InvitationBuilder() {
       const updatedGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
       const newList = guestGroups.map((g) => (g.id === existing.id ? updatedGroup : g));
       setGuestGroups(newList);
-      if (persistentStorage.available()) {
+      // Same guard as saveDraft — see its own comment.
+      if (persistentStorage.available() && coreLoadCompletedRef.current) {
         try {
           const snapshot = { ...getActiveSnapshot(), guestGroups: newList };
           await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
@@ -13346,6 +13387,7 @@ export default function InvitationBuilder() {
             {saveStatus === "error" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
             {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
             {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
+            {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
             <GoldButton onClick={saveDraft}>
               <Check size={14} /> {saveStatus === "saving" ? "Saving…" : "Save invitation"}
             </GoldButton>
@@ -13743,6 +13785,7 @@ export default function InvitationBuilder() {
                   {saveStatus === "error" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
                   {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
                   {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
+                  {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
                   {activeIndex < steps.length - 1 ? (
                     <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
                   ) : (
