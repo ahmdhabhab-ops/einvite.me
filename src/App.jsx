@@ -4166,6 +4166,15 @@ const SliderDragContext = createContext(false);
 // prop through every one of them individually.
 const TornEdgesContext = createContext(false);
 
+// The canvas's current design-space height — 600 (its fixed original) in
+// the Builder always, but can compress or stretch off of that on the real
+// guest page so the card can be both full-width AND never need scrolling on
+// every device shape (see the fsScale effect in PhonePreview). Read by
+// DraggableBlock's safeY below to keep a block's own clamp against the
+// swipe-hint's real, fixed-pixel footprint accurate even when this isn't
+// 600 — provided only around the canvas itself, same as BlockPositionsContext.
+const CanvasHeightContext = createContext(600);
+
 function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
@@ -4501,8 +4510,15 @@ function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, edi
   // Clamped here (not just during dragging) so an already-saved position from
   // before this safe zone existed is corrected automatically the moment it's
   // displayed — this is what actually fixes old saved data, not just future
-  // drags. 88 keeps any block clear of the swipe-up hint's zone at the bottom.
-  const safeY = Math.min(pos.y, 88);
+  // drags. Reserves the bottom 72 design-units (12% of the original 600 —
+  // where 88 below came from) for the swipe-hint's own real, fixed-pixel
+  // footprint. That footprint's SIZE relative to the canvas changes when the
+  // canvas's own design-space height isn't 600 (see CanvasHeightContext) —
+  // shrink the canvas and the same real pixels are a bigger slice of it —
+  // so the cutoff is rederived from the current height rather than hardcoded,
+  // to keep clearing the hint by the same real amount either way.
+  const canvasDesignHeight = useContext(CanvasHeightContext);
+  const safeY = Math.min(pos.y, 100 - 7200 / canvasDesignHeight);
   // Stale `scale` from before a block switched to width-based resizing (or
   // simply never had onScale wired up) should never apply — only read it
   // when this block is actually in scale mode.
@@ -6339,6 +6355,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
+  // Design-space height of the canvas in fullscreen — normally exactly 600
+  // (matching the Builder always, no width limit involved), but see the
+  // fsScale effect below for when and why it moves off of that.
+  const [canvasDesignHeight, setCanvasDesignHeight] = useState(600);
 
   useEffect(() => {
     // Preloads every page's background photo as soon as the invitation
@@ -6379,35 +6399,42 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   useEffect(() => {
     if (!fullscreen || !wrapRef.current) return;
-    // 292x600 is the fixed design size every layout/font size in this app
-    // was built against. The card is scaled UNIFORMLY (one factor for both
-    // width and height, never stretched on one axis only) by whichever of
-    // width-available/292 or height-available/600 is smaller — so it's
-    // always exactly Builder-proportioned, at the largest size that still
-    // fits the real screen with zero scrolling. On a device whose visible
-    // height (after browser chrome) is short relative to its width, that
-    // means the card ends up a little narrower than the full screen
-    // (letterboxed left/right) rather than needing a scroll to reach the
-    // rest of it — full width and zero scroll can't both hold on every
-    // device shape, and a guest ending up scrolling mid-invitation is the
-    // one of the two trade-offs actually chosen against here.
+    // Full width AND zero scrolling on EVERY device shape, without ever
+    // stretching one axis relative to the other, isn't geometrically
+    // possible — a device whose visible height (after browser chrome) is
+    // short relative to its width simply doesn't have room for a
+    // Builder-proportioned card at full width. Letterboxing (narrower than
+    // full width) and scrolling (taller than the screen) were both tried
+    // and explicitly ruled out in favor of always filling the width, so
+    // this is the one option left: fsScale (WIDTH ONLY, as always — this is
+    // what keeps typography/icon sizing identical to the Builder no matter
+    // what) sets the card's real width and font sizes exactly as before,
+    // and canvasDesignHeight is what actually absorbs the mismatch — the
+    // canvas's own 0-600 design-unit Y-axis is compressed (short device) or
+    // stretched (tall device) so that canvasDesignHeight * fsScale always
+    // lands exactly on the real available height. A page's content is laid
+    // out in Y-PERCENTAGES of that axis, so this shifts the whole page's
+    // vertical density slightly rather than clipping or overlapping
+    // anything on its own — see DraggableBlock's safeY for the one place
+    // that still needs to know the real compression ratio, to keep content
+    // clear of the swipe-hint's own fixed-pixel footprint at the bottom.
     //
-    // Measured from the outer WRAPPER, not the card itself — the card's
-    // own size is set from this same measurement a moment later, and
-    // observing an element while also resizing it from its own callback
-    // risks an observe/resize feedback loop (which reads as the page going
-    // janky/slow, or elements flickering in and out). The wrapper is
-    // always exactly window width and 100dvh tall and never touched by
-    // this effect, so there's nothing for it to react to but a genuine
-    // viewport resize.
+    // Measured from the outer WRAPPER, not the card itself — the card's own
+    // size is set from this same measurement a moment later, and observing
+    // an element while also resizing it from its own callback risks an
+    // observe/resize feedback loop (which reads as the page going janky/
+    // slow, or elements flickering in and out). The wrapper is always
+    // exactly window width and 100dvh tall and never touched by this
+    // effect, so there's nothing for it to react to but a genuine viewport
+    // resize.
     const el = wrapRef.current;
     const update = () => {
-      const widthScale = el.offsetWidth / 292;
-      const heightScale = el.offsetHeight / 600;
       // Capped so a very tall/wide window (mainly desktop browsers, since
       // real phones never get anywhere near this) doesn't blow the card up
       // past the same ~420px-wide ceiling it always had.
-      setFsScale(Math.min(widthScale, heightScale, 420 / 292));
+      const scale = Math.min(el.offsetWidth / 292, 420 / 292);
+      setFsScale(scale);
+      setCanvasDesignHeight(el.offsetHeight / scale);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -6740,7 +6767,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { width: fsScale * 292, height: fsScale * 600, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
+            ? { width: fsScale * 292, height: fsScale * canvasDesignHeight, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
             : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden" }
         }
       >
@@ -6756,7 +6783,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 // — kept even though touchAction: "none" below also blocks
                 // that as a side effect, since it's what's actually doing
                 // the job and shouldn't depend on touchAction staying "none".
-                { touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: 600, transform: `translate(-50%, -50%) scale(${fsScale})` }
+                { touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: canvasDesignHeight, transform: `translate(-50%, -50%) scale(${fsScale})` }
               : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
@@ -6776,6 +6803,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           )}
 
           <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+            <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
             <SliderDragContext.Provider value={sliderDragging}>
             <BlockPositionsContext.Provider value={blockPositionsRef}>
             {started && behindCustomBlocks.length > 0 && (
@@ -6817,6 +6845,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             )}
             </BlockPositionsContext.Provider>
             </SliderDragContext.Provider>
+            </CanvasHeightContext.Provider>
             {marquee && (
               <div
                 className="pointer-events-none absolute"
