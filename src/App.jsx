@@ -6339,6 +6339,28 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [data.pageBackgrounds]);
 
   useEffect(() => {
+    if (!fullscreen || typeof window === "undefined") return;
+    // Nudges a mobile browser's own address bar to collapse right away,
+    // before the card below first measures 100dvh — a real device's
+    // address bar (and, on Android, its on-screen nav buttons) can eat
+    // enough of the visible height that a full-width, Builder-proportioned
+    // card doesn't fit without this, needing a shrink or a scroll instead.
+    // A tiny, immediately-reversed scroll is the standard way to trigger
+    // that collapse without actually moving the page — most mobile
+    // browsers auto-hide their chrome on a real scroll gesture, and this
+    // one is imperceptible.
+    const nudge = () => {
+      if (document.documentElement.scrollHeight > window.innerHeight) {
+        window.scrollTo(0, 1);
+        window.scrollTo(0, 0);
+      }
+    };
+    nudge();
+    window.addEventListener("load", nudge);
+    return () => window.removeEventListener("load", nudge);
+  }, [fullscreen]);
+
+  useEffect(() => {
     if (!fullscreen || !cardRef.current) return;
     const el = cardRef.current;
     // 292 is the fixed design width every layout/font size in this app was
@@ -6694,17 +6716,17 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
            real-device-height card, like before, made the two drift apart
            by however far the real screen's ratio differed from 292:600,
            which could put the swipe-hint on top of a page's own bottom text. */
-        /* Always full width (up to 420px) — matching the Builder's own
-           292:600 proportions exactly means the height this produces is
-           whatever it is; on a device whose visible height is unusually
-           short (address bar + on-screen nav both showing, mainly
-           Android), that can need a small scroll to reach the very
-           bottom of a page rather than shrinking the card's width to
-           avoid it — deliberately, since it's still the exact same
-           design the Builder shows, just possibly needing a scroll on
-           top of the swipe/tap navigation, rather than ever showing
-           empty space on either side of a narrower card. */
-        .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%); }
+        /* Same 292:600 proportions as the Builder, full width up to 420px,
+           AND no scrolling needed to see all of it — all three together —
+           relies on the tiny scroll below (see the effect that calls
+           window.scrollTo) nudging the browser's own address bar to
+           auto-hide right on load, before this is first painted, so
+           100dvh is already the LARGEST it can be by the time this CSS
+           reads it: full width fits within that on all but the most
+           extreme devices. calc(100dvh * 292/600) is a last-resort floor
+           under min() for the rare case that trick doesn't take (still
+           shrinks by width rather than ever needing a scroll). */
+        .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%, calc(100dvh * 292 / 600)); }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
