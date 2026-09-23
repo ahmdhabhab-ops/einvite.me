@@ -6694,12 +6694,19 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
            real-device-height card, like before, made the two drift apart
            by however far the real screen's ratio differed from 292:600,
            which could put the swipe-hint on top of a page's own bottom text. */
-        .pv-fullscreen-card { max-width: 420px; aspect-ratio: 292 / 600; }
+        /* width is the smallest of: the 420px cap, the available container
+           width, or whatever width would make the 292:600-ratio height
+           exactly fill the viewport — so on a device where 100dvh isn't
+           tall enough for a 420px-wide card (common on Android, where the
+           address bar and on-screen nav buttons both eat into the visible
+           height), the card shrinks by WIDTH instead of overflowing
+           vertically and needing a scroll to see its own top or bottom. */
+        .pv-fullscreen-card { aspect-ratio: 292 / 600; width: min(420px, 100%, calc(100dvh * 292 / 600)); }
       `}</style>
     <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
         ref={cardRef}
-        className={fullscreen ? "relative w-full pv-fullscreen-card" : "relative flex-shrink-0"}
+        className={fullscreen ? "relative pv-fullscreen-card" : "relative flex-shrink-0"}
         style={
           fullscreen
             ? { margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
