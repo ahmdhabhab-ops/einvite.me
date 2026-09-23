@@ -6321,6 +6321,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
 function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
+  const wrapRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
 
   useEffect(() => {
@@ -6361,34 +6362,29 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [fullscreen]);
 
   useEffect(() => {
-    if (!fullscreen || !cardRef.current) return;
-    const el = cardRef.current;
+    if (!fullscreen || !wrapRef.current) return;
     // 292 is the fixed design width every layout/font size in this app was
-    // built against. Scale is deliberately based on WIDTH ONLY, and only
-    // reacts to width changes — this is what keeps every page pixel-for-
-    // pixel identical to the Builder's own 292:600 reference design on any
-    // device: nothing about a real screen's actual height ever compresses,
-    // stretches, or repositions any content. The card's own real height is
-    // set from this same scale (600 * scale) rather than the device's
-    // viewport height — on a device where that's taller than what's
-    // actually visible, the page just scrolls a little to reach it, the
-    // same as any ordinary web page, rather than distorting the design to
-    // avoid that scroll.
+    // built against. Scale is deliberately based on WIDTH ONLY — this is
+    // what keeps every page pixel-for-pixel identical to the Builder's own
+    // 292:600 reference design on any device: nothing about a real
+    // screen's actual height ever compresses, stretches, or repositions
+    // any content. The card's own real height is set from this same scale
+    // (600 * scale) rather than the device's viewport height — on a
+    // device where that's taller than what's actually visible, the page
+    // just scrolls a little to reach it, the same as any ordinary web
+    // page, rather than distorting the design to avoid that scroll.
+    //
+    // Measured from the outer WRAPPER, not the card itself — the card's
+    // own height is set from this same measurement a moment later, and
+    // observing an element while also resizing it from its own callback
+    // risks an observe/resize feedback loop (which reads as the page
+    // going janky/slow, or elements flickering in and out).  The wrapper
+    // is always exactly window width and never touched by this effect, so
+    // there's nothing for it to react to but a genuine viewport resize.
+    const el = wrapRef.current;
     const update = () => setFsScale(el.offsetWidth / 292);
     update();
-    const ro = new ResizeObserver((entries) => {
-      // Only recompute if the width actually changed — ResizeObserver also
-      // fires on height-only changes (which this component itself causes,
-      // by setting the card's height from fsScale below), which would
-      // otherwise loop.
-      for (const entry of entries) {
-        const w = entry.contentRect.width;
-        if (w !== el.dataset.lastWidth) {
-          el.dataset.lastWidth = w;
-          update();
-        }
-      }
-    });
+    const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, [fullscreen]);
@@ -6722,7 +6718,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
            design compressing or letterboxing to avoid that scroll. */
         .pv-fullscreen-card { width: min(420px, 100%); }
       `}</style>
-    <div className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
+    <div ref={wrapRef} className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       <div
         ref={cardRef}
         className={fullscreen ? "relative pv-fullscreen-card" : "relative flex-shrink-0"}
