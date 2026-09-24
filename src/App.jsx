@@ -6815,8 +6815,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 // — kept even though touchAction: "none" below also blocks
                 // that as a side effect, since it's what's actually doing
                 // the job and shouldn't depend on touchAction staying "none".
-                { touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", position: "absolute", left: "50%", top: "50%", width: 292, height: canvasDesignHeight, transform: `translate(-50%, -50%) scale(${fsScale})` }
-              : { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%" }
+                { touchAction: "none", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", whiteSpace: "pre-wrap", position: "absolute", left: "50%", top: "50%", width: 292, height: canvasDesignHeight, transform: `translate(-50%, -50%) scale(${fsScale})` }
+              : // pre-wrap (inherited by every page's text): browsers collapse
+                // repeated/leading spaces by default, so spaces typed into a
+                // field to nudge text over never showed up anywhere.
+                { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%", whiteSpace: "pre-wrap" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
           onPointerDown={onCanvasPointerDown} onPointerMove={onCanvasPointerMove} onPointerUp={onCanvasPointerUp}
@@ -7195,7 +7198,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
     // still ordinary scrolling, just paced one section at a time.
     <div
       dir={dir}
-      style={{ maxWidth: 420, margin: "0 auto", background: PAPER, height: "100dvh", overflowY: "auto", scrollSnapType: "y mandatory" }}
+      style={{ maxWidth: 420, margin: "0 auto", background: PAPER, height: "100dvh", overflowY: "auto", scrollSnapType: "y mandatory", whiteSpace: "pre-wrap" }}
     >
       {steps.map((s) => {
         const bg = data.pageBackgrounds[s.key];
