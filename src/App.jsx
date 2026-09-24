@@ -6480,6 +6480,16 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     else audioRef.current.pause();
   }, [playing, data.music.url]);
 
+  // Called straight from the tap-to-start gate's own click handler, not
+  // from the effect above: browsers (iOS Safari especially) only allow
+  // audio with sound to start inside a genuine user gesture, and the
+  // effect would only run after the tap's event has already finished.
+  const startMusicOnTap = () => {
+    if (!data.music.enabled || !data.music.url || !audioRef.current) return;
+    audioRef.current.play().catch(() => {});
+    setPlaying(true);
+  };
+
   const introMedia = data.intro.media[lang];
   // Admin-adjustable via the "Transition speed" control in CoverStep — how
   // long the tap-to-start reveal holds before the invitation actually opens.
@@ -6936,6 +6946,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                       gateVideoRef.current.play().catch(() => {});
                     }
+                    startMusicOnTap();
                     setGateClosing(true);
                     setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                   }}
@@ -6994,6 +7005,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                         gateVideoRef.current.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                         gateVideoRef.current.play().catch(() => {});
                       }
+                      startMusicOnTap();
                       setGateClosing(true);
                       setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
                     }}
