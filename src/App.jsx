@@ -6146,15 +6146,20 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
               <div style={{ fontFamily: hs.fontFamily || fontDisplay, fontStyle: hs.italic === false ? "normal" : "italic", fontWeight: hs.fontWeight || 600, fontSize: hs.fontSize ? `${hs.fontSize}px` : 15, color: hs.titleColor || (light ? PAPER : EMERALD) }}>{heading}</div>
               {subtitle && <p className="mt-1 text-[10.5px]" style={{ color: hs.subtitleColor || (light ? "rgba(244,237,228,0.75)" : ROSE), fontFamily: FONT_BODY }}>{subtitle}</p>}
             </div>
-            <div className="flex-1 px-3 pb-4">
-              <iframe
-                src={embedUrl}
-                className="h-full w-full rounded-xl"
-                style={{ border: "none" }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title="Live stream"
-              />
+            {/* 70% of the available space, centered — at full size the player
+                ran down into the bottom scrim/swipe-hint and pushed the
+                "Trouble watching" link below off the page. */}
+            <div className="flex min-h-0 flex-1 items-center justify-center px-3 pb-4">
+              <div style={{ width: "70%", height: "70%" }}>
+                <iframe
+                  src={embedUrl}
+                  className="h-full w-full rounded-xl"
+                  style={{ border: "none" }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  title="Live stream"
+                />
+              </div>
             </div>
             {/* Some videos/channels have embedding turned off on YouTube/Vimeo's
                 own side, which YouTube shows as "refused to connect" right inside
@@ -6183,7 +6188,7 @@ function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, pay
             {hiddenVideo === null ? (
               <p className="mt-6 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Loading…</p>
             ) : hiddenVideo && hiddenEmbedUrl ? (
-              <div className="mt-5 w-full" style={{ maxWidth: 260, aspectRatio: "9 / 16" }}>
+              <div className="mt-5 w-full" style={{ maxWidth: 182, aspectRatio: "9 / 16" }}>
                 <iframe
                   src={hiddenEmbedUrl}
                   className="h-full w-full rounded-xl"
