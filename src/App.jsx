@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import jsQR from "jsqr";
+import foliageA from "./assets/foliage-a.webp";
+import foliageB from "./assets/foliage-b.webp";
 
 /* ---------------------------------------------------------------------- */
 /* Tokens                                                                  */
@@ -11258,6 +11260,29 @@ function CheckinStaffPage({ slug }) {
 /* before signing up or logging in.                                        */
 /* ---------------------------------------------------------------------- */
 
+// Home page palette — a lighter, warmer botanical green than the admin
+// app's INK, with cream text and a champagne gold. Only the home page uses it.
+const LP = {
+  bg: "#2B3830",
+  pageGradient: "linear-gradient(180deg, #313F36 0%, #2C3931 18%, #2A3730 55%, #26322B 100%)",
+  text: "#F3EDE1",
+  text2: "#CFC3AC", // muted warm beige
+  gold: "#D4AB4E",
+  goldSoft: "#E2C88E",
+  onGold: "#22302A",
+  card: "rgba(243,237,225,0.045)",
+  cardHi: "rgba(243,237,225,0.075)",
+  line: "rgba(243,237,225,0.11)",
+  outline: "rgba(243,237,225,0.28)",
+  // Alternate sections fade in and out of a slightly lighter tone instead of hard colour bands.
+  band: "linear-gradient(180deg, rgba(243,237,225,0) 0%, rgba(243,237,225,0.035) 20%, rgba(243,237,225,0.035) 80%, rgba(243,237,225,0) 100%)",
+  goldShadow: "0 10px 28px -12px rgba(212,171,78,0.55)",
+};
+
+// Film grain laid over the whole home page, so the gradients read as
+// paper/photographic rather than flat digital fills.
+const LANDING_GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+
 const LANDING_STEPS = [
   { title: "Pick a design", body: "Start from a ready-made design, or from a blank canvas." },
   { title: "Make it yours", body: "Add your names, photos, music, the day's schedule and venues, and place everything exactly where you want it." },
@@ -11290,16 +11315,19 @@ const LANDING_DEMO_PATH = "/e/admin-preview";
 
 function LandingPhone() {
   return (
-    <div className="flex flex-col items-center">
-      <div style={{ background: "#000", borderRadius: 30, padding: 6, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)" }}>
+    <div className="relative flex flex-col items-center">
+      {/* Soft warm light behind the phone, and the shadow it casts below. */}
+      <div aria-hidden="true" className="pointer-events-none absolute" style={{ left: "50%", top: "46%", width: 560, height: 700, transform: "translate(-50%, -50%)", background: "radial-gradient(closest-side, rgba(242,224,188,0.16), rgba(242,224,188,0.05) 55%, transparent)" }} />
+      <div aria-hidden="true" className="pointer-events-none absolute" style={{ left: "50%", top: 590, width: 300, height: 60, transform: "translateX(-50%)", background: "radial-gradient(closest-side, rgba(14,20,16,0.45), transparent)", filter: "blur(6px)" }} />
+      <div className="relative" style={{ background: "#0E120F", borderRadius: 30, padding: 6, boxShadow: "0 40px 80px -30px rgba(12,18,14,0.6), 0 0 0 1px rgba(243,237,225,0.08)" }}>
         <iframe
           src={LANDING_DEMO_PATH}
           title="Sample invitation"
           allow="autoplay"
-          style={{ display: "block", width: 292, height: 600, border: "none", borderRadius: 24, background: INK }}
+          style={{ display: "block", width: 292, height: 600, border: "none", borderRadius: 24, background: "#1F2A24" }}
         />
       </div>
-      <a href={LANDING_DEMO_PATH} target="_blank" rel="noreferrer" className="landing-link mt-4 inline-flex items-center gap-1.5 text-[12.5px]">
+      <a href={LANDING_DEMO_PATH} target="_blank" rel="noreferrer" className="landing-link relative mt-4 inline-flex items-center gap-1.5 text-[12.5px]">
         Tap the invitation to open it, or view it full screen <ExternalLink size={12} />
       </a>
     </div>
@@ -11445,10 +11473,10 @@ function LandingContactSection({ contact }) {
   const others = links.filter((l) => l.key !== "whatsapp" && l.key !== "telegram");
   const external = (l) => (l.key === "email" ? {} : { target: "_blank", rel: "noreferrer" });
   return (
-    <section id="contact" className="px-4 py-20 sm:px-6" style={{ background: INK_2 }}>
+    <section id="contact" className="px-4 py-20 sm:px-6" style={{ background: LP.band }}>
       <div className="mx-auto max-w-3xl text-center">
-        <h2 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: IVORY, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>Contact us</h2>
-        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>
+        <h2 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>Contact us</h2>
+        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
           {chat.length ? "Questions before you start? Message us directly — we're happy to help." : "Questions before you start? We're happy to help."}
         </p>
         {chat.length > 0 && (
@@ -11470,7 +11498,7 @@ function LandingContactSection({ contact }) {
                 aria-label={l.label}
                 title={l.key === "email" ? l.value : l.label}
                 className="landing-card flex h-12 w-12 items-center justify-center rounded-full"
-                style={{ background: INK_3, color: IVORY, border: "1px solid rgba(147,166,155,0.18)" }}
+                style={{ background: LP.cardHi, color: LP.text, border: `1px solid ${LP.line}` }}
               >
                 {l.icon ? <BrandIcon name={l.icon} size={20} /> : <Mail size={20} />}
               </a>
@@ -11504,21 +11532,33 @@ function LandingPage({ onSignUp, onLogIn }) {
   }, []);
   const hasContact = siteContactLinks(contact).length > 0;
   const canvaDesigns = mergeShopTemplates(shopDesigns, "canva").slice(0, 6);
-  const heading = (size) => ({ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: IVORY, fontSize: size, lineHeight: 1.15 });
+  const heading = (size) => ({ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: size, lineHeight: 1.15 });
   const primaryBtn = "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold";
   return (
-    <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY, color: IVORY }}>
+    <div className="relative min-h-screen w-full" style={{ background: LP.bg, backgroundImage: LP.pageGradient, fontFamily: FONT_BODY, color: LP.text, overflowX: "clip" }}>
       <style>{`
-        .landing-link { color: ${MUTED}; transition: color .2s; }
-        .landing-link:hover { color: ${IVORY}; }
-        .landing-card { transition: transform .25s, border-color .25s; }
-        .landing-card:hover { transform: translateY(-3px); border-color: rgba(201,164,76,0.45) !important; }
+        .landing-link { color: ${LP.text2}; transition: color .2s; }
+        .landing-link:hover { color: ${LP.text}; }
+        .landing-card { transition: transform .25s, border-color .25s, background-color .25s; }
+        .landing-card:hover { transform: translateY(-3px); border-color: rgba(212,171,78,0.4) !important; }
+        .landing-foliage { position: absolute; pointer-events: none; user-select: none; max-width: none; }
+        .lf-hero-tl { top: -150px; left: -110px; width: 640px; opacity: 0.95; }
+        .lf-hero-br { bottom: -170px; right: -150px; width: 600px; opacity: 0.8; transform: rotate(180deg); }
+        .lf-cta-bl { bottom: -120px; left: -140px; width: 460px; opacity: 0.7; transform: scaleY(-1); }
+        .lf-cta-tr { top: -120px; right: -150px; width: 440px; opacity: 0.6; transform: scaleX(-1); }
+        @media (max-width: 767px) {
+          .lf-hero-tl { top: -50px; left: -170px; width: 400px; opacity: 0.7; }
+          .lf-hero-br { bottom: -60px; right: -190px; width: 420px; opacity: 0.65; }
+          .lf-cta-bl { left: -170px; width: 320px; opacity: 0.55; }
+          .lf-cta-tr { right: -170px; width: 300px; opacity: 0.45; }
+        }
       `}</style>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ backgroundImage: LANDING_GRAIN, opacity: 0.07, mixBlendMode: "overlay" }} />
 
-      <header className="sticky top-0 z-50" style={{ background: "rgba(22,31,27,0.88)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(147,166,155,0.12)" }}>
+      <header className="sticky top-0 z-50" style={{ background: "rgba(44,57,49,0.72)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: IVORY }}>
-            eInvite<span style={{ color: GOLD }}>.me</span>
+          <div style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: LP.text }}>
+            eInvite<span style={{ color: LP.gold }}>.me</span>
           </div>
           <nav className="flex items-center gap-5 text-[13px]">
             <a href="#how" className="landing-link hidden md:inline">How it works</a>
@@ -11526,115 +11566,123 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="/shop" className="landing-link hidden md:inline">Designs</a>
             {hasContact && <a href="#contact" className="landing-link hidden md:inline">Contact</a>}
             <button onClick={onLogIn} className="landing-link">Log in</button>
-            <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: GOLD, color: INK }}>Start</button>
+            <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>Start</button>
           </nav>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 md:grid-cols-2 md:pt-20">
+      <div className="relative">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        {/* Warm light falling from the upper left, behind the headline. */}
+        <div className="absolute" style={{ inset: "-120px 0 0 0", background: "radial-gradient(ellipse 55% 55% at 26% 34%, rgba(238,210,158,0.10), transparent 70%), radial-gradient(ellipse 70% 60% at 50% 110%, rgba(18,26,21,0.35), transparent 70%)" }} />
+        <img src={foliageA} alt="" className="landing-foliage lf-hero-tl" />
+        <img src={foliageB} alt="" className="landing-foliage lf-hero-br" />
+      </div>
+      <section className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 md:grid-cols-2 md:pt-20">
         <div className="text-center md:text-left">
-          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.2em" }}>Digital wedding invitations</div>
+          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.2em" }}>Digital wedding invitations</div>
           <h1 style={heading("clamp(34px, 5.2vw, 56px)")}>An invitation that opens like a real envelope.</h1>
-          <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: MUTED, lineHeight: 1.7 }}>
+          <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: LP.text2, lineHeight: 1.7 }}>
             Design a wedding invitation your guests tap open on their phone, with your photos, music, the day's schedule, directions and RSVP, all in one link you share on WhatsApp.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3 md:justify-start">
-            <button onClick={onSignUp} className={primaryBtn} style={{ background: GOLD, color: INK }}>
+            <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
               Create your invitation <Heart size={15} />
             </button>
-            <a href="/shop" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>See the designs</a>
+            <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>See the designs</a>
           </div>
-          <p className="mt-6 text-[12px]" style={{ color: MUTED }}>Works on any phone · Nothing for guests to download</p>
+          <p className="mt-6 text-[12px]" style={{ color: LP.text2 }}>Works on any phone · Nothing for guests to download</p>
         </div>
         <div className="flex justify-center">
           <LandingPhone />
         </div>
       </section>
+      </div>
 
-      <section id="how" className="px-4 py-20 sm:px-6" style={{ background: INK_2 }}>
+      <section id="how" className="relative px-4 py-20 sm:px-6" style={{ background: LP.band }}>
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Three steps, and it's on its way</h2>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {LANDING_STEPS.map((step, i) => (
-              <div key={step.title} className="rounded-2xl p-7" style={{ background: INK, border: "1px solid rgba(147,166,155,0.14)" }}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: "rgba(201,164,76,0.14)", color: GOLD }}>{i + 1}</div>
-                <h3 className="mt-5 text-[19px]" style={{ fontFamily: FONT_DISPLAY, color: IVORY }}>{step.title}</h3>
-                <p className="mt-2 text-[14px]" style={{ color: MUTED, lineHeight: 1.65 }}>{step.body}</p>
+              <div key={step.title} className="rounded-2xl p-7" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: "rgba(212,171,78,0.14)", color: LP.gold }}>{i + 1}</div>
+                <h3 className="mt-5 text-[19px]" style={{ fontFamily: FONT_DISPLAY, color: LP.text }}>{step.title}</h3>
+                <p className="mt-2 text-[14px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{step.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="features" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <section id="features" className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6">
         <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Everything the day needs, in one link</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Each page of the invitation is its own moment. Show the ones you need and hide the rest.</p>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Each page of the invitation is its own moment. Show the ones you need and hide the rest.</p>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {LANDING_FEATURES.map(({ icon: Icon, title, body }) => (
-            <div key={title} className="landing-card rounded-2xl p-6" style={{ background: INK_2, border: "1px solid rgba(147,166,155,0.14)" }}>
-              <Icon size={22} color={GOLD} strokeWidth={1.6} />
-              <h3 className="mt-4 text-[16px] font-semibold" style={{ color: IVORY }}>{title}</h3>
-              <p className="mt-2 text-[13.5px]" style={{ color: MUTED, lineHeight: 1.65 }}>{body}</p>
+            <div key={title} className="landing-card rounded-2xl p-6" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
+              <Icon size={22} color={LP.gold} strokeWidth={1.6} />
+              <h3 className="mt-4 text-[16px] font-semibold" style={{ color: LP.text }}>{title}</h3>
+              <p className="mt-2 text-[13.5px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
             </div>
           ))}
         </div>
       </section>
 
       {canvaDesigns.length > 0 && (
-        <section id="designs" className="px-4 pb-20 pt-4 sm:px-6">
+        <section id="designs" className="relative px-4 pb-20 pt-4 sm:px-6">
           <div className="mx-auto max-w-6xl">
             <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Designs ready to make yours</h2>
-            <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Buy a design, then customize it yourself in Canva.</p>
+            <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Buy a design, then customize it yourself in Canva.</p>
             <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3">
               {canvaDesigns.map((tpl) => (
-                <a key={tpl.id} href={`/shop?design=${encodeURIComponent(tpl.id)}`} className="landing-card block overflow-hidden rounded-2xl" style={{ background: INK_2, border: "1px solid rgba(147,166,155,0.14)" }}>
-                  <div className="p-3 sm:p-4" style={{ background: INK_3 }}>
+                <a key={tpl.id} href={`/shop?design=${encodeURIComponent(tpl.id)}`} className="landing-card block overflow-hidden rounded-2xl" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
+                  <div className="p-3 sm:p-4" style={{ background: "rgba(243,237,225,0.05)" }}>
                     <DesignThumb tpl={tpl} maxWidth={170} />
                   </div>
                   <div className="flex items-center justify-between gap-2 p-3 sm:p-4">
-                    <div className="truncate text-[13.5px] font-semibold" style={{ color: IVORY }}>{tpl.name}</div>
-                    {tpl.price != null && tpl.price !== "" && <div className="flex-shrink-0 text-[13.5px] font-bold" style={{ color: GOLD_SOFT }}>${tpl.price}</div>}
+                    <div className="truncate text-[13.5px] font-semibold" style={{ color: LP.text }}>{tpl.name}</div>
+                    {tpl.price != null && tpl.price !== "" && <div className="flex-shrink-0 text-[13.5px] font-bold" style={{ color: LP.goldSoft }}>${tpl.price}</div>}
                   </div>
                 </a>
               ))}
             </div>
             <div className="mt-10 text-center">
-              <a href="/shop" className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold" style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>See all designs</a>
+              <a href="/shop" className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold" style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>See all designs</a>
             </div>
           </div>
         </section>
       )}
 
-      <section className="px-4 py-20 sm:px-6" style={{ background: INK_2 }}>
+      <section className="px-4 py-20 sm:px-6" style={{ background: LP.band }}>
         <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
           <div>
             <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>Your guest list, handled</h2>
-            <p className="mt-4 text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Every reply lands in your own dashboard, so you always know where things stand.</p>
+            <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Every reply lands in your own dashboard, so you always know where things stand.</p>
             <ul className="mt-7 space-y-4">
               {LANDING_DASHBOARD_POINTS.map((point) => (
-                <li key={point} className="flex items-start gap-3 text-[14.5px]" style={{ color: IVORY }}>
-                  <Check size={17} color={GOLD} className="mt-0.5 flex-shrink-0" /> {point}
+                <li key={point} className="flex items-start gap-3 text-[14.5px]" style={{ color: LP.text }}>
+                  <Check size={17} color={LP.gold} className="mt-0.5 flex-shrink-0" /> {point}
                 </li>
               ))}
             </ul>
           </div>
           {/* Illustrative, not live data — shows the shape of the Dashboard. */}
-          <div className="rounded-2xl p-6" style={{ background: INK, border: "1px solid rgba(147,166,155,0.14)" }}>
-            <div className="mb-5 flex items-center gap-2 text-[12px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.12em" }}>
+          <div className="rounded-2xl p-6" style={{ background: "rgba(22,30,25,0.35)", border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -35px rgba(10,16,12,0.6)" }}>
+            <div className="mb-5 flex items-center gap-2 text-[12px] font-semibold uppercase" style={{ color: LP.text2, letterSpacing: "0.12em" }}>
               <BarChart3 size={14} /> Dashboard
             </div>
             <div className="grid grid-cols-3 gap-3">
               {[["Invited", "180"], ["Opened", "152"], ["Coming", "131"]].map(([label, value]) => (
-                <div key={label} className="rounded-xl p-4" style={{ background: INK_2 }}>
-                  <div className="text-[11px]" style={{ color: MUTED }}>{label}</div>
-                  <div className="mt-1 text-[24px]" style={{ fontFamily: FONT_DISPLAY, color: IVORY }}>{value}</div>
+                <div key={label} className="rounded-xl p-4" style={{ background: LP.cardHi }}>
+                  <div className="text-[11px]" style={{ color: LP.text2 }}>{label}</div>
+                  <div className="mt-1 text-[24px]" style={{ fontFamily: FONT_DISPLAY, color: LP.text }}>{value}</div>
                 </div>
               ))}
             </div>
             <div className="mt-5 space-y-3">
-              {[["The Haddad family", "Coming · 4", GOLD], ["Rita & Sami", "Opened", MUTED], ["The Khoury family", "Coming · 3", GOLD], ["Uncle Georges", "Not opened yet", "rgba(147,166,155,0.5)"]].map(([name, status, color]) => (
-                <div key={name} className="flex items-center justify-between rounded-lg px-4 py-3 text-[13px]" style={{ background: INK_2 }}>
-                  <span style={{ color: IVORY }}>{name}</span>
+              {[["The Haddad family", "Coming · 4", LP.gold], ["Rita & Sami", "Opened", LP.text2], ["The Khoury family", "Coming · 3", LP.gold], ["Uncle Georges", "Not opened yet", "rgba(207,195,172,0.55)"]].map(([name, status, color]) => (
+                <div key={name} className="flex items-center justify-between rounded-lg px-4 py-3 text-[13px]" style={{ background: LP.card }}>
+                  <span style={{ color: LP.text }}>{name}</span>
                   <span style={{ color }}>{status}</span>
                 </div>
               ))}
@@ -11643,19 +11691,26 @@ function LandingPage({ onSignUp, onLogIn }) {
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
+      <div className="relative">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 70% at 50% 50%, rgba(238,210,158,0.08), transparent 70%)" }} />
+        <img src={foliageB} alt="" className="landing-foliage lf-cta-bl" />
+        <img src={foliageA} alt="" className="landing-foliage lf-cta-tr" />
+      </div>
+      <section className="relative mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
         <h2 style={heading("clamp(30px, 4vw, 44px)")}>Ready when you are</h2>
-        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Start with a design you love, and send it the same day.</p>
+        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Start with a design you love, and send it the same day.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <button onClick={onSignUp} className={primaryBtn} style={{ background: GOLD, color: INK }}>Create your invitation</button>
-          <a href="/shop" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>Browse the designs</a>
+          <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>Create your invitation</button>
+          <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>Browse the designs</a>
         </div>
       </section>
+      </div>
 
       <LandingContactSection contact={contact} />
 
-      <footer className="px-4 py-8 sm:px-6" style={{ borderTop: "1px solid rgba(147,166,155,0.12)" }}>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: MUTED }}>
+      <footer className="relative px-4 py-8 sm:px-6" style={{ borderTop: `1px solid ${LP.line}` }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: LP.text2 }}>
           <span>© {new Date().getFullYear()} eInvite.me</span>
           <div className="flex gap-5">
             {hasContact && <a href="#contact" className="landing-link">Contact</a>}
