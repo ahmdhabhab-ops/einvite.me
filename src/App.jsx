@@ -9,7 +9,7 @@ import {
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
-  Download, QrCode, Camera,
+  Download, QrCode, Camera, Globe,
 } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import jsQR from "jsqr";
@@ -6387,7 +6387,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false, showcase = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -6595,7 +6595,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const pushOutName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushOutToLeft" : "pushOutToRight") : (pushOutgoing.dir > 0 ? "pushOutToTop" : "pushOutToBottom");
   const pushInMotion = pushOutgoing ? { content: `${pushInName} ${pushEase}` } : null;
   const pushOutMotion = pushOutgoing ? { bg: `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
-  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
+  const onTouchStart = (e) => { if (!layoutEditMode && started && !showcase) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
     const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
@@ -6893,7 +6893,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
               : // pre-wrap (inherited by every page's text): browsers collapse
                 // repeated/leading spaces by default, so spaces typed into a
                 // field to nudge text over never showed up anywhere.
-                { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%", whiteSpace: "pre-wrap" }
+                { touchAction: showcase ? "pan-y" : "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%", whiteSpace: "pre-wrap" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
           onPointerDown={onCanvasPointerDown} onPointerMove={onCanvasPointerMove} onPointerUp={onCanvasPointerUp}
@@ -7222,7 +7222,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
       {data.music.url && <audio ref={audioRef} src={data.music.url} loop />}
 
-      {!fullscreen && (
+      {!fullscreen && !showcase && (
         <div className="mt-4 text-center">
           <div className="text-[11px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>
             Slide {activeIndex + 1} of {steps.length} — {steps[activeIndex].label}
@@ -10435,8 +10435,8 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
   );
 }
 
-function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "", skipApproval = false }) {
-  const [screen, setScreen] = useState("signup"); // signup | pendingNotice | login | welcome
+function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, prefillEmail = "", skipApproval = false, initialScreen = "signup", exitLabel = "Back to admin app" }) {
+  const [screen, setScreen] = useState(initialScreen); // signup | pendingNotice | login | welcome
   const [form, setForm] = useState({ name: "", email: prefillEmail, phone: "", password: "" });
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
@@ -10563,7 +10563,7 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
     <div className="mx-auto max-w-md">
       {onExit && (
         <button onClick={onExit} className="mb-5 flex items-center gap-1.5 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-          <ArrowLeft size={13} /> Back to admin app
+          <ArrowLeft size={13} /> {exitLabel}
         </button>
       )}
 
@@ -10823,6 +10823,222 @@ function CheckinStaffPage({ slug }) {
 /* ordinary camera app opens after scanning a guest's QR code — no        */
 /* special scanner app needed, since the code just encodes this URL.       */
 /* ---------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------- */
+/* Home page — what a visitor who isn't logged in sees at the site root,  */
+/* before signing up or logging in.                                        */
+/* ---------------------------------------------------------------------- */
+
+const SHOWCASE_STEP_KEYS = ["cover", "family", "timeline", "locations", "countdown", "rsvp", "registry"];
+const SHOWCASE_PRESETS = ["botanical", "blush", "dusk", "gilded"];
+const noop = () => {};
+
+// A real, working invitation (the built-in demo content) that pages itself
+// forward — the same PhonePreview the Builder and guests use, so what a
+// visitor sees here is genuinely the product, not a mockup.
+function LandingShowcase() {
+  const steps = useMemo(() => ALL_STEPS.filter((s) => SHOWCASE_STEP_KEYS.includes(s.key)), []);
+  const data = useMemo(() => {
+    const eventDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 120).toISOString().slice(0, 10);
+    return {
+      content: defaultContent,
+      timeline: defaultTimeline,
+      locations: defaultLocations,
+      registry: defaultRegistry,
+      pageBackgrounds: Object.fromEntries(Object.entries(defaultPageBackgrounds).map(([key, bg], i) => [key, { ...bg, mode: "photo", preset: SHOWCASE_PRESETS[i % SHOWCASE_PRESETS.length] }])),
+      music: { enabled: false, url: null, name: "", icon: "speaker" },
+      rsvpSchedule: { date: eventDate, time: "16:00" },
+      layouts: { en: DEFAULT_LAYOUTS },
+      intro: defaultIntroSettings,
+      customBlocks: { en: emptyCustomBlocks() },
+      rsvpSettings: { style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: false, enableGuestVoiceRecorder: false, deadline: null },
+      totalAttending: 0,
+      integrations: {},
+    };
+  }, []);
+  const [started, setStarted] = useState(false);
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => setStarted(true), 1800);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!started) return;
+    const timer = setTimeout(() => setIndex((i) => (i + 1) % steps.length), 3200);
+    return () => clearTimeout(timer);
+  }, [started, index, steps.length]);
+  return (
+    <PhonePreview
+      data={data} steps={steps} activeIndex={index} onNavigate={setIndex} lang="en"
+      layoutEditMode={false} onMoveBlock={noop} started={started} onStart={() => setStarted(true)}
+      selectedBlockId={null} onSelectBlock={noop} onMoveCustomBlock={noop} onRemoveCustomBlock={noop}
+      onDuplicateCustomBlock={noop} onMoveLocation={noop} onSubmitRsvp={async () => null}
+      slug="" siteDomain="" onUpdateRsvpContent={noop}
+      swipeDirection="vertical" transitionStyle="push" showcase
+    />
+  );
+}
+
+const LANDING_STEPS = [
+  { title: "Pick a design", body: "Start from a ready-made design, or from a blank canvas." },
+  { title: "Make it yours", body: "Add your names, photos, music, the day's schedule and venues, and place everything exactly where you want it." },
+  { title: "Share and track", body: "Send one link on WhatsApp. See who opened it and who's coming as the replies arrive." },
+];
+
+const LANDING_FEATURES = [
+  { icon: Mail, title: "An envelope they tap open", body: "A wax seal or envelope guests tap to open, with your own photo or video behind it." },
+  { icon: Music2, title: "Your song, from the first tap", body: "Background music starts the moment they open the invitation." },
+  { icon: CheckCircle2, title: "RSVP with names", body: "Guests confirm with their names and how many are coming, straight into your guest list." },
+  { icon: MapPin, title: "Schedule and directions", body: "The day's timeline, a live countdown, and one-tap directions to every venue." },
+  { icon: Gift, title: "Gift registry", body: "Registry links or bank details, shown with the rest of the invitation." },
+  { icon: Video, title: "Live stream", body: "Family who can't travel can watch the ceremony, free or paid." },
+  { icon: Handshake, title: "Song requests and networking", body: "Guests send song requests to the DJ and meet each other before the day." },
+  { icon: QrCode, title: "QR check-in", body: "Every confirmed guest gets a QR code to check in at the door." },
+  { icon: Globe, title: "Five languages", body: "English, Arabic, French, Spanish and Armenian, with guests switching on the invitation itself." },
+];
+
+const LANDING_DASHBOARD_POINTS = [
+  "See who opened the invitation, and who hasn't yet",
+  "Track confirmations and the headcount as replies come in",
+  "Plan tables and your venue's seating layout",
+  "Send each family their own personal link",
+];
+
+function LandingPage({ onSignUp, onLogIn }) {
+  const heading = (size) => ({ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: IVORY, fontSize: size, lineHeight: 1.15 });
+  const primaryBtn = "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold";
+  return (
+    <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY, color: IVORY }}>
+      <style>{`
+        .landing-link { color: ${MUTED}; transition: color .2s; }
+        .landing-link:hover { color: ${IVORY}; }
+        .landing-card { transition: transform .25s, border-color .25s; }
+        .landing-card:hover { transform: translateY(-3px); border-color: rgba(201,164,76,0.45) !important; }
+      `}</style>
+
+      <header className="sticky top-0 z-50" style={{ background: "rgba(22,31,27,0.88)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(147,166,155,0.12)" }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: IVORY }}>
+            eInvite<span style={{ color: GOLD }}>.me</span>
+          </div>
+          <nav className="flex items-center gap-5 text-[13px]">
+            <a href="#how" className="landing-link hidden md:inline">How it works</a>
+            <a href="#features" className="landing-link hidden md:inline">Features</a>
+            <a href="/designs" className="landing-link hidden md:inline">Designs</a>
+            <button onClick={onLogIn} className="landing-link">Log in</button>
+            <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: GOLD, color: INK }}>Start</button>
+          </nav>
+        </div>
+      </header>
+
+      <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 md:grid-cols-2 md:pt-20">
+        <div className="text-center md:text-left">
+          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.2em" }}>Digital wedding invitations</div>
+          <h1 style={heading("clamp(34px, 5.2vw, 56px)")}>An invitation that opens like a real envelope.</h1>
+          <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: MUTED, lineHeight: 1.7 }}>
+            Design a wedding invitation your guests tap open on their phone, with your photos, music, the day's schedule, directions and RSVP, all in one link you share on WhatsApp.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3 md:justify-start">
+            <button onClick={onSignUp} className={primaryBtn} style={{ background: GOLD, color: INK }}>
+              Create your invitation <Heart size={15} />
+            </button>
+            <a href="/designs" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>See the designs</a>
+          </div>
+          <p className="mt-6 text-[12px]" style={{ color: MUTED }}>Works on any phone · Nothing for guests to download</p>
+        </div>
+        <div className="flex justify-center">
+          <LandingShowcase />
+        </div>
+      </section>
+
+      <section id="how" className="px-4 py-20 sm:px-6" style={{ background: INK_2 }}>
+        <div className="mx-auto max-w-6xl">
+          <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Three steps, and it's on its way</h2>
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {LANDING_STEPS.map((step, i) => (
+              <div key={step.title} className="rounded-2xl p-7" style={{ background: INK, border: "1px solid rgba(147,166,155,0.14)" }}>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: "rgba(201,164,76,0.14)", color: GOLD }}>{i + 1}</div>
+                <h3 className="mt-5 text-[19px]" style={{ fontFamily: FONT_DISPLAY, color: IVORY }}>{step.title}</h3>
+                <p className="mt-2 text-[14px]" style={{ color: MUTED, lineHeight: 1.65 }}>{step.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="features" className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Everything the day needs, in one link</h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Each page of the invitation is its own moment. Show the ones you need and hide the rest.</p>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {LANDING_FEATURES.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="landing-card rounded-2xl p-6" style={{ background: INK_2, border: "1px solid rgba(147,166,155,0.14)" }}>
+              <Icon size={22} color={GOLD} strokeWidth={1.6} />
+              <h3 className="mt-4 text-[16px] font-semibold" style={{ color: IVORY }}>{title}</h3>
+              <p className="mt-2 text-[13.5px]" style={{ color: MUTED, lineHeight: 1.65 }}>{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="px-4 py-20 sm:px-6" style={{ background: INK_2 }}>
+        <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
+          <div>
+            <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>Your guest list, handled</h2>
+            <p className="mt-4 text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Every reply lands in your own dashboard, so you always know where things stand.</p>
+            <ul className="mt-7 space-y-4">
+              {LANDING_DASHBOARD_POINTS.map((point) => (
+                <li key={point} className="flex items-start gap-3 text-[14.5px]" style={{ color: IVORY }}>
+                  <Check size={17} color={GOLD} className="mt-0.5 flex-shrink-0" /> {point}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {/* Illustrative, not live data — shows the shape of the Dashboard. */}
+          <div className="rounded-2xl p-6" style={{ background: INK, border: "1px solid rgba(147,166,155,0.14)" }}>
+            <div className="mb-5 flex items-center gap-2 text-[12px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.12em" }}>
+              <BarChart3 size={14} /> Dashboard
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[["Invited", "180"], ["Opened", "152"], ["Coming", "131"]].map(([label, value]) => (
+                <div key={label} className="rounded-xl p-4" style={{ background: INK_2 }}>
+                  <div className="text-[11px]" style={{ color: MUTED }}>{label}</div>
+                  <div className="mt-1 text-[24px]" style={{ fontFamily: FONT_DISPLAY, color: IVORY }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 space-y-3">
+              {[["The Haddad family", "Coming · 4", GOLD], ["Rita & Sami", "Opened", MUTED], ["The Khoury family", "Coming · 3", GOLD], ["Uncle Georges", "Not opened yet", "rgba(147,166,155,0.5)"]].map(([name, status, color]) => (
+                <div key={name} className="flex items-center justify-between rounded-lg px-4 py-3 text-[13px]" style={{ background: INK_2 }}>
+                  <span style={{ color: IVORY }}>{name}</span>
+                  <span style={{ color }}>{status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
+        <h2 style={heading("clamp(30px, 4vw, 44px)")}>Ready when you are</h2>
+        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Start with a design you love, and send it the same day.</p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <button onClick={onSignUp} className={primaryBtn} style={{ background: GOLD, color: INK }}>Create your invitation</button>
+          <a href="/designs" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>Browse the designs</a>
+        </div>
+      </section>
+
+      <footer className="px-4 py-8 sm:px-6" style={{ borderTop: "1px solid rgba(147,166,155,0.12)" }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: MUTED }}>
+          <span>© {new Date().getFullYear()} eInvite.me</span>
+          <div className="flex gap-5">
+            <a href="/designs" className="landing-link">Designs</a>
+            <button onClick={onLogIn} className="landing-link">Log in</button>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
 
 function AppLoadingScreen() {
   return (
@@ -13007,6 +13223,9 @@ export default function InvitationBuilder() {
   // email to pre-fill so it's not retyped.
   const [pendingShopTemplate, setPendingShopTemplate] = useState(null);
   const [prefillSignupEmail, setPrefillSignupEmail] = useState("");
+  // null = show the home page; "signup"/"login" = the visitor clicked
+  // through to the auth screen, opened on that tab.
+  const [authFromLanding, setAuthFromLanding] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -13492,9 +13711,26 @@ export default function InvitationBuilder() {
   // localStorage after a refresh) still goes straight to their own portal
   // — this only gates people who aren't recognized as anything yet.
   if (!isAdminPath && !actingAsUser) {
+    // Straight to auth, skipping the home page, when the visitor is already
+    // mid-flow: coming from the shop with a design picked, carrying a
+    // prefilled signup email, or landing back from Google sign-in (whose
+    // #access_token AuthPreview itself has to be mounted to pick up).
+    const skipLanding = !!pendingShopTemplate || !!prefillSignupEmail || (typeof window !== "undefined" && window.location.hash.includes("access_token"));
+    if (!skipLanding && !authFromLanding) {
+      const openAuth = (screen) => { setAuthFromLanding(screen); window.scrollTo(0, 0); };
+      return <LandingPage onSignUp={() => openAuth("signup")} onLogIn={() => openAuth("login")} />;
+    }
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
-        <AuthPreview users={users} onSignUp={signUpUser} onExit={null} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} prefillEmail={prefillSignupEmail} skipApproval={!!pendingShopTemplate} />
+        <AuthPreview
+          key={authFromLanding || "direct"}
+          users={users} onSignUp={signUpUser}
+          onExit={skipLanding ? null : () => setAuthFromLanding(null)}
+          onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded}
+          prefillEmail={prefillSignupEmail} skipApproval={!!pendingShopTemplate}
+          initialScreen={authFromLanding || "signup"}
+          exitLabel="Back to home"
+        />
       </div>
     );
   }
