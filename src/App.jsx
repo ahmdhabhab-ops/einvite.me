@@ -4175,6 +4175,12 @@ const TornEdgesContext = createContext(false);
 // 600 — provided only around the canvas itself, same as BlockPositionsContext.
 const CanvasHeightContext = createContext(600);
 
+// Set only during the "push" page transition: { bg, content } CSS animation
+// strings that StoryPage applies to its background layer and its content
+// layer separately, so the content can slide while the background stays
+// put and just fades — see the push handling in PhonePreview.
+const PageMotionContext = createContext(null);
+
 function DraggableBlock({ id, pos, editMode, onMove, onScale, onResizeWidth, editableText, onTextEdit, label, light, children, selected, onSelect, noMaxWidth, widthPercent, maxHeightPercent, isEmpty, layerIndex, onDragStateChange }) {
   const ref = useRef(null);
   const draggingRef = useRef(false);
@@ -5059,12 +5065,15 @@ function StoryPage({ bg, children }) {
   // Only makes sense on a real uploaded photo — a torn edge on a flat
   // gradient preset has nothing photographic to look "torn away" from.
   const showTornEdges = isPhoto && tornEdges && hasActiveCustomImage(bg);
+  const motion = useContext(PageMotionContext);
   return (
-    <div className="relative h-full w-full" style={{ background }}>
-      {isPhoto && amount > 0 && <div className="absolute inset-0" style={{ background: overlay }} />}
-      {showTornEdges && <TornEdge color={bg.backdropColor || INK} />}
-      {showTornEdges && <TornEdge flip color={bg.backdropColor || INK} />}
-      <div className="relative z-10 h-full w-full">{children(isPhoto)}</div>
+    <div className="relative h-full w-full">
+      <div className="absolute inset-0" style={{ background, animation: motion?.bg }}>
+        {isPhoto && amount > 0 && <div className="absolute inset-0" style={{ background: overlay }} />}
+        {showTornEdges && <TornEdge color={bg.backdropColor || INK} />}
+        {showTornEdges && <TornEdge flip color={bg.backdropColor || INK} />}
+      </div>
+      <div className="relative z-10 h-full w-full" style={{ animation: motion?.content }}>{children(isPhoto)}</div>
     </div>
   );
 }
@@ -6479,6 +6488,23 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   useEffect(() => setAnimKey((k) => k + 1), [activeIndex]);
 
+  // "push" transition: remember the page being left so it can stay on screen
+  // and slide out while the new one slides in. A layout effect (not a plain
+  // effect) so the outgoing page is already in place on the very first
+  // paint of the new one — otherwise there's a one-frame flash of the new
+  // page's background with nothing on it.
+  const PUSH_MS = 650;
+  const prevActiveRef = useRef(activeIndex);
+  const [pushOutgoing, setPushOutgoing] = useState(null); // { key, dir } while a push is running
+  React.useLayoutEffect(() => {
+    const prev = prevActiveRef.current;
+    prevActiveRef.current = activeIndex;
+    if (prev === activeIndex || transitionStyle !== "push" || layoutEditMode || !started || !steps[prev]) return;
+    setPushOutgoing({ key: steps[prev].key, dir: activeIndex > prev ? 1 : -1 });
+    const timer = setTimeout(() => setPushOutgoing(null), PUSH_MS);
+    return () => clearTimeout(timer);
+  }, [activeIndex]);
+
   useEffect(() => {
     if (!audioRef.current) return;
     if (playing && data.music.url) audioRef.current.play().catch(() => {});
@@ -6564,6 +6590,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
 
   const isHorizontal = swipeDirection === "horizontal";
+  const pushEase = `${PUSH_MS}ms cubic-bezier(0.65,0,0.35,1)`;
+  const pushInName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushInFromRight" : "pushInFromLeft") : (pushOutgoing.dir > 0 ? "pushInFromBottom" : "pushInFromTop");
+  const pushOutName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushOutToLeft" : "pushOutToRight") : (pushOutgoing.dir > 0 ? "pushOutToTop" : "pushOutToBottom");
+  const pushInMotion = pushOutgoing ? { content: `${pushInName} ${pushEase}` } : null;
+  const pushOutMotion = pushOutgoing ? { bg: `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
   const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
@@ -6811,6 +6842,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes slideUpIn { from { transform: translateY(24px); } to { transform: translateY(0); } }
         @keyframes slideDownIn { from { transform: translateY(-24px); } to { transform: translateY(0); } }
         @keyframes stackIn { from { transform: scale(0.96) translateY(10px); } to { transform: scale(1) translateY(0); } }
+        @keyframes pushInFromBottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes pushInFromTop { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+        @keyframes pushOutToTop { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+        @keyframes pushOutToBottom { from { transform: translateY(0); } to { transform: translateY(100%); } }
+        @keyframes pushInFromRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes pushInFromLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+        @keyframes pushOutToLeft { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+        @keyframes pushOutToRight { from { transform: translateX(0); } to { transform: translateX(100%); } }
+        @keyframes pushBgOut { from { opacity: 1; } to { opacity: 0; } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes bounceLeft { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
@@ -6871,12 +6911,13 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "push" ? "none" : transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
             <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
+            <PageMotionContext.Provider value={pushInMotion}>
             <SliderDragContext.Provider value={sliderDragging}>
             <BlockPositionsContext.Provider value={blockPositionsRef}>
             {started && behindCustomBlocks.length > 0 && (
-              <div className="absolute inset-0">
+              <div className="absolute inset-0" style={pushInMotion ? { animation: pushInMotion.content, zIndex: 30 } : undefined}>
                 {behindCustomBlocks.map((block, index) => (
                   <CustomTextBlock
                     key={block.id}
@@ -6895,7 +6936,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             )}
             {renderSlide(stepKey)}
             {started && frontCustomBlocks.length > 0 && (
-              <div className="absolute inset-0">
+              <div className="absolute inset-0" style={pushInMotion ? { animation: pushInMotion.content, zIndex: 30 } : undefined}>
                 {frontCustomBlocks.map((block, index) => (
                   <CustomTextBlock
                     key={block.id}
@@ -6914,6 +6955,36 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             )}
             </BlockPositionsContext.Provider>
             </SliderDragContext.Provider>
+            </PageMotionContext.Provider>
+            {/* The page being left, kept on screen only for the length of a
+                "push" transition: its content slides out while its
+                background fades, revealing the new page's background
+                underneath. Sits above the new page's background (z 5) but
+                below its content (z 10) and custom blocks (z 30). */}
+            {pushOutgoing && (
+              <PageMotionContext.Provider value={pushOutMotion}>
+                <div className="pointer-events-none absolute inset-0" style={{ zIndex: 5 }}>
+                  {(() => {
+                    const outBlocks = data.customBlocks[lang]?.[pushOutgoing.key] || [];
+                    const outLight = data.pageBackgrounds[pushOutgoing.key]?.mode === "photo";
+                    const layer = (blocks) => blocks.length > 0 && (
+                      <div className="absolute inset-0" style={{ animation: pushOutMotion.content, zIndex: 30 }}>
+                        {blocks.map((block, index) => (
+                          <CustomTextBlock key={block.id} block={block} layerIndex={index} light={outLight} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
+                        ))}
+                      </div>
+                    );
+                    return (
+                      <>
+                        {layer(outBlocks.filter((b) => b.behindContent))}
+                        {renderSlide(pushOutgoing.key)}
+                        {layer(outBlocks.filter((b) => !b.behindContent))}
+                      </>
+                    );
+                  })()}
+                </div>
+              </PageMotionContext.Provider>
+            )}
             </CanvasHeightContext.Provider>
             {marquee && (
               <div
@@ -7391,7 +7462,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         <SegmentedToggle
           value={transitionStyle}
           onChange={setTransitionStyle}
-          options={[{ value: "slide", label: "Slide (quick)" }, { value: "stack", label: "Stack (slower)" }]}
+          options={[{ value: "slide", label: "Slide (quick)" }, { value: "stack", label: "Stack (slower)" }, { value: "push", label: "Page push" }]}
         />
       </div>
       <div className="mt-4 flex items-center justify-between gap-4">
