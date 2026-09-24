@@ -2239,12 +2239,15 @@ function Divider() {
 /* Top tab bar                                                             */
 /* ---------------------------------------------------------------------- */
 
-function TabBar({ view, setView, isClientPortal }) {
+function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
   const tabs = [
     { key: "builder", label: "Builder", icon: Heart },
     { key: "settings", label: "Settings", icon: Settings },
     { key: "dashboard", label: "Dashboard", icon: BarChart3 },
-    ...(isClientPortal ? [] : [{ key: "users", label: "Users", icon: Users }]),
+    ...(isClientPortal ? [] : [
+      { key: "users", label: "Users", icon: Users },
+      { key: "livechat", label: "Live Chat", icon: MessageCircle, badge: liveChatUnread },
+    ]),
   ];
   return (
     <div className="mb-7 flex gap-2 border-b" style={{ borderColor: "rgba(147,166,155,0.18)" }}>
@@ -2263,6 +2266,9 @@ function TabBar({ view, setView, isClientPortal }) {
             }}
           >
             <Icon size={14} /> {tab.label}
+            {tab.badge > 0 && (
+              <span className="ml-0.5 rounded-full px-1.5 text-[10px] font-bold" style={{ background: "#E25B5B", color: "#FFFFFF", lineHeight: "16px" }}>{tab.badge}</span>
+            )}
           </button>
         );
       })}
@@ -10320,6 +10326,7 @@ function TemplateShopPage({ mode = "canva" }) {
           </div>
         )}
       </div>
+      {!selectedTemplate && <LiveChatWidget page={mode === "website" ? "designs" : "shop"} />}
     </div>
   );
 }
@@ -10438,6 +10445,420 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
       >
         {open ? <X size={22} color={INK} /> : <Sparkles size={22} color={INK} />}
       </button>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* Live chat — visitors talk to the site owner, who answers from the      */
+/* admin app's "Live Chat" tab. Backed by supabase/sql/live_chat.sql.     */
+/* ---------------------------------------------------------------------- */
+
+const LIVE_CHAT_ID_KEY = "einvite:live-chat-id";
+const LIVE_CHAT_NAME_KEY = "einvite:live-chat-name";
+const LIVE_CHAT_SEEN_KEY = "einvite:live-chat-seen";
+const LIVE_CHAT_ADMIN_KEY = "einvite:live-chat-admin-key";
+const LIVE_CHAT_READ_KEY = "einvite:live-chat-read";
+
+const lsGet = (key) => { try { return window.localStorage.getItem(key); } catch { return null; } };
+const lsSet = (key, value) => { try { window.localStorage.setItem(key, value); } catch {} };
+const lsRemove = (key) => { try { window.localStorage.removeItem(key); } catch {} };
+
+async function liveChatRpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) {
+    const err = new Error(`Live chat request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+const newLiveChatId = () =>
+  (window.crypto?.randomUUID ? window.crypto.randomUUID() : `${uid()}${uid()}${uid()}${uid()}`);
+
+const formatChatTime = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+function ChatBubble({ mine, body, time }) {
+  return (
+    <div style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start" }}>
+      <div
+        className="max-w-[85%] rounded-2xl px-3 py-2 text-[12.5px]"
+        style={{ background: mine ? GOLD : INK_3, color: mine ? INK : IVORY, fontFamily: FONT_BODY, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+      >
+        {body}
+        {time && <div className="mt-1 text-right text-[9.5px]" style={{ opacity: 0.6 }}>{time}</div>}
+      </div>
+    </div>
+  );
+}
+
+// Floating "Chat with us" button for visitors. `page` says where they
+// wrote from (home / shop / builder), shown to the admin in the inbox.
+function LiveChatWidget({ page, defaultName = "", bottom = 20 }) {
+  const [open, setOpen] = useState(false);
+  const [conversationId, setConversationId] = useState(() => lsGet(LIVE_CHAT_ID_KEY));
+  const [name, setName] = useState(() => lsGet(LIVE_CHAT_NAME_KEY) || defaultName);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [seenId, setSeenId] = useState(() => Number(lsGet(LIVE_CHAT_SEEN_KEY)) || 0);
+  const lastIdRef = useRef(0);
+  const scrollRef = useRef(null);
+
+  const fetchNew = async (convId = conversationId) => {
+    if (!convId) return;
+    try {
+      const rows = await liveChatRpc("live_chat_fetch", { p_conversation: convId, p_after: lastIdRef.current });
+      if (rows?.length) {
+        lastIdRef.current = rows[rows.length - 1].id;
+        setMessages((m) => [...m, ...rows.filter((r) => !m.some((x) => x.id === r.id))]);
+      }
+    } catch {}
+  };
+
+  // Faster while the panel is open; a slow background check otherwise so
+  // the button can show a dot when the owner replies.
+  useEffect(() => {
+    if (!conversationId) return;
+    fetchNew();
+    const t = setInterval(() => { if (!document.hidden) fetchNew(); }, open ? 4000 : 20000);
+    return () => clearInterval(t);
+  }, [conversationId, open]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (open && lastIdRef.current > seenId) {
+      setSeenId(lastIdRef.current);
+      lsSet(LIVE_CHAT_SEEN_KEY, String(lastIdRef.current));
+    }
+  }, [messages, open]);
+
+  const unread = !open && messages.some((m) => m.sender === "admin" && m.id > seenId);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setError("");
+    let convId = conversationId;
+    if (!convId) {
+      convId = newLiveChatId();
+      lsSet(LIVE_CHAT_ID_KEY, convId);
+    }
+    if (name.trim()) lsSet(LIVE_CHAT_NAME_KEY, name.trim());
+    try {
+      await liveChatRpc("live_chat_send", { p_conversation: convId, p_body: text, p_name: name.trim() || null, p_page: page });
+      setInput("");
+      if (convId !== conversationId) setConversationId(convId); // starts the polling effect, which fetches the message just sent
+      else await fetchNew(convId);
+    } catch {
+      setError("Couldn't send — please try again in a moment.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", bottom, right: 20, zIndex: 199 }}>
+      {open && (
+        <div
+          className="mb-3 flex flex-col overflow-hidden rounded-2xl"
+          style={{ width: "min(320px, calc(100vw - 40px))", height: "min(440px, calc(100vh - 140px))", background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, boxShadow: "0 20px 50px -15px rgba(0,0,0,0.6)" }}
+        >
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#6FCF97" }} />
+              <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Chat with us</span>
+            </div>
+            <button onClick={() => setOpen(false)} style={{ color: MUTED }} aria-label="Close chat"><X size={16} /></button>
+          </div>
+          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+            <ChatBubble mine={false} body="Hi! 👋 Send us a message and we'll reply right here as soon as we can." />
+            {messages.map((m) => (
+              <ChatBubble key={m.id} mine={m.sender === "visitor"} body={m.body} time={formatChatTime(m.created_at)} />
+            ))}
+          </div>
+          {!conversationId && (
+            <div className="px-3 pt-2">
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value.slice(0, 80))}
+                placeholder="Your name (optional)"
+                className="w-full rounded-full px-3 py-2 text-[12px] outline-none"
+                style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}
+              />
+            </div>
+          )}
+          {error && <p className="px-4 pt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+          <div className="flex items-center gap-2 p-3" style={{ borderTop: conversationId ? `1px solid rgba(201,164,76,0.15)` : "none" }}>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value.slice(0, 2000))}
+              onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              placeholder="Type your message…"
+              className="flex-1 rounded-full px-3 py-2 text-[12.5px] outline-none"
+              style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}
+            />
+            <button
+              onClick={send}
+              disabled={sending || !input.trim()}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full"
+              style={{ background: GOLD, color: INK, opacity: sending || !input.trim() ? 0.5 : 1 }}
+              aria-label="Send"
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative flex h-14 w-14 items-center justify-center rounded-full"
+        style={{ background: IVORY, boxShadow: "0 10px 30px -8px rgba(0,0,0,0.5)", marginLeft: "auto" }}
+        aria-label={open ? "Close chat" : "Chat with us"}
+      >
+        {open ? <X size={22} color={INK} /> : <MessageCircle size={24} color={INK} />}
+        {unread && <span className="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full" style={{ background: "#E25B5B", border: `2px solid ${IVORY}` }} />}
+      </button>
+    </div>
+  );
+}
+
+// Admin side: keeps the conversation list fresh (for the tab badge) while
+// the admin app is open, with the password saved in this browser.
+function useLiveChatAdmin(enabled) {
+  const [adminKey, setAdminKey] = useState(() => lsGet(LIVE_CHAT_ADMIN_KEY) || "");
+  const [conversations, setConversations] = useState([]);
+  const [status, setStatus] = useState("idle"); // idle | ok | badKey | error
+  const [readMap, setReadMap] = useState(() => {
+    try { return JSON.parse(lsGet(LIVE_CHAT_READ_KEY) || "{}") || {}; } catch { return {}; }
+  });
+
+  const refresh = async (key = adminKey) => {
+    if (!key) return;
+    try {
+      const rows = await liveChatRpc("live_chat_admin_conversations", { p_key: key });
+      setConversations(rows || []);
+      setStatus("ok");
+    } catch (err) {
+      setStatus(err.status === 401 || err.status === 403 ? "badKey" : "error");
+    }
+  };
+
+  useEffect(() => {
+    if (!enabled || !adminKey) return;
+    refresh();
+    const t = setInterval(() => { if (!document.hidden) refresh(); }, 8000);
+    return () => clearInterval(t);
+  }, [enabled, adminKey]);
+
+  const saveKey = (key) => {
+    const k = key.trim();
+    if (k) lsSet(LIVE_CHAT_ADMIN_KEY, k); else lsRemove(LIVE_CHAT_ADMIN_KEY);
+    setAdminKey(k);
+    setStatus("idle");
+    setConversations([]);
+  };
+
+  const markRead = (conversationId, lastId) => {
+    setReadMap((m) => {
+      if ((m[conversationId] || 0) >= lastId) return m;
+      const next = { ...m, [conversationId]: lastId };
+      lsSet(LIVE_CHAT_READ_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const isUnread = (c) => c.last_sender === "visitor" && c.last_id > (readMap[c.conversation_id] || 0);
+  const unreadCount = status === "ok" ? conversations.filter(isUnread).length : 0;
+
+  return { adminKey, saveKey, conversations, status, refresh, markRead, isUnread, unreadCount };
+}
+
+const LIVE_CHAT_PAGE_LABELS = { home: "Home page", shop: "Shop", designs: "Designs", builder: "Builder" };
+
+function LiveChatInbox({ chat }) {
+  const { adminKey, saveKey, conversations, status, refresh, markRead, isUnread } = chat;
+  const [keyInput, setKeyInput] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [thread, setThread] = useState([]);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const scrollRef = useRef(null);
+
+  const loadThread = async (convId = selected) => {
+    if (!convId) return;
+    try {
+      const rows = await liveChatRpc("live_chat_admin_messages", { p_key: adminKey, p_conversation: convId });
+      setThread(rows || []);
+      if (rows?.length) markRead(convId, rows[rows.length - 1].id);
+    } catch {}
+  };
+
+  useEffect(() => {
+    setThread([]);
+    if (!selected) return;
+    loadThread(selected);
+    const t = setInterval(() => { if (!document.hidden) loadThread(selected); }, 4000);
+    return () => clearInterval(t);
+  }, [selected, adminKey]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [thread]);
+
+  const sendReply = async () => {
+    const text = reply.trim();
+    if (!text || sending || !selected) return;
+    setSending(true);
+    setError("");
+    try {
+      await liveChatRpc("live_chat_admin_reply", { p_key: adminKey, p_conversation: selected, p_body: text });
+      setReply("");
+      await loadThread(selected);
+      refresh();
+    } catch {
+      setError("Couldn't send — please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const deleteConversation = async () => {
+    if (!selected || !window.confirm("Delete this whole conversation? This can't be undone.")) return;
+    try {
+      await liveChatRpc("live_chat_admin_delete", { p_key: adminKey, p_conversation: selected });
+      setSelected(null);
+      refresh();
+    } catch {
+      setError("Couldn't delete — please try again.");
+    }
+  };
+
+  const card = { background: INK_2, border: `1px solid rgba(201,164,76,0.15)` };
+
+  if (!adminKey || status === "badKey") {
+    return (
+      <div className="mx-auto max-w-md rounded-2xl p-7" style={card}>
+        <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Live Chat</h2>
+        <p className="mb-4 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          {status === "badKey" ? "That password didn't work — please enter it again." : "Enter your live chat password once — this browser will remember it."}
+        </p>
+        <form onSubmit={(e) => { e.preventDefault(); saveKey(keyInput); setKeyInput(""); }} className="space-y-3">
+          <TextInput type="password" value={keyInput} onChange={setKeyInput} placeholder="Live chat password" />
+          <GoldButton type="submit" onClick={(e) => { e.preventDefault(); saveKey(keyInput); setKeyInput(""); }}>
+            <Unlock size={14} /> Open inbox
+          </GoldButton>
+        </form>
+      </div>
+    );
+  }
+
+  const current = conversations.find((c) => c.conversation_id === selected);
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-[300px_1fr]">
+      <div className={`${selected ? "hidden sm:block" : ""} overflow-hidden rounded-2xl`} style={card}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
+          <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Conversations</span>
+          <button onClick={() => saveKey("")} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>Lock</button>
+        </div>
+        {status === "error" && (
+          <p className="px-4 py-3 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+            Couldn't load chats — check that live_chat.sql has been run on the database.
+          </p>
+        )}
+        {status === "ok" && conversations.length === 0 && (
+          <p className="px-4 py-6 text-center text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No messages yet. New chats show up here automatically.</p>
+        )}
+        <div className="max-h-[560px] overflow-y-auto">
+          {conversations.map((c) => {
+            const unread = isUnread(c);
+            const active = c.conversation_id === selected;
+            return (
+              <button
+                key={c.conversation_id}
+                onClick={() => setSelected(c.conversation_id)}
+                className="block w-full px-4 py-3 text-left"
+                style={{ background: active ? INK_3 : "transparent", borderBottom: "1px solid rgba(147,166,155,0.1)", fontFamily: FONT_BODY }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[13px]" style={{ color: IVORY, fontWeight: unread ? 700 : 500 }}>
+                    {c.visitor_name || "Visitor"}
+                  </span>
+                  <span className="flex-shrink-0 text-[10px]" style={{ color: MUTED }}>{formatChatTime(c.last_at)}</span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-2">
+                  {unread && <span className="inline-block h-2 w-2 flex-shrink-0 rounded-full" style={{ background: "#E25B5B" }} />}
+                  <span className="truncate text-[11.5px]" style={{ color: unread ? GOLD_SOFT : MUTED }}>
+                    {c.last_sender === "admin" ? "You: " : ""}{c.last_body}
+                  </span>
+                </div>
+                {c.page && <div className="mt-1 text-[9.5px] uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>{LIVE_CHAT_PAGE_LABELS[c.page] || c.page}</div>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className={`${selected ? "" : "hidden sm:flex"} flex flex-col overflow-hidden rounded-2xl`} style={{ ...card, height: "min(620px, 75vh)" }}>
+        {!selected ? (
+          <div className="flex flex-1 items-center justify-center p-6 text-center text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Pick a conversation to read and reply.
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-2 px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
+              <div className="flex min-w-0 items-center gap-2">
+                <button onClick={() => setSelected(null)} className="sm:hidden" style={{ color: MUTED }} aria-label="Back"><ArrowLeft size={16} /></button>
+                <span className="truncate text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{current?.visitor_name || "Visitor"}</span>
+                {current?.page && <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>· {LIVE_CHAT_PAGE_LABELS[current.page] || current.page}</span>}
+              </div>
+              <button onClick={deleteConversation} style={{ color: MUTED }} aria-label="Delete conversation"><Trash2 size={15} /></button>
+            </div>
+            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+              {thread.map((m) => (
+                <ChatBubble key={m.id} mine={m.sender === "admin"} body={m.body} time={formatChatTime(m.created_at)} />
+              ))}
+            </div>
+            {error && <p className="px-4 pt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+            <div className="flex items-center gap-2 p-3" style={{ borderTop: `1px solid rgba(201,164,76,0.15)` }}>
+              <input
+                value={reply}
+                onChange={(e) => setReply(e.target.value.slice(0, 2000))}
+                onKeyDown={(e) => { if (e.key === "Enter") sendReply(); }}
+                placeholder="Write a reply…"
+                className="flex-1 rounded-full px-3 py-2 text-[13px] outline-none"
+                style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}
+              />
+              <button
+                onClick={sendReply}
+                disabled={sending || !reply.trim()}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full"
+                style={{ background: GOLD, color: INK, opacity: sending || !reply.trim() ? 0.5 : 1 }}
+                aria-label="Send reply"
+              >
+                <Send size={15} />
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -11052,6 +11473,7 @@ function LandingPage({ onSignUp, onLogIn }) {
           </div>
         </div>
       </footer>
+      <LiveChatWidget page="home" />
     </div>
   );
 }
@@ -13284,6 +13706,16 @@ export default function InvitationBuilder() {
     setIsShopPath(p === "/shop" || p.startsWith("/shop/"));
   }, []);
 
+  // Live chat inbox — only polled in the owner's own admin app, not while
+  // acting as a client or anywhere visitors are.
+  const liveChatAdminActive = isAdminPath === true && !actingAsUser;
+  const liveChat = useLiveChatAdmin(liveChatAdminActive);
+  useEffect(() => {
+    if (!liveChatAdminActive) return;
+    const base = document.title.replace(/^\(\d+\) /, "");
+    document.title = liveChat.unreadCount > 0 ? `(${liveChat.unreadCount}) ${base}` : base;
+  }, [liveChatAdminActive, liveChat.unreadCount]);
+
   useEffect(() => {
     const p = window.location.pathname;
     setIsDesignsPath(p === "/designs" || p.startsWith("/designs/"));
@@ -13794,7 +14226,10 @@ export default function InvitationBuilder() {
           </button>
         )}
 
-        {!showAuthPreview && <ChatSupportWidget context="builder" onFillForm={applyAiFormData} />}
+        {!showAuthPreview && view !== "livechat" && <ChatSupportWidget context="builder" onFillForm={applyAiFormData} />}
+        {!showAuthPreview && !isAdminPath && actingAsUser && (
+          <LiveChatWidget page="builder" defaultName={[actingAsUser.name, actingAsUser.email].filter(Boolean).join(" · ").slice(0, 80)} bottom={88} />
+        )}
 
         {showAuthPreview ? (
           <AuthPreview users={users} onSignUp={signUpUser} onExit={() => setShowAuthPreview(false)} onEnterBuilderAs={enterBuilderAsLoggedInUser} dataLoaded={coreDataLoaded} />
@@ -13818,7 +14253,7 @@ export default function InvitationBuilder() {
           />
         ) : (
           <>
-        <TabBar view={view} setView={setView} isClientPortal={!!actingAsUser} />
+        <TabBar view={view} setView={setView} isClientPortal={!!actingAsUser} liveChatUnread={liveChat.unreadCount} />
 
         {actingAsUser && (view === "builder" || view === "settings" || view === "dashboard") && (
           <div className="mb-5 flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.35)` }}>
@@ -14256,6 +14691,8 @@ export default function InvitationBuilder() {
             deleteOpenInviteLink={deleteOpenInviteLink}
           />
         )}
+
+        {view === "livechat" && !actingAsUser && <LiveChatInbox chat={liveChat} />}
 
         {view === "users" && !actingAsUser && (
           <UsersView
