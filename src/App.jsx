@@ -6387,7 +6387,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false, showcase = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -6595,7 +6595,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const pushOutName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushOutToLeft" : "pushOutToRight") : (pushOutgoing.dir > 0 ? "pushOutToTop" : "pushOutToBottom");
   const pushInMotion = pushOutgoing ? { content: `${pushInName} ${pushEase}` } : null;
   const pushOutMotion = pushOutgoing ? { bg: `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
-  const onTouchStart = (e) => { if (!layoutEditMode && started && !showcase) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
+  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
     const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
@@ -6893,7 +6893,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
               : // pre-wrap (inherited by every page's text): browsers collapse
                 // repeated/leading spaces by default, so spaces typed into a
                 // field to nudge text over never showed up anywhere.
-                { touchAction: showcase ? "pan-y" : "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%", whiteSpace: "pre-wrap" }
+                { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%", whiteSpace: "pre-wrap" }
           }
           dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
           onPointerDown={onCanvasPointerDown} onPointerMove={onCanvasPointerMove} onPointerUp={onCanvasPointerUp}
@@ -7222,7 +7222,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
       {data.music.url && <audio ref={audioRef} src={data.music.url} loop />}
 
-      {!fullscreen && !showcase && (
+      {!fullscreen && (
         <div className="mt-4 text-center">
           <div className="text-[11px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>
             Slide {activeIndex + 1} of {steps.length} — {steps[activeIndex].label}
@@ -10067,6 +10067,35 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
   );
 }
 
+// The built-in designs plus the admin's own published ones (a saved edit
+// with the same id overrides the hardcoded original), narrowed to Canva
+// designs ("canva") or ones edited on this website ("website").
+function mergeShopTemplates(shopDesigns, mode) {
+  return INVITATION_TEMPLATES
+    .map((t) => shopDesigns.find((d) => d.id === t.id) || t)
+    .concat(shopDesigns.filter((d) => !INVITATION_TEMPLATES.some((t) => t.id === d.id)))
+    .filter((t) => (mode === "website" ? t.editOnWebsite : !t.editOnWebsite));
+}
+
+function DesignThumb({ tpl, maxWidth = 180 }) {
+  return (
+    <div className="relative mx-auto" style={{ width: "100%", maxWidth, background: "#000", borderRadius: 20, padding: 6, boxShadow: "0 10px 24px -8px rgba(0,0,0,0.6)" }}>
+      <div className="absolute left-1/2 top-2 z-10 h-2.5 w-10 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
+      <div className="relative overflow-hidden" style={{ borderRadius: 15, aspectRatio: "9 / 19.5" }}>
+        {tpl.previewVideo ? (
+          <video key={tpl.previewVideo} src={tpl.previewVideo} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : tpl.coverImage ? (
+          <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center" style={{ background: BG_PRESETS[tpl.coverPreset]?.css || "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}>
+            <span style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: "rgba(244,237,228,0.55)", textAlign: "center", padding: "0 10px" }}>{tpl.name}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TemplateShopPage({ mode = "canva" }) {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -10079,12 +10108,16 @@ function TemplateShopPage({ mode = "canva" }) {
   // this page is standalone with no shared state from the main app, so it
   // fetches them directly from their own dedicated key.
   const [shopDesigns, setShopDesigns] = useState([]);
-  const allTemplates = INVITATION_TEMPLATES
-    .map((t) => shopDesigns.find((d) => d.id === t.id) || t) // a saved edit with the same id overrides the hardcoded original
-    .concat(shopDesigns.filter((d) => !INVITATION_TEMPLATES.some((t) => t.id === d.id))) // plus any genuinely new designs
-    .filter((t) =>
-      mode === "website" ? t.editOnWebsite : !t.editOnWebsite
-    );
+  const allTemplates = mergeShopTemplates(shopDesigns, mode);
+
+  // /shop?design=<id> (the home page's design cards link here) opens that
+  // design straight away, once it's known.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("design");
+    if (!id || selectedTemplate) return;
+    const tpl = allTemplates.find((t) => t.id === id);
+    if (tpl) setSelectedTemplate(tpl);
+  }, [shopDesigns]);
 
   useEffect(() => {
     (async () => {
@@ -10199,33 +10232,7 @@ function TemplateShopPage({ mode = "canva" }) {
               style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
             >
               <div className="p-3" style={{ background: INK_3 }}>
-                <div className="relative mx-auto" style={{ width: "100%", maxWidth: 180, background: "#000", borderRadius: 20, padding: 6, boxShadow: "0 10px 24px -8px rgba(0,0,0,0.6)" }}>
-                  <div className="absolute left-1/2 top-2 z-10 h-2.5 w-10 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
-                  <div className="relative overflow-hidden" style={{ borderRadius: 15, aspectRatio: "9 / 19.5" }}>
-                    {tpl.previewVideo ? (
-                      <video
-                        key={tpl.previewVideo}
-                        src={tpl.previewVideo}
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                    ) : tpl.coverImage ? (
-                      <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div
-                        className="flex h-full w-full items-center justify-center"
-                        style={{ background: BG_PRESETS[tpl.coverPreset]?.css || "linear-gradient(150deg, #1F3A2E 0%, #24463D 55%, #16211D 100%)" }}
-                      >
-                        <span style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: "rgba(244,237,228,0.55)", textAlign: "center", padding: "0 10px" }}>
-                          {tpl.name}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <DesignThumb tpl={tpl} />
               </div>
               <div className="p-4">
                 <div className="flex items-center justify-between">
@@ -10829,56 +10836,6 @@ function CheckinStaffPage({ slug }) {
 /* before signing up or logging in.                                        */
 /* ---------------------------------------------------------------------- */
 
-const SHOWCASE_STEP_KEYS = ["cover", "family", "timeline", "locations", "countdown", "rsvp", "registry"];
-const SHOWCASE_PRESETS = ["botanical", "blush", "dusk", "gilded"];
-const noop = () => {};
-
-// A real, working invitation (the built-in demo content) that pages itself
-// forward — the same PhonePreview the Builder and guests use, so what a
-// visitor sees here is genuinely the product, not a mockup.
-function LandingShowcase() {
-  const steps = useMemo(() => ALL_STEPS.filter((s) => SHOWCASE_STEP_KEYS.includes(s.key)), []);
-  const data = useMemo(() => {
-    const eventDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 120).toISOString().slice(0, 10);
-    return {
-      content: defaultContent,
-      timeline: defaultTimeline,
-      locations: defaultLocations,
-      registry: defaultRegistry,
-      pageBackgrounds: Object.fromEntries(Object.entries(defaultPageBackgrounds).map(([key, bg], i) => [key, { ...bg, mode: "photo", preset: SHOWCASE_PRESETS[i % SHOWCASE_PRESETS.length] }])),
-      music: { enabled: false, url: null, name: "", icon: "speaker" },
-      rsvpSchedule: { date: eventDate, time: "16:00" },
-      layouts: { en: DEFAULT_LAYOUTS },
-      intro: defaultIntroSettings,
-      customBlocks: { en: emptyCustomBlocks() },
-      rsvpSettings: { style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: false, enableGuestVoiceRecorder: false, deadline: null },
-      totalAttending: 0,
-      integrations: {},
-    };
-  }, []);
-  const [started, setStarted] = useState(false);
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const timer = setTimeout(() => setStarted(true), 1800);
-    return () => clearTimeout(timer);
-  }, []);
-  useEffect(() => {
-    if (!started) return;
-    const timer = setTimeout(() => setIndex((i) => (i + 1) % steps.length), 3200);
-    return () => clearTimeout(timer);
-  }, [started, index, steps.length]);
-  return (
-    <PhonePreview
-      data={data} steps={steps} activeIndex={index} onNavigate={setIndex} lang="en"
-      layoutEditMode={false} onMoveBlock={noop} started={started} onStart={() => setStarted(true)}
-      selectedBlockId={null} onSelectBlock={noop} onMoveCustomBlock={noop} onRemoveCustomBlock={noop}
-      onDuplicateCustomBlock={noop} onMoveLocation={noop} onSubmitRsvp={async () => null}
-      slug="" siteDomain="" onUpdateRsvpContent={noop}
-      swipeDirection="vertical" transitionStyle="push" showcase
-    />
-  );
-}
-
 const LANDING_STEPS = [
   { title: "Pick a design", body: "Start from a ready-made design, or from a blank canvas." },
   { title: "Make it yours", body: "Add your names, photos, music, the day's schedule and venues, and place everything exactly where you want it." },
@@ -10904,7 +10861,41 @@ const LANDING_DASHBOARD_POINTS = [
   "Send each family their own personal link",
 ];
 
+// The admin's own finished design, live — the same guest page anyone opening
+// the link gets, running inside a phone frame so visitors can tap it open
+// and swipe through it right here.
+const LANDING_DEMO_PATH = "/e/admin-preview";
+
+function LandingPhone() {
+  return (
+    <div className="flex flex-col items-center">
+      <div style={{ background: "#000", borderRadius: 30, padding: 6, boxShadow: "0 30px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06)" }}>
+        <iframe
+          src={LANDING_DEMO_PATH}
+          title="Sample invitation"
+          allow="autoplay"
+          style={{ display: "block", width: 292, height: 600, border: "none", borderRadius: 24, background: INK }}
+        />
+      </div>
+      <a href={LANDING_DEMO_PATH} target="_blank" rel="noreferrer" className="landing-link mt-4 inline-flex items-center gap-1.5 text-[12.5px]">
+        Tap the invitation to open it, or view it full screen <ExternalLink size={12} />
+      </a>
+    </div>
+  );
+}
+
 function LandingPage({ onSignUp, onLogIn }) {
+  // Canva designs from the shop — same list /shop shows, fetched the same way.
+  const [shopDesigns, setShopDesigns] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await persistentStorage.get("einvite:shop-designs", false);
+        if (res?.value) setShopDesigns(JSON.parse(res.value));
+      } catch {}
+    })();
+  }, []);
+  const canvaDesigns = mergeShopTemplates(shopDesigns, "canva").slice(0, 6);
   const heading = (size) => ({ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: IVORY, fontSize: size, lineHeight: 1.15 });
   const primaryBtn = "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold";
   return (
@@ -10924,7 +10915,7 @@ function LandingPage({ onSignUp, onLogIn }) {
           <nav className="flex items-center gap-5 text-[13px]">
             <a href="#how" className="landing-link hidden md:inline">How it works</a>
             <a href="#features" className="landing-link hidden md:inline">Features</a>
-            <a href="/designs" className="landing-link hidden md:inline">Designs</a>
+            <a href="/shop" className="landing-link hidden md:inline">Designs</a>
             <button onClick={onLogIn} className="landing-link">Log in</button>
             <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: GOLD, color: INK }}>Start</button>
           </nav>
@@ -10942,12 +10933,12 @@ function LandingPage({ onSignUp, onLogIn }) {
             <button onClick={onSignUp} className={primaryBtn} style={{ background: GOLD, color: INK }}>
               Create your invitation <Heart size={15} />
             </button>
-            <a href="/designs" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>See the designs</a>
+            <a href="/shop" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>See the designs</a>
           </div>
           <p className="mt-6 text-[12px]" style={{ color: MUTED }}>Works on any phone · Nothing for guests to download</p>
         </div>
         <div className="flex justify-center">
-          <LandingShowcase />
+          <LandingPhone />
         </div>
       </section>
 
@@ -10979,6 +10970,31 @@ function LandingPage({ onSignUp, onLogIn }) {
           ))}
         </div>
       </section>
+
+      {canvaDesigns.length > 0 && (
+        <section id="designs" className="px-4 pb-20 pt-4 sm:px-6">
+          <div className="mx-auto max-w-6xl">
+            <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Designs ready to make yours</h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Buy a design, then customize it yourself in Canva.</p>
+            <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3">
+              {canvaDesigns.map((tpl) => (
+                <a key={tpl.id} href={`/shop?design=${encodeURIComponent(tpl.id)}`} className="landing-card block overflow-hidden rounded-2xl" style={{ background: INK_2, border: "1px solid rgba(147,166,155,0.14)" }}>
+                  <div className="p-3 sm:p-4" style={{ background: INK_3 }}>
+                    <DesignThumb tpl={tpl} maxWidth={170} />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 p-3 sm:p-4">
+                    <div className="truncate text-[13.5px] font-semibold" style={{ color: IVORY }}>{tpl.name}</div>
+                    {tpl.price != null && tpl.price !== "" && <div className="flex-shrink-0 text-[13.5px] font-bold" style={{ color: GOLD_SOFT }}>${tpl.price}</div>}
+                  </div>
+                </a>
+              ))}
+            </div>
+            <div className="mt-10 text-center">
+              <a href="/shop" className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold" style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>See all designs</a>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="px-4 py-20 sm:px-6" style={{ background: INK_2 }}>
         <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
@@ -11023,7 +11039,7 @@ function LandingPage({ onSignUp, onLogIn }) {
         <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: MUTED, lineHeight: 1.7 }}>Start with a design you love, and send it the same day.</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <button onClick={onSignUp} className={primaryBtn} style={{ background: GOLD, color: INK }}>Create your invitation</button>
-          <a href="/designs" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>Browse the designs</a>
+          <a href="/shop" className={primaryBtn} style={{ color: IVORY, border: "1px solid rgba(244,237,228,0.25)" }}>Browse the designs</a>
         </div>
       </section>
 
@@ -11031,7 +11047,7 @@ function LandingPage({ onSignUp, onLogIn }) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: MUTED }}>
           <span>© {new Date().getFullYear()} eInvite.me</span>
           <div className="flex gap-5">
-            <a href="/designs" className="landing-link">Designs</a>
+            <a href="/shop" className="landing-link">Designs</a>
             <button onClick={onLogIn} className="landing-link">Log in</button>
           </div>
         </div>
