@@ -6485,6 +6485,25 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     else audioRef.current.pause();
   }, [playing, data.music.url]);
 
+  // Mobile browsers keep an <audio> element playing after the guest leaves
+  // the tab or switches apps. Pause whenever the page is hidden, and pick
+  // back up on return if the guest still had music on.
+  useEffect(() => {
+    const onVisibility = () => {
+      const a = audioRef.current;
+      if (!a) return;
+      if (document.hidden) a.pause();
+      else if (playing && data.music.url) a.play().catch(() => {});
+    };
+    const onPageHide = () => audioRef.current?.pause();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [playing, data.music.url]);
+
   // Called straight from the tap-to-start gate's own click handler, not
   // from the effect above: browsers (iOS Safari especially) only allow
   // audio with sound to start inside a genuine user gesture, and the
