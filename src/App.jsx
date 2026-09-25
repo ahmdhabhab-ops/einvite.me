@@ -10789,7 +10789,7 @@ function useLiveChatAdmin(enabled) {
   return { adminKey, saveKey, conversations, status, refresh, markRead, isUnread, unreadCount };
 }
 
-const LIVE_CHAT_PAGE_LABELS = { home: "Home page", shop: "Shop", designs: "Designs", builder: "Builder" };
+const LIVE_CHAT_PAGE_LABELS = { home: "Home page", shop: "Shop", designs: "Designs", builder: "Builder", privacy: "Privacy Policy" };
 
 function LiveChatInbox({ chat }) {
   const { adminKey, saveKey, conversations, status, refresh, markRead, isUnread } = chat;
@@ -11610,6 +11610,203 @@ function LandingContactSection({ contact }) {
   );
 }
 
+/* ---------------------------------------------------------------------- */
+/* FAQ, About us and the Privacy Policy page (/privacy)                    */
+/* ---------------------------------------------------------------------- */
+
+const SITE_ADDRESS = "Office 305, Tower 44, Dekweneh, Beirut, Lebanon";
+const SITE_MAP_QUERY = encodeURIComponent("Tower 44, Dekweneh, Beirut, Lebanon");
+
+const LANDING_FAQ = [
+  { q: "What is a digital invitation?", a: "It's an invitation your guests open on their phone from a single link. They tap an envelope to open it, and inside are your photos, music, the schedule, directions to each venue and an RSVP, all in one place." },
+  { q: "Which occasions can I use it for?", a: "Weddings, birthdays, quinceañeras, baptisms, baby showers and any other event. Each occasion starts with its own ready-written pages, which you can change however you like." },
+  { q: "Do my guests need to download an app?", a: "No. The invitation opens in the browser on any phone, so there's nothing to install and no account for guests to create." },
+  { q: "How do I send it to my guests?", a: "You get one link to share on WhatsApp, Instagram, SMS or email. You can also create a personal link for each family, so their reply is matched to them in your guest list." },
+  { q: "How do RSVPs work?", a: "Guests confirm with their names and how many people are coming. Every reply appears straight away in your dashboard, where you can also see who has opened the invitation and set an RSVP deadline." },
+  { q: "Can I change the invitation after I've sent it?", a: "Yes. Edit it at any time and save; your guests will see the latest version on the same link." },
+  { q: "Which languages are available?", a: "English, Arabic, French, Spanish and Armenian. Guests can switch between the languages you turn on, right on the invitation." },
+  { q: "Can I add music, photos and video?", a: "Yes. Add background music that starts when the invitation opens, your own photo or video behind the envelope, photo backgrounds on every page, and a live stream for guests who can't attend." },
+  { q: "How do I buy a design?", a: "Pick one on the Designs page and pay online. Canva designs are customized in Canva; our website designs are customized directly on eInvite.me after you create your account." },
+  { q: "What happens to my information?", a: "We only use it to run your invitation and support you, and we never sell it. Read the details in our", privacyLink: true },
+  { q: "How do I get help?", a: "Tap the chat button at the bottom of any page to talk to us directly, or reach us through the Contact section. We're happy to help at every step." },
+];
+
+function LandingFaqSection() {
+  return (
+    <section id="faq" className="relative px-4 py-20 sm:px-6">
+      <div className="mx-auto max-w-3xl">
+        <h2 className="text-center" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>Frequently Asked Questions</h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Everything you need to know about our digital invitation service.</p>
+        <style>{`
+          .faq-item summary { list-style: none; cursor: pointer; }
+          .faq-item summary::-webkit-details-marker { display: none; }
+          .faq-item .faq-chevron { transition: transform .25s; }
+          .faq-item[open] .faq-chevron { transform: rotate(180deg); }
+        `}</style>
+        <div className="mt-10 space-y-3">
+          {LANDING_FAQ.map(({ q, a, privacyLink }) => (
+            <details key={q} className="faq-item rounded-2xl" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
+              <summary className="flex items-center justify-between gap-4 px-5 py-4 text-[15px] font-semibold" style={{ color: LP.text }}>
+                {q}
+                <ChevronDown size={18} color={LP.gold} className="faq-chevron flex-shrink-0" />
+              </summary>
+              <p className="px-5 pb-5 text-[14px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
+                {a}
+                {privacyLink && <> <a href="/privacy" className="underline" style={{ color: LP.goldSoft }}>Privacy Policy</a>.</>}
+              </p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function LandingAboutSection() {
+  return (
+    <section id="about" className="relative px-4 py-20 sm:px-6" style={{ background: LP.band }}>
+      <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
+        <div>
+          <h2 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>About us</h2>
+          <p className="mt-5 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
+            eInvite.me is a digital invitation studio based in Beirut, Lebanon. We believe the invitation is the first moment of every celebration, so we make invitations that feel as special to open as the day itself: an envelope your guests tap open, your music, your photos and every detail of the day in one link.
+          </p>
+          <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
+            Weddings, birthdays, quinceañeras, baptisms or any gathering you're planning, we're here to help you create it and send it, and we're one message away whenever you need a hand.
+          </p>
+          <div className="mt-7 flex items-start gap-3 rounded-2xl p-5" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(212,171,78,0.12)" }}>
+              <MapPin size={19} color={LP.gold} />
+            </span>
+            <div>
+              <div className="text-[12px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.12em" }}>Our office</div>
+              <div className="mt-1 text-[15px]" style={{ color: LP.text }}>{SITE_ADDRESS}</div>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${SITE_MAP_QUERY}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-[13px] underline" style={{ color: LP.goldSoft }}>
+                Open in Google Maps <ExternalLink size={12} />
+              </a>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-2xl" style={{ border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -35px rgba(10,16,12,0.6)" }}>
+          <iframe
+            title="eInvite.me office location"
+            src={`https://maps.google.com/maps?q=${SITE_MAP_QUERY}&z=15&output=embed`}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            style={{ display: "block", width: "100%", height: 340, border: "none", filter: "grayscale(0.35) contrast(0.95)" }}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// [heading, paragraphs or bullet lists]
+const PRIVACY_SECTIONS = [
+  ["Who we are", [
+    `eInvite.me ("we", "us") provides digital invitations and the tools to create, send and manage them. Our office is at ${SITE_ADDRESS}. This policy explains what information we collect when you use our website and invitations, how we use it, and the choices you have.`,
+  ]],
+  ["Information we collect", [
+    "Account information: your name, email address, phone number and password when you create an account. If you sign in with Google, we receive your name and email address from Google.",
+    "Invitation content: everything you add to an invitation, such as names, dates, venues, schedules, text, photos, videos and music.",
+    "Guest information: when guests reply to an invitation we store their names, how many people are coming and, if they choose to record one, their voice message. Hosts may also add guests' names and phone numbers to their guest list, and we store check-in status, song requests and anything guests choose to share in guest networking.",
+    "Messages: what you write to us in the live chat (and the name you give), and what you type to the AI assistant in the invitation builder.",
+    "Payments: when you buy a design or a paid feature, the payment is handled by our payment providers (such as Whish Money or Stripe). We receive confirmation of the payment, but we never see or store your full card details.",
+    "Usage information: whether an invitation link has been opened, so hosts can see who has seen their invitation. Your browser also keeps a few small settings for our site in its local storage, for example to keep you signed in, to remember your live chat conversation and to remember your language.",
+  ]],
+  ["How we use your information", [
+    "To provide the service: building, saving and showing your invitation, delivering your guests' replies to your dashboard, and running features such as check-in, song requests and live streams.",
+    "To support you: answering your live chat messages and emails, and helping with orders.",
+    "To process orders and payments, and to send you messages about your account, such as sign-up and approval emails.",
+    "To keep the service secure and working properly, and to improve it.",
+    "We do not sell your personal information, and we do not use your guests' information for our own marketing.",
+  ]],
+  ["Who we share it with", [
+    "Guests: an invitation is visible to anyone who has its link. Please only include information you're comfortable sharing with the people you send it to.",
+    "Service providers who help us run eInvite.me, only as needed for their part of the work: our hosting provider (which stores our data on its servers), payment providers (Whish Money, Stripe), an AI provider (OpenAI) that processes the messages you send to the AI assistant, and email and messaging providers (such as Resend, and WhatsApp when messages are sent that way).",
+    "Google, when you choose to sign in with Google or when a page shows a Google Map, and video platforms such as YouTube when a live stream or video is embedded in an invitation. Their own privacy policies apply to what they collect.",
+    "Authorities, if we're required to by law or to protect the rights and safety of our users or others.",
+  ]],
+  ["How long we keep it", [
+    "We keep your account and invitations for as long as your account is active, so you can come back to them. Guest replies are kept for the host of the invitation. You can ask us to delete your account, an invitation or any of this information at any time, and we'll do so unless the law requires us to keep it.",
+  ]],
+  ["Your choices and rights", [
+    "You can view and edit most of your information yourself in your account. You can also ask us for a copy of the information we hold about you, ask us to correct it, or ask us to delete it. Guests who want their reply or voice message removed can ask the host or contact us directly.",
+  ]],
+  ["Security", [
+    "We use reasonable technical and organizational measures to protect your information, including encrypted (HTTPS) connections. No method of storage or transmission is completely secure, so we can't guarantee absolute security, but we work to protect your data.",
+  ]],
+  ["Children", [
+    "Our service is meant for adults. Invitations for children's celebrations are created and managed by their parents or guardians. We don't knowingly collect information directly from children.",
+  ]],
+  ["Changes to this policy", [
+    "We may update this policy from time to time. When we do, we'll change the date at the top of this page, and for important changes we'll let account holders know.",
+  ]],
+];
+const PRIVACY_UPDATED = "September 25, 2026";
+
+function PrivacyPolicyPage() {
+  const [contact, setContact] = useState(null);
+  useEffect(() => {
+    document.title = "Privacy Policy · eInvite.me";
+    (async () => {
+      try {
+        const res = await persistentStorage.get(SITE_CONTACT_KEY, false);
+        if (res?.value) setContact(JSON.parse(res.value));
+      } catch {}
+    })();
+  }, []);
+  const email = (contact?.email || "").trim();
+  const whatsapp = siteContactLinks(contact).find((l) => l.key === "whatsapp");
+  return (
+    <div className="relative min-h-screen w-full" style={{ background: LP.bg, backgroundImage: LP.pageGradient, fontFamily: FONT_BODY, color: LP.text }}>
+      <header style={{ borderBottom: `1px solid ${LP.line}` }}>
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <a href="/" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: LP.text }}>eInvite<span style={{ color: LP.gold }}>.me</span></a>
+          <a href="/" className="inline-flex items-center gap-1.5 text-[13px]" style={{ color: LP.text2 }}><ArrowLeft size={14} /> Back to home</a>
+        </div>
+      </header>
+      <main className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+        <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, fontSize: "clamp(32px, 4.5vw, 46px)", lineHeight: 1.15 }}>Privacy Policy</h1>
+        <p className="mt-3 text-[13px]" style={{ color: LP.text2 }}>Last updated: {PRIVACY_UPDATED}</p>
+        {PRIVACY_SECTIONS.map(([heading, paragraphs]) => (
+          <section key={heading} className="mt-10">
+            <h2 className="text-[20px]" style={{ fontFamily: FONT_DISPLAY, color: LP.goldSoft }}>{heading}</h2>
+            {paragraphs.length > 1 ? (
+              <ul className="mt-3 space-y-3">
+                {paragraphs.map((p) => (
+                  <li key={p} className="flex gap-3 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
+                    <span className="mt-[11px] h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: LP.gold }} />
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>{paragraphs[0]}</p>
+            )}
+          </section>
+        ))}
+        <section className="mt-10">
+          <h2 className="text-[20px]" style={{ fontFamily: FONT_DISPLAY, color: LP.goldSoft }}>Contact us</h2>
+          <p className="mt-3 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
+            For any question about this policy or your information, message us through the live chat on our website
+            {email && <>, email <a href={`mailto:${email}`} className="underline" style={{ color: LP.goldSoft }}>{email}</a></>}
+            {whatsapp && <>, or reach us on <a href={whatsapp.url} target="_blank" rel="noreferrer" className="underline" style={{ color: LP.goldSoft }}>WhatsApp</a></>}
+            . You can also write to us at {SITE_ADDRESS}.
+          </p>
+        </section>
+      </main>
+      <footer className="px-4 py-8 sm:px-6" style={{ borderTop: `1px solid ${LP.line}` }}>
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: LP.text2 }}>
+          <span>© {new Date().getFullYear()} eInvite.me</span>
+          <a href="/" className="underline">Home</a>
+        </div>
+      </footer>
+      <LiveChatWidget page="privacy" />
+    </div>
+  );
+}
+
 function LandingPage({ onSignUp, onLogIn }) {
   // Canva designs from the shop — same list /shop shows, fetched the same way.
   const [shopDesigns, setShopDesigns] = useState([]);
@@ -11664,6 +11861,8 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="#how" className="landing-link hidden md:inline">How it works</a>
             <a href="#features" className="landing-link hidden md:inline">Features</a>
             <a href="/shop" className="landing-link hidden md:inline">Designs</a>
+            <a href="#faq" className="landing-link hidden lg:inline">FAQ</a>
+            <a href="#about" className="landing-link hidden lg:inline">About</a>
             {hasContact && <a href="#contact" className="landing-link hidden md:inline">Contact</a>}
             <button onClick={onLogIn} className="landing-link">Log in</button>
             <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>Start</button>
@@ -11813,6 +12012,8 @@ function LandingPage({ onSignUp, onLogIn }) {
         </div>
       </section>
 
+      <LandingFaqSection />
+
       <div className="relative">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 70% at 50% 50%, rgba(238,210,158,0.08), transparent 70%)" }} />
@@ -11829,14 +12030,22 @@ function LandingPage({ onSignUp, onLogIn }) {
       </section>
       </div>
 
+      <LandingAboutSection />
+
       <LandingContactSection contact={contact} />
 
       <footer className="relative px-4 py-8 sm:px-6" style={{ borderTop: `1px solid ${LP.line}` }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: LP.text2 }}>
-          <span>© {new Date().getFullYear()} eInvite.me</span>
-          <div className="flex gap-5">
+          <div>
+            <div>© {new Date().getFullYear()} eInvite.me</div>
+            <div className="mt-1" style={{ opacity: 0.8 }}>{SITE_ADDRESS}</div>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <a href="#faq" className="landing-link">FAQ</a>
+            <a href="#about" className="landing-link">About</a>
             {hasContact && <a href="#contact" className="landing-link">Contact</a>}
             <a href="/shop" className="landing-link">Designs</a>
+            <a href="/privacy" className="landing-link">Privacy Policy</a>
             <button onClick={onLogIn} className="landing-link">Log in</button>
           </div>
         </div>
@@ -12468,7 +12677,7 @@ function initialBuilderDataMode() {
   if (p === "/admin" || p.startsWith("/admin/")) return "full";
   const guest = p.match(/^\/e\/([^/]+)\/?$/);
   if (guest) return decodeURIComponent(guest[1]) === "admin-preview" ? "none" : "users"; // the owner's preview (ADMIN_PREVIEW_SLUG) is fetched on its own
-  if (/^\/(shop|designs|dj|checkin-staff|checkin|quick|network)(\/|$)/.test(p)) return "none";
+  if (/^\/(shop|designs|privacy|dj|checkin-staff|checkin|quick|network)(\/|$)/.test(p)) return "none";
   // Site root: the Builder for a logged-in client or someone mid sign-up,
   // otherwise the home page (which switches to "full" once they open
   // Log in / Sign up).
@@ -14431,6 +14640,10 @@ export default function InvitationBuilder() {
   }
   if (checkinStaffSlug) {
     return <CheckinStaffPage slug={checkinStaffSlug} />;
+  }
+
+  if (typeof window !== "undefined" && /^\/privacy\/?$/.test(window.location.pathname)) {
+    return <PrivacyPolicyPage />;
   }
 
   if (isShopPath === null) {
