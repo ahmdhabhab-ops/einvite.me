@@ -8222,6 +8222,12 @@ function CheckinPanel({ slug, siteDomain }) {
 // a package tier yet — or wants to upgrade to a higher one. Building and
 // editing the invitation itself is never gated by this; only making it
 // real/live for guests is.
+// Shown under every checkout button: all sales are final.
+const NON_REFUNDABLE_TEXT = "All payments are final and non-refundable.";
+function NonRefundableNote({ color = MUTED }) {
+  return <p className="mt-2 text-center text-[11px]" style={{ color, fontFamily: FONT_BODY }}>{NON_REFUNDABLE_TEXT}</p>;
+}
+
 function PublishPaywallModal({ userId, invitationSlug, currentPackageTier, onClose, onConfirmed }) {
   const [selectedTier, setSelectedTier] = useState(currentPackageTier || "basic");
   const [paying, setPaying] = useState(false);
@@ -8298,6 +8304,7 @@ function PublishPaywallModal({ userId, invitationSlug, currentPackageTier, onClo
             >
               {paying ? "Opening payment…" : selectedTier === currentPackageTier ? "Already your package" : `Pay $${PACKAGE_TIERS[selectedTier].price} for ${PACKAGE_TIERS[selectedTier].name}`}
             </button>
+            <NonRefundableNote />
           </>
         )}
       </div>
@@ -9538,6 +9545,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               A one-time $10 unlocks sending WhatsApp reminders to your guests, for this invitation, with no limit on how many times you use it afterward.
             </p>
             {integrations.reminderPaymentUrl ? (
+              <>
               <a
                 href={integrations.reminderPaymentUrl}
                 target="_blank"
@@ -9547,6 +9555,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               >
                 Pay $10 to Unlock
               </a>
+              <div className="-mt-2 mb-3"><NonRefundableNote /></div>
+              </>
             ) : (
               <p className="mb-3 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>No payment link has been set up yet — contact support.</p>
             )}
@@ -10387,6 +10397,7 @@ function TemplateShopPage({ mode = "canva" }) {
                 >
                   {`Pay by Credit Card — $${selectedTemplate.price}`}
                 </button>
+                <NonRefundableNote />
                 {selectedTemplate.canvaTemplateUrl && (
                   <>
                     <div className="my-3 flex items-center gap-2">
@@ -11627,6 +11638,7 @@ const LANDING_FAQ = [
   { q: "Which languages are available?", a: "English, Arabic, French, Spanish and Armenian. Guests can switch between the languages you turn on, right on the invitation." },
   { q: "Can I add music, photos and video?", a: "Yes. Add background music that starts when the invitation opens, your own photo or video behind the envelope, photo backgrounds on every page, and a live stream for guests who can't attend." },
   { q: "How do I buy a design?", a: "Pick one on the Designs page and pay online. Canva designs are customized in Canva; our website designs are customized directly on eInvite.me after you create your account." },
+  { q: "Can I get a refund?", a: "All payments are final and non-refundable. Designs and features are digital and delivered straight away, so we can't refund them once paid. If something isn't working as it should, message us and we'll help put it right." },
   { q: "What happens to my information?", a: "We only use it to run your invitation and support you, and we never sell it. Read the details in our", privacyLink: true },
   { q: "How do I get help?", a: "Tap the chat button at the bottom of any page to talk to us directly, or reach us through the Contact section. We're happy to help at every step." },
 ];
@@ -11726,6 +11738,9 @@ const PRIVACY_SECTIONS = [
     "Service providers who help us run eInvite.me, only as needed for their part of the work: our hosting provider (which stores our data on its servers), payment providers (Whish Money, Stripe), an AI provider (OpenAI) that processes the messages you send to the AI assistant, and email and messaging providers (such as Resend, and WhatsApp when messages are sent that way).",
     "Google, when you choose to sign in with Google or when a page shows a Google Map, and video platforms such as YouTube when a live stream or video is embedded in an invitation. Their own privacy policies apply to what they collect.",
     "Authorities, if we're required to by law or to protect the rights and safety of our users or others.",
+  ]],
+  ["Payments and refunds", [
+    "All payments made on eInvite.me, including for designs, packages and paid features, are final and non-refundable. Because what you buy is digital and delivered immediately, payments can't be refunded once made. If something isn't working as it should, contact us and we'll help fix it.",
   ]],
   ["How long we keep it", [
     "We keep your account and invitations for as long as your account is active, so you can come back to them. Guest replies are kept for the host of the invitation. You can ask us to delete your account, an invitation or any of this information at any time, and we'll do so unless the law requires us to keep it.",
