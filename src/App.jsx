@@ -10226,7 +10226,7 @@ function TemplateShopPage({ mode = "canva" }) {
     <div style={{ minHeight: "100vh", background: INK }}>
       <div className="mx-auto max-w-4xl px-5 py-10">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Wedding Invitation Designs</h1>
+          <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Invitation Designs</h1>
           <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
             {mode === "website" ? "Buy a design, then customize it yourself directly on our website." : "Buy a design, then customize it yourself directly in Canva — no account needed here."}
           </p>
@@ -11294,7 +11294,7 @@ const LANDING_FEATURES = [
   { icon: CheckCircle2, title: "RSVP with names", body: "Guests confirm with their names and how many are coming, straight into your guest list." },
   { icon: MapPin, title: "Schedule and directions", body: "The day's timeline, a live countdown, and one-tap directions to every venue." },
   { icon: Gift, title: "Gift registry", body: "Registry links or bank details, shown with the rest of the invitation." },
-  { icon: Video, title: "Live stream", body: "Family who can't travel can watch the ceremony, free or paid." },
+  { icon: Video, title: "Live stream", body: "Family and friends who can't travel can watch it live, free or paid." },
   { icon: Disc3, title: "Song requests", body: "Guests send the songs they want to hear straight to your DJ." },
   { icon: Handshake, title: "Guest networking", body: "Guests discover others who share their interests and connect from their phone before the day." },
   { icon: Mic, title: "Voice messages", body: "Guests who can't make it can leave you a recorded voice message with their reply." },
@@ -11307,7 +11307,7 @@ const LANDING_DASHBOARD_POINTS = [
   "See who opened the invitation, and who hasn't yet",
   "Track confirmations and the headcount as replies come in",
   "Plan tables and your venue's seating layout",
-  "Send each family their own personal link",
+  "Send each guest or family their own personal link",
 ];
 
 // The admin's own finished design, live — the same guest page anyone opening
@@ -11576,16 +11576,16 @@ function LandingPage({ onSignUp, onLogIn }) {
       <div className="relative">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         {/* Warm light falling from the upper left, behind the headline. */}
-        <div className="absolute" style={{ inset: "-120px 0 0 0", background: "radial-gradient(ellipse 55% 55% at 26% 34%, rgba(238,210,158,0.10), transparent 70%), radial-gradient(ellipse 70% 60% at 50% 110%, rgba(18,26,21,0.35), transparent 70%)" }} />
+        <div className="absolute" style={{ inset: "-120px 0 0 0", background: "radial-gradient(ellipse 55% 55% at 26% 34%, rgba(238,210,158,0.10), transparent 70%), radial-gradient(ellipse 70% 32% at 50% 76%, rgba(18,26,21,0.3), transparent 70%)" }} />
         <img src={foliageA} alt="" className="landing-foliage lf-hero-tl" />
         <img src={foliageB} alt="" className="landing-foliage lf-hero-br" />
       </div>
       <section className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 md:grid-cols-2 md:pt-20">
         <div className="text-center md:text-left">
-          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.2em" }}>Digital wedding invitations</div>
+          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.2em" }}>Digital invitations for every occasion</div>
           <h1 style={heading("clamp(34px, 5.2vw, 56px)")}>An invitation that opens like a real envelope.</h1>
           <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: LP.text2, lineHeight: 1.7 }}>
-            Design a wedding invitation your guests tap open on their phone, with your photos, music, the day's schedule, directions and RSVP, all in one link you share on WhatsApp.
+            Create an invitation for your wedding, birthday, quinceañera or any event. Guests tap it open on their phone, with your photos, music, the schedule, directions and RSVP, all in one link you share on WhatsApp.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3 md:justify-start">
             <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
@@ -11600,6 +11600,28 @@ function LandingPage({ onSignUp, onLogIn }) {
         </div>
       </section>
       </div>
+
+      <section id="occasions" className="relative mx-auto max-w-6xl px-4 pb-20 pt-4 sm:px-6">
+        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>One invitation, any occasion</h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
+          Each occasion starts with its own ready-written pages and schedule, which you can change however you like.
+        </p>
+        <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {[...EVENT_TYPES.map((et) => ({ key: et.id, name: et.name, icon: et.icon })), { key: "any", name: "Any event", icon: CalendarDays }].map(({ key, name, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={onSignUp}
+              className="landing-card flex flex-col items-center gap-3 rounded-2xl px-4 py-6 text-center"
+              style={{ background: LP.card, border: `1px solid ${LP.line}` }}
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(212,171,78,0.12)" }}>
+                <Icon size={21} color={LP.gold} strokeWidth={1.6} />
+              </span>
+              <span className="text-[14.5px] font-semibold" style={{ color: LP.text }}>{name}</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section id="how" className="relative px-4 py-20 sm:px-6" style={{ background: LP.band }}>
         <div className="mx-auto max-w-6xl">
