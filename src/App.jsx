@@ -5213,6 +5213,27 @@ function TornEdge({ flip = false, color = INK }) {
   );
 }
 
+// A big photo shown as a background paints from the top down as its bytes
+// arrive, which looks like it's being drawn in. Showing it only once it's
+// fully downloaded and decoded makes it appear all at once instead. URLs
+// already loaded this session are remembered, so going back to a page (or
+// a page whose photo was preloaded) shows it immediately, with no flash.
+const loadedImageUrls = new Set();
+function useImageReady(url) {
+  const [ready, setReady] = useState(() => !url || loadedImageUrls.has(url));
+  useEffect(() => {
+    if (!url || loadedImageUrls.has(url)) { setReady(true); return; }
+    setReady(false);
+    let cancelled = false;
+    const img = new Image();
+    img.src = url;
+    const done = () => { loadedImageUrls.add(url); if (!cancelled) setReady(true); };
+    (img.decode ? img.decode() : new Promise((res, rej) => { img.onload = res; img.onerror = rej; })).then(done, done); // a broken image shouldn't stay hidden forever
+    return () => { cancelled = true; };
+  }, [url]);
+  return ready;
+}
+
 function StoryPage({ bg, children }) {
   const isPhoto = bg.mode === "photo";
   const tornEdges = useContext(TornEdgesContext);
@@ -5222,7 +5243,10 @@ function StoryPage({ bg, children }) {
   // color here, transparent areas show whatever's behind this element,
   // which is nothing by default. Defaults to INK (this app's own dark
   // background) if the page hasn't set one.
-  const background = isPhoto ? (hasActiveCustomImage(bg) ? `${bg.backdropColor || INK} url(${bg.image}) center/cover` : BG_PRESETS[bg.preset].css) : PAPER;
+  const photoReady = useImageReady(isPhoto && hasActiveCustomImage(bg) ? bg.image : null);
+  const background = isPhoto
+    ? (hasActiveCustomImage(bg) ? (photoReady ? `${bg.backdropColor || INK} url(${bg.image}) center/cover` : bg.backdropColor || INK) : BG_PRESETS[bg.preset].css)
+    : PAPER;
   // "darken" (0-100) sets the strength of the bottom stop; top/mid scale with it
   // at the same ratios as the original fixed overlay, so 55 looks identical to before.
   const amount = (bg.darken ?? 55) / 100;
@@ -6447,6 +6471,8 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   const d = ENVELOPE_STYLES[design] || ENVELOPE_STYLES.kraftGold;
   const EngraveIcon = d.engrave;
   const hasCustomBg = !!customMedia;
+  const customImageUrl = customMedia?.type === "video" ? customMedia.posterUrl : customMedia ? (customMedia.posterUrl && !revealing ? customMedia.posterUrl : customMedia.url) : null;
+  const customImageReady = useImageReady(customImageUrl || null);
 
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: hasCustomBg ? INK : d.envelopeBg }}>
@@ -6456,7 +6482,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
             <video
               ref={videoRef}
               src={customMedia.url}
-              poster={customMedia.posterUrl || undefined}
+              poster={customMedia.posterUrl && customImageReady ? customMedia.posterUrl : undefined}
               preload="auto"
               muted
               loop
@@ -6481,7 +6507,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
                 // once it's a live CSS background, so show its static posterUrl
                 // (generated at upload time) until the tap actually starts the
                 // reveal, then switch to the real animated GIF.
-                background: `url(${customMedia.posterUrl && !revealing ? customMedia.posterUrl : customMedia.url}) center/cover, ${INK}`,
+                background: customImageReady ? `url(${customImageUrl}) center/cover, ${INK}` : INK,
               }}
             />
           )}
@@ -6578,9 +6604,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     // color first and then pops in once it finishes loading, which reads
     // as a jarring flash during the swipe transition.
     Object.values(data.pageBackgrounds || {}).forEach((bg) => {
-      if (bg?.mode === "photo" && bg.image) {
+      if (bg?.mode === "photo" && bg.image && !loadedImageUrls.has(bg.image)) {
         const img = new Image();
         img.src = bg.image;
+        const url = bg.image;
+        (img.decode ? img.decode() : Promise.resolve()).then(() => loadedImageUrls.add(url), () => {});
       }
     });
   }, [data.pageBackgrounds]);
@@ -7048,7 +7076,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   // with transparent regions (a common design pattern for decorative overlay
   // art) — without it, the transparent parts let whatever sits behind the gate
   // in the DOM (the cover slide's own photo and text) show straight through.
-  const gateBackground = gateImage ? `url(${gateImage}) center/cover, ${INK}` : introIsVideo ? INK : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  const gateImageReady = useImageReady(gateImage);
+  const gateBackground = gateImage ? (gateImageReady ? `url(${gateImage}) center/cover, ${INK}` : INK) : introIsVideo ? INK : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
@@ -7370,7 +7399,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     <video
                       ref={gateVideoRef}
                       src={introMedia.url}
-                      poster={introMedia.posterUrl || undefined}
+                      poster={introMedia.posterUrl && gateImageReady ? introMedia.posterUrl : undefined}
                       preload="auto"
                       muted
                       loop
