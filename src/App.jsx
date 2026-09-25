@@ -1767,6 +1767,46 @@ async function uploadGifPosterFrame(file, bucket = "site-decorations") {
   }
 }
 
+// A video's first frame, captured in the browser at upload time and
+// uploaded as a JPEG, so the tap-to-start gate can show it instantly while
+// the (much larger) video itself is still downloading. Returns null if the
+// browser can't decode the video — the gate then just stays dark until the
+// video's own first frame arrives.
+async function uploadVideoPosterFrame(file, bucket = "site-decorations") {
+  const src = URL.createObjectURL(file);
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.src = src;
+    await new Promise((resolve, reject) => {
+      video.onloadeddata = resolve;
+      video.onerror = reject;
+      setTimeout(() => reject(new Error("timeout")), 15000);
+    });
+    const scale = Math.min(1, 1600 / Math.max(video.videoWidth || 1, video.videoHeight || 1));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round((video.videoWidth || 1) * scale);
+    canvas.height = Math.round((video.videoHeight || 1) * scale);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    if (!blob) return null;
+    const path = `${crypto.randomUUID()}.jpg`;
+    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "image/jpeg" },
+      body: blob,
+    });
+    if (!res.ok) return null;
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+}
+
 // Videos can't be compressed client-side the way images are, and are
 // typically many times larger — storing one as a base64 data URL directly
 // inside the saved JSON snapshot (like an image used to be, before
@@ -6287,13 +6327,14 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   const hasCustomBg = !!customMedia;
 
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: hasCustomBg ? undefined : d.envelopeBg }}>
+    <div className="absolute inset-0 overflow-hidden" style={{ background: hasCustomBg ? INK : d.envelopeBg }}>
       {hasCustomBg ? (
         <>
           {customMedia.type === "video" ? (
             <video
               ref={videoRef}
               src={customMedia.url}
+              poster={customMedia.posterUrl || undefined}
               preload="auto"
               muted
               loop
@@ -6849,12 +6890,18 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   // first frame, generated at upload time) shows that instead, right up
   // until the tap actually starts the reveal transition.
   const introMediaUrl = introMedia?.type === "image" && introMedia.posterUrl && !gateClosing ? introMedia.posterUrl : introMedia?.url;
-  const gateImage = (introMedia?.type === "image" ? introMediaUrl : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
+  // With a video intro, the gate shows the video's own first frame (its
+  // posterUrl) or plain dark while it loads — never the Cover page's photo,
+  // which used to flash up first and read as the wrong picture.
+  const introIsVideo = introMedia?.type === "video";
+  const gateImage = introIsVideo
+    ? introMedia.posterUrl || null
+    : (introMedia?.type === "image" ? introMediaUrl : null) || (hasActiveCustomImage(data.pageBackgrounds.cover) ? data.pageBackgrounds.cover.image : null);
   // An opaque color as the bottom layer here matters for any uploaded image/GIF
   // with transparent regions (a common design pattern for decorative overlay
   // art) — without it, the transparent parts let whatever sits behind the gate
   // in the DOM (the cover slide's own photo and text) show straight through.
-  const gateBackground = gateImage ? `url(${gateImage}) center/cover, ${INK}` : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  const gateBackground = gateImage ? `url(${gateImage}) center/cover, ${INK}` : introIsVideo ? INK : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
@@ -7175,6 +7222,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     <video
                       ref={gateVideoRef}
                       src={introMedia.url}
+                      poster={introMedia.posterUrl || undefined}
                       preload="auto"
                       muted
                       loop
@@ -13576,7 +13624,7 @@ export default function InvitationBuilder() {
     const isGif = file.type === "image/gif";
     try {
       const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
-      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : isVideo ? await uploadVideoPosterFrame(file, "site-decorations") : null;
       const newItem = { id: uid(), type: isVideo ? "video" : "image", url, posterUrl, name: file.name };
       setIntroMediaLibrary((list) => [...list, newItem]);
     } catch (err) {
@@ -14209,7 +14257,7 @@ export default function InvitationBuilder() {
       // A GIF also gets a static poster frame uploaded alongside it — see
       // uploadGifPosterFrame — so the gate can show that instead of the
       // animated GIF before the tap.
-      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : isVideo ? await uploadVideoPosterFrame(file, "site-decorations") : null;
       setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: isVideo ? "video" : "image", url, posterUrl, name: file.name } } }));
     } catch (err) {
       alert(err.message || "Couldn't upload — please try again.");
