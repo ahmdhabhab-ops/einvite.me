@@ -6624,26 +6624,34 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const pushOutMotion = pushOutgoing ? { bg: wholePage ? `${pushOutName} ${pushEase} forwards` : `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
   // Swiping follows the finger: the current page moves with it and the
   // next (or previous) page comes into view alongside, whatever the
-  // transition style. Letting go past ~18% of the screen (or with a quick
-  // flick) finishes the move; otherwise the page springs back. Transforms
+  // transition style. As soon as the finger has clearly moved (~35px) the
+  // page carries on to the next one by itself, without waiting for the
+  // finger to lift; a smaller movement springs back on release. Transforms
   // are set directly on the two layers rather than through React state, so
   // dragging doesn't re-render the whole invitation on every touch move.
-  const DRAG_SETTLE_MS = 260;
+  const DRAG_SETTLE_MS = 220;
+  const DRAG_COMMIT_PX = 35;
   const dragRef = useRef(null); // { start, t, size, pct, dir, active } while a finger is down
   const dragSettlingRef = useRef(false);
   const [dragNeighborDir, setDragNeighborDir] = useState(0); // 1 = next page mounted after, -1 = previous before, 0 = none
   const currentPageRef = useRef(null);
   const neighborPageRef = useRef(null);
   const axisTransform = (pct) => (isHorizontal ? `translateX(${pct}%)` : `translateY(${pct}%)`);
+  const lastDragRef = useRef(null); // the last position applied, for a neighbour that mounts after it
   const applyDrag = (pct, dir, transition) => {
+    lastDragRef.current = { pct, dir, transition };
     const cur = currentPageRef.current;
     const nb = neighborPageRef.current;
     if (cur) { cur.style.transition = transition || "none"; cur.style.transform = pct ? axisTransform(pct) : ""; }
     if (nb && dir) { nb.style.transition = transition || "none"; nb.style.transform = axisTransform(dir * 100 + pct); }
   };
   React.useLayoutEffect(() => {
-    const d = dragRef.current;
-    if (d && dragNeighborDir) applyDrag(d.pct, dragNeighborDir); // position the just-mounted neighbour before it paints
+    // Position the just-mounted neighbour before it paints — animated if a
+    // quick flick already decided to finish before it existed.
+    const last = lastDragRef.current;
+    if (!dragNeighborDir || !last || last.dir !== dragNeighborDir) return;
+    if (last.transition && neighborPageRef.current) void neighborPageRef.current.offsetHeight; // start the animation from its off-screen spot
+    applyDrag(last.pct, dragNeighborDir, last.transition);
   }, [dragNeighborDir]);
   const onTouchStart = (e) => {
     if (layoutEditMode || !started || pushOutgoing || dragSettlingRef.current) return;
@@ -6653,7 +6661,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   };
   const onTouchMove = (e) => {
     const d = dragRef.current;
-    if (!d || sliderDragging) return;
+    if (!d || d.done || sliderDragging) return;
     const deltaPx = (isHorizontal ? e.touches[0].clientX : e.touches[0].clientY) - d.start;
     if (!d.active && Math.abs(deltaPx) < 8) return; // still a tap
     d.active = true;
@@ -6664,14 +6672,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     d.dir = hasNeighbor ? dir : 0;
     if (d.dir !== dragNeighborDir) setDragNeighborDir(d.dir);
     applyDrag(d.pct, d.dir);
+    if (d.dir !== 0 && Math.abs(deltaPx) > DRAG_COMMIT_PX) finishDrag(d, true); // moved enough — go now
   };
-  const onTouchEnd = () => {
-    const d = dragRef.current;
-    dragRef.current = null;
-    if (!d || !d.active) return;
-    const quickFlick = Date.now() - d.t < 250 && Math.abs(d.pct) > 4;
-    const commit = d.dir !== 0 && (Math.abs(d.pct) > 18 || quickFlick);
-    const ease = `transform ${DRAG_SETTLE_MS}ms cubic-bezier(0.22,0.8,0.3,1)`;
+  const finishDrag = (d, commit) => {
+    d.done = true;
+    const ease = `transform ${DRAG_SETTLE_MS}ms cubic-bezier(0.25,0.9,0.3,1)`;
     dragSettlingRef.current = true;
     if (commit) {
       applyDrag(-d.dir * 100, d.dir, ease);
@@ -6685,6 +6690,12 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       applyDrag(0, d.dir, ease);
       setTimeout(() => { applyDrag(0, 0); setDragNeighborDir(0); dragSettlingRef.current = false; }, DRAG_SETTLE_MS);
     }
+  };
+  const onTouchEnd = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || !d.active || d.done) return;
+    finishDrag(d, false); // released before moving far enough — spring back
   };
   const onWheel = (e) => {
     if (layoutEditMode || !started || wheelLockRef.current) return;
