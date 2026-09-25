@@ -1741,16 +1741,6 @@ async function uploadDataUrlToStorage(dataUrl, bucket) {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
-// The intro video is the very first thing every guest waits for, so a
-// large file means a long dark screen on a phone. Returns false if the
-// owner decides to pick a smaller file instead.
-const INTRO_VIDEO_WARN_BYTES = 6 * 1024 * 1024;
-function confirmLargeIntroVideo(file) {
-  if (file.size <= INTRO_VIDEO_WARN_BYTES) return true;
-  const mb = (file.size / 1048576).toFixed(1);
-  return window.confirm(`This video is ${mb} MB. Every guest downloads it before the invitation opens, so on a phone they may wait several seconds on a dark screen.\n\nFor a fast intro, export it shorter or smaller (720p, under 5 MB). Upload this one anyway?`);
-}
-
 // Same idea for audio/video that was saved inline as base64 (older music
 // uploads were): uploads it to the custom-videos bucket and returns its URL.
 async function uploadMediaDataUrlToStorage(dataUrl) {
@@ -1892,6 +1882,61 @@ async function uploadVideoToStorage(file) {
   }
   return `${SUPABASE_URL}/storage/v1/object/public/custom-videos/${path}`;
 }
+
+// Sends a video to our own server (server.js /api/video/optimize), which
+// shrinks it to 720p / ~5 MB, grabs its first frame as a poster, and stores
+// both. Falls back to uploading the original as-is if the server can't do
+// it (e.g. running locally without it), so an upload never just fails.
+async function uploadOptimizedVideo(file, { audio = true } = {}) {
+  try {
+    const res = await fetch(`/api/video/optimize?audio=${audio ? 1 : 0}`, {
+      method: "POST",
+      headers: { "Content-Type": file.type || "video/mp4" },
+      body: file,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.url) return data;
+    }
+  } catch {}
+  if (file.size > 50 * 1024 * 1024) throw new Error("That video is too large to upload (over 50 MB) — try a shorter clip.");
+  return { url: await uploadVideoToStorage(file), posterUrl: null };
+}
+
+// Shrinks a video that's already stored (an older, full-size upload).
+async function optimizeStoredVideo(url, { audio = false } = {}) {
+  const res = await fetch("/api/video/optimize-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, audio }),
+  });
+  if (!res.ok) throw new Error(`Video optimization failed (${res.status})`);
+  return res.json();
+}
+
+// Optimized uploads end in "-opt.mp4" (see server.js); anything else on our
+// own Storage is an original that can still be shrunk.
+const isOptimizedVideoUrl = (url) => /-opt\.mp4$/.test(url || "");
+const canOptimizeVideoUrl = (url) => typeof url === "string" && url.startsWith(`${SUPABASE_URL}/storage/v1/object/public/`) && !isOptimizedVideoUrl(url);
+
+// Every intro video in an invitation's intro settings that is still a
+// full-size original -> { [originalUrl]: { url, posterUrl } }.
+async function optimizeIntroVideos(intro) {
+  const replacements = {};
+  for (const media of Object.values(intro?.media || {})) {
+    if (media?.type === "video" && canOptimizeVideoUrl(media.url) && !replacements[media.url]) {
+      try { replacements[media.url] = await optimizeStoredVideo(media.url, { audio: false }); } catch {}
+    }
+  }
+  return replacements;
+}
+const applyVideoReplacements = (intro, replacements) => ({
+  ...intro,
+  media: Object.fromEntries(Object.entries(intro?.media || {}).map(([lang, media]) => {
+    const r = media && replacements[media.url];
+    return [lang, r ? { ...media, url: r.url, posterUrl: r.posterUrl || media.posterUrl } : media];
+  })),
+});
 
 /* ---------------------------------------------------------------------- */
 /* Languages                                                                */
@@ -13792,15 +13837,31 @@ export default function InvitationBuilder() {
   // library — every client sees this same library and picks (or removes)
   // their own choice from it; nothing here is copied into a client's own
   // saved data, only their choice of which library item to use.
+  // Videos are shrunk on the server as they upload (see uploadOptimizedVideo),
+  // which can take up to a minute for a long clip — this drives the
+  // "Optimizing video…" notice so the owner knows to wait.
+  const [videoTasks, setVideoTasks] = useState(0);
+  const [videoTaskLabel, setVideoTaskLabel] = useState("");
+  const withVideoTask = async (fn, label = "Optimizing video… this can take up to a minute") => {
+    setVideoTaskLabel(label);
+    setVideoTasks((n) => n + 1);
+    try { return await fn(); } finally { setVideoTasks((n) => n - 1); }
+  };
   const addIntroLibraryItem = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
     const isGif = file.type === "image/gif";
-    if (isVideo && !confirmLargeIntroVideo(file)) return;
     try {
-      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
-      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : isVideo ? await uploadVideoPosterFrame(file, "site-decorations") : null;
+      let url, posterUrl = null;
+      if (isVideo) {
+        const optimized = await withVideoTask(() => uploadOptimizedVideo(file, { audio: false }));
+        url = optimized.url;
+        posterUrl = optimized.posterUrl || (await uploadVideoPosterFrame(file, "site-decorations"));
+      } else {
+        url = await uploadImageToStorage(file, "site-decorations");
+        posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : null;
+      }
       const newItem = { id: uid(), type: isVideo ? "video" : "image", url, posterUrl, name: file.name };
       setIntroMediaLibrary((list) => [...list, newItem]);
     } catch (err) {
@@ -13875,7 +13936,7 @@ export default function InvitationBuilder() {
   const uploadShopDesignVideo = async (designId, file) => {
     if (!file) return;
     try {
-      const url = await uploadVideoToStorage(file);
+      const { url } = await withVideoTask(() => uploadOptimizedVideo(file, { audio: false })); // previews autoplay muted
       await updateShopDesign(designId, { previewVideo: url });
     } catch (err) {
       alert(err.message || "Couldn't upload the video — please try again.");
@@ -13984,7 +14045,7 @@ export default function InvitationBuilder() {
     if (!file) return;
     const stepKey = steps[safeIndex].key;
     try {
-      const url = await uploadVideoToStorage(file);
+      const { url } = await withVideoTask(() => uploadOptimizedVideo(file, { audio: true }));
       const existingVideos = customBlocks[activeLang][stepKey].filter((b) => b.type === "video").length;
       const offset = (existingVideos % 4) * 8; // small staggered offset so new videos don't land exactly on top of existing ones
       const newBlock = { id: uid(), type: "video", url, x: 50 + offset, y: 50 + offset, width: 80 };
@@ -14409,11 +14470,10 @@ export default function InvitationBuilder() {
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
     const isGif = file.type === "image/gif";
-    if (isVideo && file.size > 20 * 1024 * 1024) {
-      alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
+    if (isVideo && file.size > 250 * 1024 * 1024) {
+      alert("That video is very large (over 250 MB) — try a shorter clip.");
       return;
     }
-    if (isVideo && !confirmLargeIntroVideo(file)) return;
     try {
       // Uploaded to Storage and referenced by its URL — not read into a base64
       // data URI kept in this invitation's own saved JSON. A multi-MB video or
@@ -14430,11 +14490,12 @@ export default function InvitationBuilder() {
       // then stays at the same 2400px/0.92 ceiling every other full-screen
       // background photo in the app uses, rather than being squeezed down
       // toward a small target size.
-      const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations", 2400, 0.92, 3 * 1024 * 1024);
+      const optimized = isVideo ? await withVideoTask(() => uploadOptimizedVideo(file, { audio: false })) : null; // intro videos play muted
+      const url = isVideo ? optimized.url : await uploadImageToStorage(file, "site-decorations", 2400, 0.92, 3 * 1024 * 1024);
       // A GIF also gets a static poster frame uploaded alongside it — see
       // uploadGifPosterFrame — so the gate can show that instead of the
       // animated GIF before the tap.
-      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : isVideo ? await uploadVideoPosterFrame(file, "site-decorations") : null;
+      const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : isVideo ? (optimized.posterUrl || (await uploadVideoPosterFrame(file, "site-decorations"))) : null;
       setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: isVideo ? "video" : "image", url, posterUrl, name: file.name } } }));
     } catch (err) {
       alert(err.message || "Couldn't upload — please try again.");
@@ -14763,6 +14824,35 @@ export default function InvitationBuilder() {
     saveDraft();
   }, [needsSaveAfterImageMigration]);
 
+  // Full-size intro videos uploaded before the server started shrinking
+  // them (one was 34.7 MB — a long dark screen for every guest) get
+  // shrunk once, in the background: the invitation being edited and the
+  // admin's intro library here, every other saved invitation further below.
+  const optimizedIntroVideosRef = useRef(false);
+  useEffect(() => {
+    if (guestView !== false || !coreDataLoaded || !backgroundsLoaded || !coreLoadCompletedRef.current || optimizedIntroVideosRef.current) return;
+    optimizedIntroVideosRef.current = true;
+    const pending = Object.values(intro?.media || {}).some((m) => m?.type === "video" && canOptimizeVideoUrl(m.url))
+      || (introMediaLibrary || []).some((m) => m?.type === "video" && canOptimizeVideoUrl(m.url));
+    if (!pending) return;
+    withVideoTask(async () => {
+      const replacements = await optimizeIntroVideos(intro);
+      for (const item of introMediaLibrary || []) {
+        if (item?.type === "video" && canOptimizeVideoUrl(item.url) && !replacements[item.url]) {
+          try { replacements[item.url] = await optimizeStoredVideo(item.url, { audio: false }); } catch {}
+        }
+      }
+      if (!Object.keys(replacements).length) return;
+      setIntro((i) => applyVideoReplacements(i, replacements));
+      setIntroMediaLibrary((list) => (list || []).map((item) => {
+        const r = item && replacements[item.url];
+        return r ? { ...item, url: r.url, posterUrl: r.posterUrl || item.posterUrl } : item;
+      }));
+      setNeedsSaveAfterImageMigration(true);
+    }, "Optimizing your intro video in the background… keep this page open").catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestView, coreDataLoaded, backgroundsLoaded]);
+
   // The same clean-up for every OTHER saved invitation (clients the owner
   // isn't editing right now) and for the shop designs list, which the home
   // page and /shop download on every visit. Runs once per admin session,
@@ -14790,6 +14880,22 @@ export default function InvitationBuilder() {
         try {
           const value = await shrinkKey(invitationKey(id), true);
           if (value) setInvitationsStore((store) => (store[id] ? { ...store, [id]: value } : store));
+        } catch {}
+        // Their intro videos too. Only the intro's video URLs change, so
+        // they're patched onto a fresh read of the invitation rather than
+        // overwriting it — a guest reply that arrived meanwhile is kept.
+        try {
+          const res = await persistentStorage.get(invitationKey(id), false);
+          const snapshot = res?.value ? JSON.parse(res.value) : null;
+          if (!Object.values(snapshot?.intro?.media || {}).some((m) => m?.type === "video" && canOptimizeVideoUrl(m.url))) continue;
+          const replacements = await withVideoTask(() => optimizeIntroVideos(snapshot.intro), "Optimizing intro videos in the background… keep this page open");
+          if (!Object.keys(replacements).length) continue;
+          const latestRes = await persistentStorage.get(invitationKey(id), false);
+          const latest = latestRes?.value ? JSON.parse(latestRes.value) : null;
+          if (!latest?.intro) continue;
+          const patched = { ...latest, intro: applyVideoReplacements(latest.intro, replacements) };
+          await persistentStorage.set(invitationKey(id), JSON.stringify(patched), false);
+          setInvitationsStore((store) => (store[id] ? { ...store, [id]: patched } : store));
         } catch {}
       }
       try {
@@ -15146,6 +15252,11 @@ export default function InvitationBuilder() {
         )}
 
         {!showAuthPreview && view !== "livechat" && <ChatSupportWidget context="builder" onFillForm={applyAiFormData} />}
+        {videoTasks > 0 && (
+          <div className="fixed bottom-5 left-5 z-[210] flex max-w-[calc(100vw-120px)] items-center gap-2.5 rounded-full px-4 py-2.5 text-[12.5px]" style={{ background: INK_2, border: `1px solid ${GOLD}`, color: IVORY, fontFamily: FONT_BODY, boxShadow: "0 12px 30px -10px rgba(0,0,0,0.6)" }}>
+            <Film size={14} color={GOLD} className="flex-shrink-0 animate-pulse" /> {videoTaskLabel}
+          </div>
+        )}
         {!showAuthPreview && !isAdminPath && actingAsUser && (
           <LiveChatWidget page="builder" defaultName={[actingAsUser.name, actingAsUser.email].filter(Boolean).join(" · ").slice(0, 80)} bottom={88} />
         )}
