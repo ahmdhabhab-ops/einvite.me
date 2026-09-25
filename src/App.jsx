@@ -9,7 +9,7 @@ import {
   FilePlus2, Lock, Unlock, ShieldCheck, LogOut, UserPlus, LogIn, Eye, EyeOff, ArrowLeft,
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
-  Download, QrCode, Camera, Globe,
+  Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -3103,7 +3103,17 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <FieldLabel>Horizontal</FieldLabel>
-            <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{Math.round(current.x ?? 50)}%</span>
+            <span className="flex items-center gap-2">
+              <button
+                onClick={() => onChangeStyle({ x: 50 })}
+                title="Center on the page"
+                className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                style={{ border: `1px solid ${(current.x ?? 50) === 50 ? GOLD : "rgba(147,166,155,0.35)"}`, color: (current.x ?? 50) === 50 ? GOLD : IVORY, fontFamily: FONT_BODY }}
+              >
+                <AlignCenterVertical size={11} /> Center
+              </button>
+              <span className="text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{Math.round(current.x ?? 50)}%</span>
+            </span>
           </div>
           <input
             type="range" min={8} max={92} value={current.x ?? 50} onChange={(e) => onChangeStyle({ x: Number(e.target.value) })}
@@ -5280,6 +5290,11 @@ function TimelineSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMo
   );
 }
 
+// Where a Celebration-page location card sits: its own saved x/y once it
+// has been dragged, otherwise a staggered default down the page. Shared by
+// the slide itself, box-selection and the align buttons so they all agree.
+const locationPos = (loc, index) => ({ x: loc.x ?? (50 + (index % 4) * 8), y: loc.y ?? Math.min(88, 30 + index * 16) });
+
 function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMoveBlock, onMoveLocation, selectedBlock, onSelectBlock }) {
   const hs = layout.heading, ls = layout.list;
   return (
@@ -5300,7 +5315,7 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
               stay shared across every location via the "list" layout entry
               (see the selection handling in InvitationBuilder). */}
           {items.map((loc, index) => {
-            const pos = { x: loc.x ?? (50 + (index % 4) * 8), y: loc.y ?? Math.min(88, 30 + index * 16) };
+            const pos = locationPos(loc, index);
             const blockId = `loc:${loc.id}`;
             return (
               <DraggableBlock
@@ -6816,8 +6831,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       // rubber-band selecting a group of "Get Directions" buttons alongside
       // other blocks silently skipped every one of them.
       if (stepKey === "locations") {
-        (data.locations || []).forEach((loc) => {
-          const x = loc.x ?? 50, y = loc.y ?? 50;
+        (data.locations || []).forEach((loc, index) => {
+          const { x, y } = locationPos(loc, index);
           if (x >= marquee.x1 && x <= marquee.x2 && y >= marquee.y1 && y <= marquee.y2) hits.push(`loc:${loc.id}`);
         });
       }
@@ -6831,7 +6846,10 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     id.startsWith("custom:")
       ? customBlocks.find((b) => `custom:${b.id}` === id)
       : id.startsWith("loc:")
-        ? (data.locations || []).find((loc) => `loc:${loc.id}` === id)
+        ? (() => {
+            const index = (data.locations || []).findIndex((loc) => `loc:${loc.id}` === id);
+            return index < 0 ? null : locationPos(data.locations[index], index);
+          })()
         : layout?.[id];
   const groupBounds = (() => {
     if (groupSelectedIds.length < 2) return null;
@@ -6872,6 +6890,28 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const onGroupPointerUp = (e) => {
     groupDragRef.current = null;
     e.target.releasePointerCapture?.(e.pointerId);
+  };
+  // One-click alignment for a multi-selection (Canva-style): centre every
+  // item on the page, line them all up on their shared average position,
+  // or space them evenly from top to bottom.
+  const moveGroupMember = (id, pos) => {
+    if (id.startsWith("custom:")) onMoveCustomBlock(stepKey, id.slice(7), pos);
+    else if (id.startsWith("loc:")) onMoveLocation(id.slice(4), pos);
+    else moveBlock(id, pos);
+  };
+  const alignGroup = (mode) => {
+    const items = groupSelectedIds.map((id) => ({ ...groupPositionOf(id), id })).filter((p) => p.x != null && p.y != null);
+    if (items.length < 2) return;
+    if (mode === "center") {
+      items.forEach((p) => moveGroupMember(p.id, { x: 50, y: p.y }));
+    } else if (mode === "align") {
+      const x = Math.round((items.reduce((sum, p) => sum + p.x, 0) / items.length) * 10) / 10;
+      items.forEach((p) => moveGroupMember(p.id, { x, y: p.y }));
+    } else if (mode === "space") {
+      const sorted = [...items].sort((a, b) => a.y - b.y);
+      const top = sorted[0].y, gap = (sorted[sorted.length - 1].y - top) / (sorted.length - 1);
+      sorted.forEach((p, i) => moveGroupMember(p.id, { x: p.x, y: Math.round((top + gap * i) * 10) / 10 }));
+    }
   };
   const deleteGroupSelection = () => {
     groupSelectedIds.filter((id) => id.startsWith("custom:")).forEach((id) => onRemoveCustomBlock(stepKey, id.slice(7)));
@@ -7166,6 +7206,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 >
                   <Move size={10} color={GOLD_SOFT} />
                   <span className="text-[10px] font-semibold" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{groupSelectedIds.length} selected</span>
+
                   {groupHasDeletable && (
                     <button onClick={deleteGroupSelection} title="Delete the custom elements in this selection" style={{ color: "#E29B9B" }}>
                       <Trash2 size={12} />
@@ -7384,8 +7425,28 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             Slide {activeIndex + 1} of {steps.length} — {steps[activeIndex].label}
           </div>
           <div className="mt-1 text-[10px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-            {layoutEditMode ? "Drag any dashed block to move it" : "Swipe up / down on the phone, scroll, or tap a step to preview"}
+            {layoutEditMode ? "Drag any dashed block to move it · drag a box around several to center, align or space them evenly" : "Swipe up / down on the phone, scroll, or tap a step to preview"}
           </div>
+          {layoutEditMode && groupBounds && (
+            <div className="mx-auto mt-3 inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full px-2 py-1.5" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.35)` }}>
+              <span className="px-1.5 text-[10.5px] font-semibold" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{groupSelectedIds.length} selected:</span>
+              {[
+                { mode: "center", label: "Center", title: "Center them all on the page", Icon: AlignCenterVertical },
+                { mode: "align", label: "Align", title: "Line them up with each other", Icon: AlignCenterVertical },
+                ...(groupSelectedIds.length > 2 ? [{ mode: "space", label: "Space evenly", title: "Equal space between them, top to bottom", Icon: AlignVerticalDistributeCenter }] : []),
+              ].map(({ mode, label, title, Icon }) => (
+                <button
+                  key={mode}
+                  onClick={() => alignGroup(mode)}
+                  title={title}
+                  className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                  style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}
+                >
+                  <Icon size={12} color={GOLD} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
