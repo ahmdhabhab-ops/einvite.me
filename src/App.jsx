@@ -11295,9 +11295,12 @@ const LANDING_FEATURES = [
   { icon: MapPin, title: "Schedule and directions", body: "The day's timeline, a live countdown, and one-tap directions to every venue." },
   { icon: Gift, title: "Gift registry", body: "Registry links or bank details, shown with the rest of the invitation." },
   { icon: Video, title: "Live stream", body: "Family who can't travel can watch the ceremony, free or paid." },
-  { icon: Handshake, title: "Song requests and networking", body: "Guests send song requests to the DJ and meet each other before the day." },
+  { icon: Disc3, title: "Song requests", body: "Guests send the songs they want to hear straight to your DJ." },
+  { icon: Handshake, title: "Guest networking", body: "Guests discover others who share their interests and connect from their phone before the day." },
+  { icon: Mic, title: "Voice messages", body: "Guests who can't make it can leave you a recorded voice message with their reply." },
   { icon: QrCode, title: "QR check-in", body: "Every confirmed guest gets a QR code to check in at the door." },
   { icon: Globe, title: "Five languages", body: "English, Arabic, French, Spanish and Armenian, with guests switching on the invitation itself." },
+  { icon: Sparkles, title: "An AI assistant that fills it in", body: "Tell the assistant your names, date and venues, and it fills in the invitation form for you." },
 ];
 
 const LANDING_DASHBOARD_POINTS = [
