@@ -1741,6 +1741,67 @@ async function uploadDataUrlToStorage(dataUrl, bucket) {
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 }
 
+// The intro video is the very first thing every guest waits for, so a
+// large file means a long dark screen on a phone. Returns false if the
+// owner decides to pick a smaller file instead.
+const INTRO_VIDEO_WARN_BYTES = 6 * 1024 * 1024;
+function confirmLargeIntroVideo(file) {
+  if (file.size <= INTRO_VIDEO_WARN_BYTES) return true;
+  const mb = (file.size / 1048576).toFixed(1);
+  return window.confirm(`This video is ${mb} MB. Every guest downloads it before the invitation opens, so on a phone they may wait several seconds on a dark screen.\n\nFor a fast intro, export it shorter or smaller (720p, under 5 MB). Upload this one anyway?`);
+}
+
+// Same idea for audio/video that was saved inline as base64 (older music
+// uploads were): uploads it to the custom-videos bucket and returns its URL.
+async function uploadMediaDataUrlToStorage(dataUrl) {
+  const blob = await (await fetch(dataUrl)).blob();
+  const ext = { "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/aac": "aac", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "ogg", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" }[blob.type] || "bin";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/custom-videos/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": blob.type || "application/octet-stream" },
+    body: blob,
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  return `${SUPABASE_URL}/storage/v1/object/public/custom-videos/${path}`;
+}
+
+// Walks any saved value (an invitation snapshot, the shop designs list, a
+// bare string) and replaces every large base64 photo/audio/video embedded
+// in it with an uploaded Storage URL. Those embedded files are what made
+// some saved invitations several MB — every guest had to download all of
+// it before the invitation could even appear. A file that fails to upload
+// is simply left as it was.
+const INLINE_MEDIA_MIN_LENGTH = 20000;
+async function moveInlineMediaToStorage(value) {
+  let changed = false;
+  const walk = async (v) => {
+    if (typeof v === "string") {
+      if (v.length < INLINE_MEDIA_MIN_LENGTH || !/^data:(image|audio|video)\//.test(v)) return v;
+      try {
+        const url = v.startsWith("data:image/") ? await uploadDataUrlToStorage(v, "invitation-photos") : await uploadMediaDataUrlToStorage(v);
+        changed = true;
+        return url;
+      } catch {
+        return v;
+      }
+    }
+    if (Array.isArray(v)) {
+      const out = [];
+      for (const item of v) out.push(await walk(item));
+      return out;
+    }
+    if (v && typeof v === "object") {
+      const out = {};
+      for (const [k, item] of Object.entries(v)) out[k] = await walk(item);
+      return out;
+    }
+    return v;
+  };
+  const result = await walk(value);
+  return { changed, value: result };
+}
+
 // A GIF background needs to stay STILL until the guest taps "tap to start" —
 // but a GIF, once it's the CSS background-image of a live element, can't be
 // paused/resumed the way a <video> can; browsers just animate it continuously
@@ -10304,12 +10365,31 @@ function mergeShopTemplates(shopDesigns, mode) {
 }
 
 function DesignThumb({ tpl, maxWidth = 180 }) {
+  // Preview videos can be tens of MB each, so a card only starts loading
+  // its video once it's close to being on screen, instead of every card
+  // on the page downloading its video the moment the page opens.
+  const cardRef = useRef(null);
+  const [nearScreen, setNearScreen] = useState(false);
+  useEffect(() => {
+    if (!tpl.previewVideo || nearScreen) return;
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setNearScreen(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((en) => en.isIntersecting)) { setNearScreen(true); io.disconnect(); }
+    }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [tpl.previewVideo, nearScreen]);
   return (
-    <div className="relative mx-auto" style={{ width: "100%", maxWidth, background: "#000", borderRadius: 20, padding: 6, boxShadow: "0 10px 24px -8px rgba(0,0,0,0.6)" }}>
+    <div ref={cardRef} className="relative mx-auto" style={{ width: "100%", maxWidth, background: "#000", borderRadius: 20, padding: 6, boxShadow: "0 10px 24px -8px rgba(0,0,0,0.6)" }}>
       <div className="absolute left-1/2 top-2 z-10 h-2.5 w-10 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
       <div className="relative overflow-hidden" style={{ borderRadius: 15, aspectRatio: "9 / 19.5" }}>
         {tpl.previewVideo ? (
-          <video key={tpl.previewVideo} src={tpl.previewVideo} autoPlay muted loop playsInline style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          nearScreen
+            ? <video key={tpl.previewVideo} src={tpl.previewVideo} poster={tpl.coverImage || undefined} autoPlay muted loop playsInline preload="auto" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            : tpl.coverImage
+              ? <img src={tpl.coverImage} alt={tpl.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : <div className="h-full w-full" style={{ background: "#111" }} />
         ) : tpl.coverImage ? (
           <img src={tpl.coverImage} alt={tpl.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         ) : (
@@ -13717,6 +13797,7 @@ export default function InvitationBuilder() {
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
     const isGif = file.type === "image/gif";
+    if (isVideo && !confirmLargeIntroVideo(file)) return;
     try {
       const url = isVideo ? await uploadVideoToStorage(file) : await uploadImageToStorage(file, "site-decorations");
       const posterUrl = isGif ? await uploadGifPosterFrame(file, "site-decorations") : isVideo ? await uploadVideoPosterFrame(file, "site-decorations") : null;
@@ -14332,6 +14413,7 @@ export default function InvitationBuilder() {
       alert("That video is quite large (over 20MB) — try a shorter clip or a more compressed export for a smoother experience.");
       return;
     }
+    if (isVideo && !confirmLargeIntroVideo(file)) return;
     try {
       // Uploaded to Storage and referenced by its URL — not read into a base64
       // data URI kept in this invitation's own saved JSON. A multi-MB video or
@@ -14647,6 +14729,16 @@ export default function InvitationBuilder() {
           } catch {}
         }
       }
+      // Music, intro media and the share image can also still be embedded
+      // (older uploads were) — the music file alone is often ~0.5MB of text
+      // every guest had to download before the invitation appeared.
+      const media = await moveInlineMediaToStorage({ music, intro, og });
+      if (media.changed) {
+        setMusic(media.value.music);
+        setIntro(media.value.intro);
+        setOg(media.value.og);
+        changed = true;
+      }
       if (changed) {
         setCustomBlocks(nextCustomBlocks);
         setPageBackgrounds(nextPageBackgrounds);
@@ -14670,6 +14762,43 @@ export default function InvitationBuilder() {
     setNeedsSaveAfterImageMigration(false);
     saveDraft();
   }, [needsSaveAfterImageMigration]);
+
+  // The same clean-up for every OTHER saved invitation (clients the owner
+  // isn't editing right now) and for the shop designs list, which the home
+  // page and /shop download on every visit. Runs once per admin session,
+  // in the background, straight against the saved data. A guest reply that
+  // lands on an invitation while its files are uploading makes the saved
+  // copy differ from what was read, so that one is left for the next run
+  // rather than overwritten.
+  const shrankStoredMediaRef = useRef(false);
+  useEffect(() => {
+    if (!isAdminPath || guestView !== false || !coreDataLoaded || !coreLoadCompletedRef.current || shrankStoredMediaRef.current) return;
+    shrankStoredMediaRef.current = true;
+    (async () => {
+      const shrinkKey = async (key, parse) => {
+        const res = await persistentStorage.get(key, false);
+        if (!res?.value || !res.value.includes("data:")) return null;
+        const { changed, value } = await moveInlineMediaToStorage(parse ? JSON.parse(res.value) : res.value);
+        if (!changed) return null;
+        const latest = await persistentStorage.get(key, false);
+        if (latest?.value !== res.value) return null; // changed meanwhile — try again next time
+        await persistentStorage.set(key, parse ? JSON.stringify(value) : value, false);
+        return value;
+      };
+      const ids = [...new Set([OWNER_SLOT, ...users.map((u) => u.id)])].filter((id) => id !== activeInvitationId);
+      for (const id of ids) {
+        try {
+          const value = await shrinkKey(invitationKey(id), true);
+          if (value) setInvitationsStore((store) => (store[id] ? { ...store, [id]: value } : store));
+        } catch {}
+      }
+      try {
+        const designs = await shrinkKey(SHOP_DESIGNS_KEY, true);
+        if (designs) setShopDesigns(designs);
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdminPath, guestView, coreDataLoaded]);
 
   const guestSnapshotData = guestView && guestView.found && !guestView.ownSlug
     ? (() => {
