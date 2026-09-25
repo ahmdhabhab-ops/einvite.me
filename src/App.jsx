@@ -16,6 +16,7 @@ const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
 import jsQR from "jsqr";
 import foliageA from "./assets/foliage-a.webp";
 import foliageB from "./assets/foliage-b.webp";
+import { LANDING_TEXT, LANDING_LANGS, LANDING_LANG_NAMES } from "./landingText.js";
 
 /* ---------------------------------------------------------------------- */
 /* Tokens                                                                  */
@@ -11500,33 +11501,74 @@ const LP = {
 // paper/photographic rather than flat digital fills.
 const LANDING_GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
 
-const LANDING_STEPS = [
-  { title: "Pick a design", body: "Start from a ready-made design, or from a blank canvas." },
-  { title: "Make it yours", body: "Add your names, photos, music, the day's schedule and venues, and place everything exactly where you want it." },
-  { title: "Share and track", body: "Send one link on WhatsApp. See who opened it and who's coming as the replies arrive." },
-];
+// Icons for the home page's feature cards, in the same order as
+// LANDING_TEXT[lang].features.items (see landingText.js).
+const LANDING_FEATURE_ICONS = [Mail, Music2, CheckCircle2, MapPin, Gift, Video, Disc3, Handshake, Mic, QrCode, Globe, Sparkles];
 
-const LANDING_FEATURES = [
-  { icon: Mail, title: "An envelope they tap open", body: "A wax seal or envelope guests tap to open, with your own photo or video behind it." },
-  { icon: Music2, title: "Your song, from the first tap", body: "Background music starts the moment they open the invitation." },
-  { icon: CheckCircle2, title: "RSVP with names", body: "Guests confirm with their names and how many are coming, straight into your guest list." },
-  { icon: MapPin, title: "Schedule and directions", body: "The day's timeline, a live countdown, and one-tap directions to every venue." },
-  { icon: Gift, title: "Gift registry", body: "Registry links or bank details, shown with the rest of the invitation." },
-  { icon: Video, title: "Live stream", body: "Family and friends who can't travel can watch it live, free or paid." },
-  { icon: Disc3, title: "Song requests", body: "Guests send the songs they want to hear straight to your DJ." },
-  { icon: Handshake, title: "Guest networking", body: "Guests discover others who share their interests and connect from their phone before the day." },
-  { icon: Mic, title: "Voice messages", body: "Guests who can't make it can leave you a recorded voice message with their reply." },
-  { icon: QrCode, title: "QR check-in", body: "Every confirmed guest gets a QR code to check in at the door." },
-  { icon: Globe, title: "Five languages", body: "English, Arabic, French, Spanish and Armenian, with guests switching on the invitation itself." },
-  { icon: Sparkles, title: "An AI assistant that fills it in", body: "Tell the assistant your names, date and venues, and it fills in the invitation form for you." },
-];
+// The home page speaks the same five languages as the invitations. The
+// visitor's choice is remembered in this browser; the first visit follows
+// the browser's own language when it's one of the five.
+const LANDING_LANG_KEY = "einvite:landing-lang";
+function initialLandingLang() {
+  const saved = lsGet(LANDING_LANG_KEY);
+  if (LANDING_LANGS.includes(saved)) return saved;
+  const prefs = typeof navigator !== "undefined" ? (navigator.languages || [navigator.language]) : [];
+  for (const pref of prefs) {
+    const code = String(pref || "").slice(0, 2).toLowerCase();
+    if (LANDING_LANGS.includes(code)) return code;
+  }
+  return "en";
+}
+const LandingLangContext = createContext("en");
+const landingFonts = (lang) =>
+  lang === "ar" ? { display: FONT_AR, body: FONT_AR, headingStyle: "normal" }
+  : lang === "hy" ? { display: FONT_HY, body: "'Inter', 'Noto Serif Armenian', sans-serif", headingStyle: "normal" }
+  : { display: FONT_DISPLAY, body: FONT_BODY, headingStyle: "italic" };
+function useLanding() {
+  const lang = useContext(LandingLangContext);
+  const fonts = landingFonts(lang);
+  const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, color: LP.text, fontSize: size, lineHeight: lang === "ar" ? 1.4 : 1.15 });
+  return { lang, t: LANDING_TEXT[lang] || LANDING_TEXT.en, fonts, heading };
+}
 
-const LANDING_DASHBOARD_POINTS = [
-  "See who opened the invitation, and who hasn't yet",
-  "Track confirmations and the headcount as replies come in",
-  "Plan tables and your venue's seating layout",
-  "Send each guest or family their own personal link",
-];
+function LandingLangSwitcher({ lang, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="landing-link flex items-center gap-1 text-[12.5px] font-semibold"
+        aria-label={LANDING_TEXT[lang]?.language || "Language"}
+        aria-expanded={open}
+      >
+        <Globe size={15} /> {lang.toUpperCase()}
+      </button>
+      {open && (
+        <div className="absolute end-0 top-full z-50 mt-2 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: "#26322B", border: `1px solid ${LP.line}`, boxShadow: "0 20px 40px -20px rgba(0,0,0,0.6)" }}>
+          {LANDING_LANGS.map((code) => (
+            <button
+              key={code}
+              onClick={() => { onChange(code); setOpen(false); }}
+              dir={code === "ar" ? "rtl" : "ltr"}
+              className="flex w-full items-center justify-between gap-3 px-4 py-2 text-[13.5px]"
+              style={{ color: code === lang ? LP.gold : LP.text, background: code === lang ? "rgba(212,171,78,0.08)" : "transparent", fontFamily: code === "ar" ? FONT_AR : code === "hy" ? "'Inter', 'Noto Serif Armenian', sans-serif" : FONT_BODY }}
+            >
+              {LANDING_LANG_NAMES[code]}
+              {code === lang && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // The admin's own finished design, live — the same guest page anyone opening
 // the link gets, running inside a phone frame so visitors can tap it open
@@ -11534,6 +11576,7 @@ const LANDING_DASHBOARD_POINTS = [
 const LANDING_DEMO_PATH = "/e/admin-preview";
 
 function LandingPhone() {
+  const { t } = useLanding();
   return (
     <div className="relative flex flex-col items-center">
       {/* Soft warm light behind the phone, and the shadow it casts below. */}
@@ -11548,7 +11591,7 @@ function LandingPhone() {
         />
       </div>
       <a href={LANDING_DEMO_PATH} target="_blank" rel="noreferrer" className="landing-link relative mt-4 inline-flex items-center gap-1.5 text-[12.5px]">
-        Tap the invitation to open it, or view it full screen <ExternalLink size={12} />
+        {t.hero.phoneLink} <ExternalLink size={12} />
       </a>
     </div>
   );
@@ -11687,6 +11730,7 @@ function SiteContactEditor() {
 // Home page section: big WhatsApp/Telegram chat buttons, then round icons
 // for the social accounts and email. Renders nothing until a link is set.
 function LandingContactSection({ contact }) {
+  const { t, heading } = useLanding();
   const links = siteContactLinks(contact);
   if (!links.length) return null;
   const chat = links.filter((l) => l.key === "whatsapp" || l.key === "telegram");
@@ -11695,9 +11739,9 @@ function LandingContactSection({ contact }) {
   return (
     <section id="contact" className="px-4 py-20 sm:px-6" style={{ background: LP.band }}>
       <div className="mx-auto max-w-3xl text-center">
-        <h2 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>Contact us</h2>
+        <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>{t.contact.title}</h2>
         <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
-          {chat.length ? "Questions before you start? Message us directly — we're happy to help." : "Questions before you start? We're happy to help."}
+          {chat.length ? t.contact.bodyChat : t.contact.bodyNoChat}
         </p>
         {chat.length > 0 && (
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -11737,27 +11781,13 @@ function LandingContactSection({ contact }) {
 const SITE_ADDRESS = "Office 305, Tower 44, Dekweneh, Beirut, Lebanon";
 const SITE_MAP_QUERY = encodeURIComponent("Tower 44, Dekweneh, Beirut, Lebanon");
 
-const LANDING_FAQ = [
-  { q: "What is a digital invitation?", a: "It's an invitation your guests open on their phone from a single link. They tap an envelope to open it, and inside are your photos, music, the schedule, directions to each venue and an RSVP, all in one place." },
-  { q: "Which occasions can I use it for?", a: "Weddings, birthdays, quinceañeras, baptisms, baby showers and any other event. Each occasion starts with its own ready-written pages, which you can change however you like." },
-  { q: "Do my guests need to download an app?", a: "No. The invitation opens in the browser on any phone, so there's nothing to install and no account for guests to create." },
-  { q: "How do I send it to my guests?", a: "You get one link to share on WhatsApp, Instagram, SMS or email. You can also create a personal link for each family, so their reply is matched to them in your guest list." },
-  { q: "How do RSVPs work?", a: "Guests confirm with their names and how many people are coming. Every reply appears straight away in your dashboard, where you can also see who has opened the invitation and set an RSVP deadline." },
-  { q: "Can I change the invitation after I've sent it?", a: "Yes. Edit it at any time and save; your guests will see the latest version on the same link." },
-  { q: "Which languages are available?", a: "English, Arabic, French, Spanish and Armenian. Guests can switch between the languages you turn on, right on the invitation." },
-  { q: "Can I add music, photos and video?", a: "Yes. Add background music that starts when the invitation opens, your own photo or video behind the envelope, photo backgrounds on every page, and a live stream for guests who can't attend." },
-  { q: "How do I buy a design?", a: "Pick one on the Designs page and pay online. Canva designs are customized in Canva; our website designs are customized directly on eInvite.me after you create your account." },
-  { q: "Can I get a refund?", a: "All payments are final and non-refundable. Designs and features are digital and delivered straight away, so we can't refund them once paid. If something isn't working as it should, message us and we'll help put it right." },
-  { q: "What happens to my information?", a: "We only use it to run your invitation and support you, and we never sell it. Read the details in our", privacyLink: true },
-  { q: "How do I get help?", a: "Tap the chat button at the bottom of any page to talk to us directly, or reach us through the Contact section. We're happy to help at every step." },
-];
-
 function LandingFaqSection() {
+  const { t, heading } = useLanding();
   return (
     <section id="faq" className="relative px-4 py-20 sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <h2 className="text-center" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>Frequently Asked Questions</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Everything you need to know about our digital invitation service.</p>
+        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.faq.title}</h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.faq.body}</p>
         <style>{`
           .faq-item summary { list-style: none; cursor: pointer; }
           .faq-item summary::-webkit-details-marker { display: none; }
@@ -11765,7 +11795,7 @@ function LandingFaqSection() {
           .faq-item[open] .faq-chevron { transform: rotate(180deg); }
         `}</style>
         <div className="mt-10 space-y-3">
-          {LANDING_FAQ.map(({ q, a, privacyLink }) => (
+          {t.faq.items.map(({ q, a, privacy, privacyLink, privacyAfter }) => (
             <details key={q} className="faq-item rounded-2xl" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
               <summary className="flex items-center justify-between gap-4 px-5 py-4 text-[15px] font-semibold" style={{ color: LP.text }}>
                 {q}
@@ -11773,7 +11803,7 @@ function LandingFaqSection() {
               </summary>
               <p className="px-5 pb-5 text-[14px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
                 {a}
-                {privacyLink && <> <a href="/privacy" className="underline" style={{ color: LP.goldSoft }}>Privacy Policy</a>.</>}
+                {privacy && <> <a href="/privacy" className="underline" style={{ color: LP.goldSoft }}>{privacyLink}</a>{privacyAfter}</>}
               </p>
             </details>
           ))}
@@ -11784,33 +11814,30 @@ function LandingFaqSection() {
 }
 
 function LandingAboutSection() {
+  const { t, heading } = useLanding();
   return (
     <section id="about" className="relative px-4 py-20 sm:px-6" style={{ background: LP.band }}>
       <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
         <div>
-          <h2 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: "clamp(28px, 3.6vw, 40px)", lineHeight: 1.15 }}>About us</h2>
-          <p className="mt-5 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
-            eInvite.me is a digital invitation studio based in Beirut, Lebanon. We believe the invitation is the first moment of every celebration, so we make invitations that feel as special to open as the day itself: an envelope your guests tap open, your music, your photos and every detail of the day in one link.
-          </p>
-          <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
-            Weddings, birthdays, quinceañeras, baptisms or any gathering you're planning, we're here to help you create it and send it, and we're one message away whenever you need a hand.
-          </p>
+          <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>{t.about.title}</h2>
+          <p className="mt-5 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>{t.about.p1}</p>
+          <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>{t.about.p2}</p>
           <div className="mt-7 flex items-start gap-3 rounded-2xl p-5" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
             <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(212,171,78,0.12)" }}>
               <MapPin size={19} color={LP.gold} />
             </span>
             <div>
-              <div className="text-[12px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.12em" }}>Our office</div>
-              <div className="mt-1 text-[15px]" style={{ color: LP.text }}>{SITE_ADDRESS}</div>
+              <div className="text-[12px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.12em" }}>{t.about.office}</div>
+              <div className="mt-1 text-[15px]" style={{ color: LP.text }}>{t.about.address}</div>
               <a href={`https://www.google.com/maps/search/?api=1&query=${SITE_MAP_QUERY}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-[13px] underline" style={{ color: LP.goldSoft }}>
-                Open in Google Maps <ExternalLink size={12} />
+                {t.about.openMaps} <ExternalLink size={12} />
               </a>
             </div>
           </div>
         </div>
         <div className="overflow-hidden rounded-2xl" style={{ border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -35px rgba(10,16,12,0.6)" }}>
           <iframe
-            title="eInvite.me office location"
+            title={t.about.mapTitle}
             src={`https://maps.google.com/maps?q=${SITE_MAP_QUERY}&z=15&output=embed`}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
@@ -11953,10 +11980,19 @@ function LandingPage({ onSignUp, onLogIn }) {
   }, []);
   const hasContact = siteContactLinks(contact).length > 0;
   const canvaDesigns = mergeShopTemplates(shopDesigns, "canva").slice(0, 6);
-  const heading = (size) => ({ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontWeight: 500, color: LP.text, fontSize: size, lineHeight: 1.15 });
+  const [lang, setLang] = useState(initialLandingLang);
+  const changeLang = (code) => { setLang(code); lsSet(LANDING_LANG_KEY, code); };
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    return () => { document.documentElement.lang = "en"; };
+  }, [lang]);
+  const t = LANDING_TEXT[lang] || LANDING_TEXT.en;
+  const fonts = landingFonts(lang);
+  const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, color: LP.text, fontSize: size, lineHeight: lang === "ar" ? 1.4 : 1.15 });
   const primaryBtn = "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold";
   return (
-    <div className="relative min-h-screen w-full" style={{ background: LP.bg, backgroundImage: LP.pageGradient, fontFamily: FONT_BODY, color: LP.text, overflowX: "clip" }}>
+    <LandingLangContext.Provider value={lang}>
+    <div lang={lang} dir={lang === "ar" ? "rtl" : "ltr"} className="relative min-h-screen w-full" style={{ background: LP.bg, backgroundImage: LP.pageGradient, fontFamily: fonts.body, color: LP.text, overflowX: "clip" }}>
       <style>{`
         .landing-link { color: ${LP.text2}; transition: color .2s; }
         .landing-link:hover { color: ${LP.text}; }
@@ -11978,18 +12014,19 @@ function LandingPage({ onSignUp, onLogIn }) {
 
       <header className="sticky top-0 z-50" style={{ background: "rgba(44,57,49,0.72)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: LP.text }}>
+          <div dir="ltr" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: LP.text }}>
             eInvite<span style={{ color: LP.gold }}>.me</span>
           </div>
-          <nav className="flex items-center gap-5 text-[13px]">
-            <a href="#how" className="landing-link hidden md:inline">How it works</a>
-            <a href="#features" className="landing-link hidden md:inline">Features</a>
-            <a href="/shop" className="landing-link hidden md:inline">Designs</a>
-            <a href="#faq" className="landing-link hidden lg:inline">FAQ</a>
-            <a href="#about" className="landing-link hidden lg:inline">About</a>
-            {hasContact && <a href="#contact" className="landing-link hidden md:inline">Contact</a>}
-            <button onClick={onLogIn} className="landing-link">Log in</button>
-            <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>Start</button>
+          <nav className="flex items-center gap-4 text-[13px] sm:gap-5">
+            <a href="#how" className="landing-link hidden lg:inline">{t.nav.how}</a>
+            <a href="#features" className="landing-link hidden md:inline">{t.nav.features}</a>
+            <a href="/shop" className="landing-link hidden md:inline">{t.nav.designs}</a>
+            <a href="#faq" className="landing-link hidden lg:inline">{t.nav.faq}</a>
+            <a href="#about" className="landing-link hidden lg:inline">{t.nav.about}</a>
+            {hasContact && <a href="#contact" className="landing-link hidden md:inline">{t.nav.contact}</a>}
+            <LandingLangSwitcher lang={lang} onChange={changeLang} />
+            <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
+            <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>{t.nav.start}</button>
           </nav>
         </div>
       </header>
@@ -12002,19 +12039,17 @@ function LandingPage({ onSignUp, onLogIn }) {
         <img src={foliageB} alt="" className="landing-foliage lf-hero-br" />
       </div>
       <section className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 md:grid-cols-2 md:pt-20">
-        <div className="text-center md:text-left">
-          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: "0.2em" }}>Digital invitations for every occasion</div>
-          <h1 style={heading("clamp(34px, 5.2vw, 56px)")}>An invitation that opens like a real envelope.</h1>
-          <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: LP.text2, lineHeight: 1.7 }}>
-            Create an invitation for your wedding, birthday, quinceañera or any event. Guests tap it open on their phone, with your photos, music, the schedule, directions and RSVP, all in one link you share on WhatsApp.
-          </p>
+        <div className="text-center md:text-start">
+          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: lang === "ar" ? 0 : "0.2em" }}>{t.hero.eyebrow}</div>
+          <h1 style={heading("clamp(34px, 5.2vw, 56px)")}>{t.hero.title}</h1>
+          <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.hero.body}</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3 md:justify-start">
             <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
-              Create your invitation <Heart size={15} />
+              {t.hero.create} <Heart size={15} />
             </button>
-            <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>See the designs</a>
+            <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>{t.hero.seeDesigns}</a>
           </div>
-          <p className="mt-6 text-[12px]" style={{ color: LP.text2 }}>Works on any phone · Nothing for guests to download</p>
+          <p className="mt-6 text-[12px]" style={{ color: LP.text2 }}>{t.hero.note}</p>
         </div>
         <div className="flex justify-center">
           <LandingPhone />
@@ -12023,12 +12058,10 @@ function LandingPage({ onSignUp, onLogIn }) {
       </div>
 
       <section id="occasions" className="relative mx-auto max-w-6xl px-4 pb-20 pt-4 sm:px-6">
-        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>One invitation, any occasion</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
-          Each occasion starts with its own ready-written pages and schedule, which you can change however you like.
-        </p>
+        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.occasions.title}</h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.occasions.body}</p>
         <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {[...EVENT_TYPES.map((et) => ({ key: et.id, name: et.name, icon: et.icon })), { key: "any", name: "Any event", icon: CalendarDays }].map(({ key, name, icon: Icon }) => (
+          {[...EVENT_TYPES.map((et) => ({ key: et.id, name: t.occasions.names[et.id] || et.name, icon: et.icon })), { key: "any", name: t.occasions.names.any, icon: CalendarDays }].map(({ key, name, icon: Icon }) => (
             <button
               key={key}
               onClick={onSignUp}
@@ -12046,12 +12079,12 @@ function LandingPage({ onSignUp, onLogIn }) {
 
       <section id="how" className="relative px-4 py-20 sm:px-6" style={{ background: LP.band }}>
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Three steps, and it's on its way</h2>
+          <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.how.title}</h2>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {LANDING_STEPS.map((step, i) => (
+            {t.how.steps.map((step, i) => (
               <div key={step.title} className="rounded-2xl p-7" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: "rgba(212,171,78,0.14)", color: LP.gold }}>{i + 1}</div>
-                <h3 className="mt-5 text-[19px]" style={{ fontFamily: FONT_DISPLAY, color: LP.text }}>{step.title}</h3>
+                <h3 className="mt-5 text-[19px]" style={{ fontFamily: fonts.display, color: LP.text }}>{step.title}</h3>
                 <p className="mt-2 text-[14px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{step.body}</p>
               </div>
             ))}
@@ -12060,24 +12093,24 @@ function LandingPage({ onSignUp, onLogIn }) {
       </section>
 
       <section id="features" className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Everything the day needs, in one link</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Each page of the invitation is its own moment. Show the ones you need and hide the rest.</p>
+        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.features.title}</h2>
+        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.features.body}</p>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {LANDING_FEATURES.map(({ icon: Icon, title, body }) => (
+          {t.features.items.map(({ title, body }, i) => { const Icon = LANDING_FEATURE_ICONS[i]; return (
             <div key={title} className="landing-card rounded-2xl p-6" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
               <Icon size={22} color={LP.gold} strokeWidth={1.6} />
               <h3 className="mt-4 text-[16px] font-semibold" style={{ color: LP.text }}>{title}</h3>
               <p className="mt-2 text-[13.5px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
             </div>
-          ))}
+          ); })}
         </div>
       </section>
 
       {canvaDesigns.length > 0 && (
         <section id="designs" className="relative px-4 pb-20 pt-4 sm:px-6">
           <div className="mx-auto max-w-6xl">
-            <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>Designs ready to make yours</h2>
-            <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Buy a design, then customize it yourself in Canva.</p>
+            <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.designs.title}</h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.designs.body}</p>
             <div className="mt-12 grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3">
               {canvaDesigns.map((tpl) => (
                 <a key={tpl.id} href={`/shop?design=${encodeURIComponent(tpl.id)}`} className="landing-card block overflow-hidden rounded-2xl" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
@@ -12092,7 +12125,7 @@ function LandingPage({ onSignUp, onLogIn }) {
               ))}
             </div>
             <div className="mt-10 text-center">
-              <a href="/shop" className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold" style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>See all designs</a>
+              <a href="/shop" className="inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold" style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>{t.designs.seeAll}</a>
             </div>
           </div>
         </section>
@@ -12101,10 +12134,10 @@ function LandingPage({ onSignUp, onLogIn }) {
       <section className="px-4 py-20 sm:px-6" style={{ background: LP.band }}>
         <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
           <div>
-            <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>Your guest list, handled</h2>
-            <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Every reply lands in your own dashboard, so you always know where things stand.</p>
+            <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>{t.dashboard.title}</h2>
+            <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.dashboard.body}</p>
             <ul className="mt-7 space-y-4">
-              {LANDING_DASHBOARD_POINTS.map((point) => (
+              {t.dashboard.points.map((point) => (
                 <li key={point} className="flex items-start gap-3 text-[14.5px]" style={{ color: LP.text }}>
                   <Check size={17} color={LP.gold} className="mt-0.5 flex-shrink-0" /> {point}
                 </li>
@@ -12114,10 +12147,10 @@ function LandingPage({ onSignUp, onLogIn }) {
           {/* Illustrative, not live data — shows the shape of the Dashboard. */}
           <div className="rounded-2xl p-6" style={{ background: "rgba(22,30,25,0.35)", border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -35px rgba(10,16,12,0.6)" }}>
             <div className="mb-5 flex items-center gap-2 text-[12px] font-semibold uppercase" style={{ color: LP.text2, letterSpacing: "0.12em" }}>
-              <BarChart3 size={14} /> Dashboard
+              <BarChart3 size={14} /> {t.dashboard.label}
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {[["Invited", "180"], ["Opened", "152"], ["Coming", "131"]].map(([label, value]) => (
+              {t.dashboard.stats.map((label, i) => [label, ["180", "152", "131"][i]]).map(([label, value]) => (
                 <div key={label} className="rounded-xl p-4" style={{ background: LP.cardHi }}>
                   <div className="text-[11px]" style={{ color: LP.text2 }}>{label}</div>
                   <div className="mt-1 text-[24px]" style={{ fontFamily: FONT_DISPLAY, color: LP.text }}>{value}</div>
@@ -12125,7 +12158,7 @@ function LandingPage({ onSignUp, onLogIn }) {
               ))}
             </div>
             <div className="mt-5 space-y-3">
-              {[["The Haddad family", "Coming · 4", LP.gold], ["Rita & Sami", "Opened", LP.text2], ["The Khoury family", "Coming · 3", LP.gold], ["Uncle Georges", "Not opened yet", "rgba(207,195,172,0.55)"]].map(([name, status, color]) => (
+              {t.dashboard.rows.map(([name, status], i) => [name, status, [LP.gold, LP.text2, LP.gold, "rgba(207,195,172,0.55)"][i]]).map(([name, status, color]) => (
                 <div key={name} className="flex items-center justify-between rounded-lg px-4 py-3 text-[13px]" style={{ background: LP.card }}>
                   <span style={{ color: LP.text }}>{name}</span>
                   <span style={{ color }}>{status}</span>
@@ -12145,11 +12178,11 @@ function LandingPage({ onSignUp, onLogIn }) {
         <img src={foliageA} alt="" className="landing-foliage lf-cta-tr" />
       </div>
       <section className="relative mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
-        <h2 style={heading("clamp(30px, 4vw, 44px)")}>Ready when you are</h2>
-        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>Start with a design you love, and send it the same day.</p>
+        <h2 style={heading("clamp(30px, 4vw, 44px)")}>{t.cta.title}</h2>
+        <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.cta.body}</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>Create your invitation</button>
-          <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>Browse the designs</a>
+          <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>{t.cta.create}</button>
+          <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>{t.cta.browse}</a>
         </div>
       </section>
       </div>
@@ -12162,20 +12195,21 @@ function LandingPage({ onSignUp, onLogIn }) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: LP.text2 }}>
           <div>
             <div>© {new Date().getFullYear()} eInvite.me</div>
-            <div className="mt-1" style={{ opacity: 0.8 }}>{SITE_ADDRESS}</div>
+            <div className="mt-1" style={{ opacity: 0.8 }}>{t.about.address}</div>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <a href="#faq" className="landing-link">FAQ</a>
-            <a href="#about" className="landing-link">About</a>
-            {hasContact && <a href="#contact" className="landing-link">Contact</a>}
-            <a href="/shop" className="landing-link">Designs</a>
-            <a href="/privacy" className="landing-link">Privacy Policy</a>
-            <button onClick={onLogIn} className="landing-link">Log in</button>
+            <a href="#faq" className="landing-link">{t.nav.faq}</a>
+            <a href="#about" className="landing-link">{t.nav.about}</a>
+            {hasContact && <a href="#contact" className="landing-link">{t.nav.contact}</a>}
+            <a href="/shop" className="landing-link">{t.nav.designs}</a>
+            <a href="/privacy" className="landing-link">{t.footer.privacy}</a>
+            <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
           </div>
         </div>
       </footer>
       <LiveChatWidget page="home" />
     </div>
+    </LandingLangContext.Provider>
   );
 }
 
