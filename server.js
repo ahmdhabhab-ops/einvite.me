@@ -11,6 +11,7 @@
 // server of its own — this process only serves the built SPA.
 
 import express from "express";
+import compression from "compression";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -106,6 +107,9 @@ ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}" />` : ""
 
 const app = express();
 app.disable("x-powered-by");
+// Gzip/Brotli every response — the app's main script is ~1.1 MB raw but
+// ~0.3 MB compressed, and nothing in front of this server compresses it.
+app.use(compression());
 
 app.get("/healthz", (_req, res) => res.status(200).send("ok"));
 

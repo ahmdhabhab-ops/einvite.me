@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useContext, createContext } from "react";
+import React, { useState, useEffect, useRef, useMemo, useContext, createContext, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import {
   Heart, Users, Clock, MapPin, CalendarClock, ChevronUp, ChevronDown,
@@ -11,7 +11,8 @@ import {
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe,
 } from "lucide-react";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+// Loaded on demand — see ResponsesPieChart.jsx.
+const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
 import jsQR from "jsqr";
 import foliageA from "./assets/foliage-a.webp";
 import foliageB from "./assets/foliage-b.webp";
@@ -9108,15 +9109,13 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
 
       <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl p-5 sm:grid-cols-2" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
         <div style={{ height: 200 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={70} paddingAngle={3}>
-                {pieData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="none" />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: INK_3, border: "none", borderRadius: 8, fontFamily: FONT_BODY, fontSize: 12, color: IVORY }} />
-              <Legend wrapperStyle={{ fontFamily: FONT_BODY, fontSize: 11, color: IVORY }} />
-            </PieChart>
-          </ResponsiveContainer>
+          <Suspense fallback={null}>
+            <ResponsesPieChart
+              data={pieData}
+              tooltipStyle={{ background: INK_3, border: "none", borderRadius: 8, fontFamily: FONT_BODY, fontSize: 12, color: IVORY }}
+              legendStyle={{ fontFamily: FONT_BODY, fontSize: 11, color: IVORY }}
+            />
+          </Suspense>
         </div>
         <div className="flex flex-col justify-center gap-2">
           <FieldLabel>Add a guest family</FieldLabel>
@@ -12331,7 +12330,33 @@ function NetworkingMessageThread({ slug, me, connection, onBack }) {
   );
 }
 
+// How much of the owner's saved data this page load actually needs:
+//   "full"  — /admin, or a client using the Builder at the site root: the
+//             draft, every client's invitation, all backgrounds, music…
+//   "users" — a guest invitation link (/e/slug): only the draft's users
+//             list, to find which client the slug belongs to.
+//   "none"  — the home page, /e/admin-preview, /shop and the other
+//             stand-alone pages, which fetch their own data.
+// Guests and home-page visitors used to download all of the owner's data
+// (several MB) on every visit, which is what made those pages slow.
+function initialBuilderDataMode() {
+  if (typeof window === "undefined") return "full";
+  const p = window.location.pathname;
+  if (p === "/admin" || p.startsWith("/admin/")) return "full";
+  const guest = p.match(/^\/e\/([^/]+)\/?$/);
+  if (guest) return decodeURIComponent(guest[1]) === "admin-preview" ? "none" : "users"; // the owner's preview (ADMIN_PREVIEW_SLUG) is fetched on its own
+  if (/^\/(shop|designs|dj|checkin-staff|checkin|quick|network)(\/|$)/.test(p)) return "none";
+  // Site root: the Builder for a logged-in client or someone mid sign-up,
+  // otherwise the home page (which switches to "full" once they open
+  // Log in / Sign up).
+  let hasSession = false;
+  try { hasSession = !!window.localStorage.getItem("einvite:acting-as-user-id"); } catch {}
+  const midSignup = new URLSearchParams(window.location.search).has("buildTemplate") || window.location.hash.includes("access_token");
+  return hasSession || midSignup ? "full" : "none";
+}
+
 export default function InvitationBuilder() {
+  const [builderDataMode, setBuilderDataMode] = useState(initialBuilderDataMode);
   // Loads the shared decorative/script fonts used throughout every page
   // type — cover, family, RSVP, etc. — via a real <link rel="stylesheet">
   // tag injected once, here, at the very top of the component, before any
@@ -12453,13 +12478,14 @@ export default function InvitationBuilder() {
   const [globalAssets, setGlobalAssets] = useState([]); // [{ id, url, label }] — admin-uploaded images available to every client, own dedicated key like shopDesigns
   const GLOBAL_ASSETS_KEY = "einvite:global-assets";
   useEffect(() => {
+    if (builderDataMode !== "full") return;
     (async () => {
       try {
         const res = await persistentStorage.get(GLOBAL_ASSETS_KEY, false);
         if (res?.value) setGlobalAssets(JSON.parse(res.value));
       } catch {}
     })();
-  }, []);
+  }, [builderDataMode]);
   // Mirrors globalAssets so saveGlobalAssets can read the up-to-date list
   // synchronously — setGlobalAssets's own updater-fn form runs on React's
   // own schedule, not necessarily before the very next line of code, so
@@ -12848,9 +12874,26 @@ export default function InvitationBuilder() {
   // Load any previously saved draft once, on first mount. Uploaded audio/video use
   // blob: URLs that only live for the current browser tab, so they can't be restored
   // here — re-upload after loading a draft. Images are saved as data URLs and do restore.
+  const builderDataStartedRef = useRef(false);
   useEffect(() => {
+    if (builderDataMode === "none" || builderDataStartedRef.current) return; // see initialBuilderDataMode
+    builderDataStartedRef.current = true;
     if (!persistentStorage.available()) { coreLoadCompletedRef.current = true; setCoreDataLoaded(true); setBackgroundsLoaded(true); return; } // no storage backend at all in this environment — nothing to wait for
     let cancelled = false;
+    if (builderDataMode === "users") {
+      // Guest link: just the users list. Deliberately leaves
+      // coreLoadCompletedRef false, so nothing on this page can ever save
+      // the draft back.
+      (async () => {
+        try {
+          const res = await persistentStorage.get(DRAFT_KEY, false);
+          const d = res?.value ? JSON.parse(res.value) : null;
+          if (!cancelled && Array.isArray(d?.users)) setUsers(d.users);
+        } catch {}
+        finally { if (!cancelled) setCoreDataLoaded(true); }
+      })();
+      return () => { cancelled = true; };
+    }
     (async () => {
       try {
         const res = await persistentStorage.get(DRAFT_KEY, false);
@@ -13028,7 +13071,7 @@ export default function InvitationBuilder() {
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [builderDataMode]);
 
   const saveDraft = async () => {
     if (!persistentStorage.available()) {
@@ -13987,7 +14030,7 @@ export default function InvitationBuilder() {
 
     // This device's own currently-loaded invitation matches directly —
     // reuse the live state, no snapshot lookup needed.
-    if (urlSlug === slug) {
+    if (builderDataMode === "full" && urlSlug === slug) {
       setGuestView({ found: true, ownSlug: true, slug: urlSlug, snapshotGuestGroups: guestGroups, groupId, guestNameParam, batchId });
       return;
     }
@@ -14318,6 +14361,13 @@ export default function InvitationBuilder() {
   }
 
   if (guestView && guestView.found) {
+    // The invitation's own saved settings — not whatever the Builder
+    // happens to have loaded (which a guest's browser no longer loads).
+    const guestSettings = guestView.ownSlug ? { swipeDirection, transitionStyle, tornPhotoEdges } : {
+      swipeDirection: guestData?.swipeDirection || "vertical",
+      transitionStyle: guestData?.transitionStyle || "slide",
+      tornPhotoEdges: !!guestData?.tornPhotoEdges,
+    };
     return (
       <div className="relative">
         {guestEnabledLanguages.length > 1 && (
@@ -14327,7 +14377,7 @@ export default function InvitationBuilder() {
             onChange={setGuestLangOverride}
           />
         )}
-        <TornEdgesContext.Provider value={tornPhotoEdges}>
+        <TornEdgesContext.Provider value={guestSettings.tornPhotoEdges}>
           {(guestView.ownSlug ? viewStyle : (guestData?.viewStyle || "cards")) === "scroll" ? (
             <ScrollStoryPreview
               data={guestData}
@@ -14366,8 +14416,8 @@ export default function InvitationBuilder() {
               prefilledRsvpStatus={resolvedRsvpStatus}
               guestGroupId={guestView.groupId}
               onUpdateRsvpContent={() => {}}
-              swipeDirection={swipeDirection}
-              transitionStyle={transitionStyle}
+              swipeDirection={guestSettings.swipeDirection}
+              transitionStyle={guestSettings.transitionStyle}
             />
           )}
         </TornEdgesContext.Provider>
@@ -14411,7 +14461,7 @@ export default function InvitationBuilder() {
     // #access_token AuthPreview itself has to be mounted to pick up).
     const skipLanding = !!pendingShopTemplate || !!prefillSignupEmail || (typeof window !== "undefined" && window.location.hash.includes("access_token"));
     if (!skipLanding && !authFromLanding) {
-      const openAuth = (screen) => { setAuthFromLanding(screen); window.scrollTo(0, 0); };
+      const openAuth = (screen) => { setBuilderDataMode("full"); setAuthFromLanding(screen); window.scrollTo(0, 0); };
       return <LandingPage onSignUp={() => openAuth("signup")} onLogIn={() => openAuth("login")} />;
     }
     return (
