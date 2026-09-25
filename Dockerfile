@@ -16,6 +16,8 @@ RUN npm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
+# ffmpeg shrinks uploaded videos (see /api/video/optimize in server.js).
+RUN apk add --no-cache ffmpeg
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
