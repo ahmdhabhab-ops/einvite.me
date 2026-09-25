@@ -6506,12 +6506,25 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   // effect) so the outgoing page is already in place on the very first
   // paint of the new one — otherwise there's a one-frame flash of the new
   // page's background with nothing on it.
-  const PUSH_MS = transitionStyle === "slide" ? 560 : 650;
+  const PUSH_MS = transitionStyle === "slide" ? 420 : 520;
   const prevActiveRef = useRef(activeIndex);
   const [pushOutgoing, setPushOutgoing] = useState(null); // { key, dir } while a transition is running
+  // Finger-driven swipes (see onTouchMove below) animate the page change
+  // themselves, so the navigation they end with must not run a second
+  // transition on top.
+  const skipNextTransitionRef = useRef(false);
+  const draggedInRef = useRef(false);
   React.useLayoutEffect(() => {
     const prev = prevActiveRef.current;
     prevActiveRef.current = activeIndex;
+    if (skipNextTransitionRef.current) {
+      skipNextTransitionRef.current = false;
+      applyDrag(0, 0); // back in place before this frame paints — the new page is now the current one
+      setDragNeighborDir(0);
+      dragSettlingRef.current = false;
+      return;
+    }
+    draggedInRef.current = false;
     if (prev === activeIndex || (transitionStyle !== "push" && transitionStyle !== "slide") || layoutEditMode || !started || !steps[prev]) return;
     setPushOutgoing({ key: steps[prev].key, dir: activeIndex > prev ? 1 : -1 });
     const timer = setTimeout(() => setPushOutgoing(null), PUSH_MS);
@@ -6609,12 +6622,69 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const wholePage = transitionStyle === "slide"; // the background travels with the content
   const pushInMotion = pushOutgoing ? { bg: wholePage ? `${pushInName} ${pushEase}` : undefined, content: `${pushInName} ${pushEase}` } : null;
   const pushOutMotion = pushOutgoing ? { bg: wholePage ? `${pushOutName} ${pushEase} forwards` : `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
-  const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
-  const onTouchEnd = (e) => {
-    if (layoutEditMode || !started || touchStartRef.current == null) return;
-    const delta = (isHorizontal ? e.changedTouches[0].clientX : e.changedTouches[0].clientY) - touchStartRef.current;
-    touchStartRef.current = null;
-    if (delta < -40) goDir(1); else if (delta > 40) goDir(-1);
+  // Swiping follows the finger: the current page moves with it and the
+  // next (or previous) page comes into view alongside, whatever the
+  // transition style. Letting go past ~18% of the screen (or with a quick
+  // flick) finishes the move; otherwise the page springs back. Transforms
+  // are set directly on the two layers rather than through React state, so
+  // dragging doesn't re-render the whole invitation on every touch move.
+  const DRAG_SETTLE_MS = 260;
+  const dragRef = useRef(null); // { start, t, size, pct, dir, active } while a finger is down
+  const dragSettlingRef = useRef(false);
+  const [dragNeighborDir, setDragNeighborDir] = useState(0); // 1 = next page mounted after, -1 = previous before, 0 = none
+  const currentPageRef = useRef(null);
+  const neighborPageRef = useRef(null);
+  const axisTransform = (pct) => (isHorizontal ? `translateX(${pct}%)` : `translateY(${pct}%)`);
+  const applyDrag = (pct, dir, transition) => {
+    const cur = currentPageRef.current;
+    const nb = neighborPageRef.current;
+    if (cur) { cur.style.transition = transition || "none"; cur.style.transform = pct ? axisTransform(pct) : ""; }
+    if (nb && dir) { nb.style.transition = transition || "none"; nb.style.transform = axisTransform(dir * 100 + pct); }
+  };
+  React.useLayoutEffect(() => {
+    const d = dragRef.current;
+    if (d && dragNeighborDir) applyDrag(d.pct, dragNeighborDir); // position the just-mounted neighbour before it paints
+  }, [dragNeighborDir]);
+  const onTouchStart = (e) => {
+    if (layoutEditMode || !started || pushOutgoing || dragSettlingRef.current) return;
+    const p = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY;
+    const rect = canvasRef.current?.getBoundingClientRect();
+    dragRef.current = { start: p, t: Date.now(), size: (isHorizontal ? rect?.width : rect?.height) || 600, pct: 0, dir: 0, active: false };
+  };
+  const onTouchMove = (e) => {
+    const d = dragRef.current;
+    if (!d || sliderDragging) return;
+    const deltaPx = (isHorizontal ? e.touches[0].clientX : e.touches[0].clientY) - d.start;
+    if (!d.active && Math.abs(deltaPx) < 8) return; // still a tap
+    d.active = true;
+    const dir = deltaPx < 0 ? 1 : -1; // up/left brings the next page
+    const hasNeighbor = !!steps[activeIndex + dir];
+    const raw = (deltaPx / d.size) * 100;
+    d.pct = hasNeighbor ? Math.max(-100, Math.min(100, raw)) : raw / 4; // resist at the first/last page
+    d.dir = hasNeighbor ? dir : 0;
+    if (d.dir !== dragNeighborDir) setDragNeighborDir(d.dir);
+    applyDrag(d.pct, d.dir);
+  };
+  const onTouchEnd = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || !d.active) return;
+    const quickFlick = Date.now() - d.t < 250 && Math.abs(d.pct) > 4;
+    const commit = d.dir !== 0 && (Math.abs(d.pct) > 18 || quickFlick);
+    const ease = `transform ${DRAG_SETTLE_MS}ms cubic-bezier(0.22,0.8,0.3,1)`;
+    dragSettlingRef.current = true;
+    if (commit) {
+      applyDrag(-d.dir * 100, d.dir, ease);
+      setTimeout(() => {
+        skipNextTransitionRef.current = true;
+        draggedInRef.current = true;
+        setDirection(d.dir);
+        onNavigate(activeIndex + d.dir);
+      }, DRAG_SETTLE_MS);
+    } else {
+      applyDrag(0, d.dir, ease);
+      setTimeout(() => { applyDrag(0, 0); setDragNeighborDir(0); dragSettlingRef.current = false; }, DRAG_SETTLE_MS);
+    }
   };
   const onWheel = (e) => {
     if (layoutEditMode || !started || wheelLockRef.current) return;
@@ -6850,6 +6920,27 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     }
   };
 
+  // A page drawn for display only (no editing): the outgoing page of a
+  // transition, or the neighbour revealed during a finger swipe.
+  const renderStaticPage = (key, motion) => {
+    const blocks = data.customBlocks[lang]?.[key] || [];
+    const light = data.pageBackgrounds[key]?.mode === "photo";
+    const layer = (list) => list.length > 0 && (
+      <div className="absolute inset-0" style={{ animation: motion?.content, zIndex: 30 }}>
+        {list.map((block, index) => (
+          <CustomTextBlock key={block.id} block={block} layerIndex={index} light={light} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
+        ))}
+      </div>
+    );
+    return (
+      <>
+        {layer(blocks.filter((b) => b.behindContent))}
+        {renderSlide(key)}
+        {layer(blocks.filter((b) => !b.behindContent))}
+      </>
+    );
+  };
+
   return (
     <>
       <style>{`
@@ -6909,7 +7000,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 // field to nudge text over never showed up anywhere.
                 { touchAction: "none", borderRadius: 20, background: PAPER, height: "100%", width: "100%", whiteSpace: "pre-wrap" }
           }
-          dir={dir} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onWheel={onWheel}
+          dir={dir} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onWheel={onWheel}
           onPointerDown={onCanvasPointerDown} onPointerMove={onCanvasPointerMove} onPointerUp={onCanvasPointerUp}
         >
           {/* Samsung-style centered punch-hole camera, instead of a wide notch/Dynamic Island */}
@@ -6925,7 +7016,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "push" || transitionStyle === "slide" ? "none" : transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+          <div key={animKey} ref={currentPageRef} className="h-full w-full" style={{ animation: draggedInRef.current || transitionStyle === "push" || transitionStyle === "slide" ? "none" : transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
             <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
             <PageMotionContext.Provider value={pushInMotion}>
             <SliderDragContext.Provider value={sliderDragging}>
@@ -6978,24 +7069,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             {pushOutgoing && (
               <PageMotionContext.Provider value={pushOutMotion}>
                 <div className="pointer-events-none absolute inset-0" style={{ zIndex: 5 }}>
-                  {(() => {
-                    const outBlocks = data.customBlocks[lang]?.[pushOutgoing.key] || [];
-                    const outLight = data.pageBackgrounds[pushOutgoing.key]?.mode === "photo";
-                    const layer = (blocks) => blocks.length > 0 && (
-                      <div className="absolute inset-0" style={{ animation: pushOutMotion.content, zIndex: 30 }}>
-                        {blocks.map((block, index) => (
-                          <CustomTextBlock key={block.id} block={block} layerIndex={index} light={outLight} editMode={false} selected={false} onSelect={() => {}} onMove={() => {}} onDelete={() => {}} onDuplicate={() => {}} />
-                        ))}
-                      </div>
-                    );
-                    return (
-                      <>
-                        {layer(outBlocks.filter((b) => b.behindContent))}
-                        {renderSlide(pushOutgoing.key)}
-                        {layer(outBlocks.filter((b) => !b.behindContent))}
-                      </>
-                    );
-                  })()}
+                  {renderStaticPage(pushOutgoing.key, pushOutMotion)}
                 </div>
               </PageMotionContext.Provider>
             )}
@@ -7043,6 +7117,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
               </div>
             )}
           </div>
+
+          {/* The page coming into view during a finger swipe — positioned by applyDrag. */}
+          {dragNeighborDir !== 0 && steps[activeIndex + dragNeighborDir] && (
+            <div ref={neighborPageRef} className="pointer-events-none absolute inset-0" style={{ transform: axisTransform(dragNeighborDir * 100) }}>
+              <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
+                {renderStaticPage(steps[activeIndex + dragNeighborDir].key, null)}
+              </CanvasHeightContext.Provider>
+            </div>
+          )}
 
           {(!started || gateClosing) && (
             <div className="absolute inset-0 z-40 overflow-hidden">
