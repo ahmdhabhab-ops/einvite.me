@@ -6498,18 +6498,21 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   useEffect(() => setAnimKey((k) => k + 1), [activeIndex]);
 
-  // "push" transition: remember the page being left so it can stay on screen
-  // and slide out while the new one slides in. A layout effect (not a plain
+  // "slide" and "push" transitions: remember the page being left so it can
+  // stay on screen and move out while the new one moves in. "slide" moves
+  // each whole page (background and all) — the new page comes up from
+  // below and pushes the old one off the top; "push" moves only the
+  // content and cross-fades the backgrounds. A layout effect (not a plain
   // effect) so the outgoing page is already in place on the very first
   // paint of the new one — otherwise there's a one-frame flash of the new
   // page's background with nothing on it.
-  const PUSH_MS = 650;
+  const PUSH_MS = transitionStyle === "slide" ? 560 : 650;
   const prevActiveRef = useRef(activeIndex);
-  const [pushOutgoing, setPushOutgoing] = useState(null); // { key, dir } while a push is running
+  const [pushOutgoing, setPushOutgoing] = useState(null); // { key, dir } while a transition is running
   React.useLayoutEffect(() => {
     const prev = prevActiveRef.current;
     prevActiveRef.current = activeIndex;
-    if (prev === activeIndex || transitionStyle !== "push" || layoutEditMode || !started || !steps[prev]) return;
+    if (prev === activeIndex || (transitionStyle !== "push" && transitionStyle !== "slide") || layoutEditMode || !started || !steps[prev]) return;
     setPushOutgoing({ key: steps[prev].key, dir: activeIndex > prev ? 1 : -1 });
     const timer = setTimeout(() => setPushOutgoing(null), PUSH_MS);
     return () => clearTimeout(timer);
@@ -6603,8 +6606,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const pushEase = `${PUSH_MS}ms cubic-bezier(0.65,0,0.35,1)`;
   const pushInName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushInFromRight" : "pushInFromLeft") : (pushOutgoing.dir > 0 ? "pushInFromBottom" : "pushInFromTop");
   const pushOutName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushOutToLeft" : "pushOutToRight") : (pushOutgoing.dir > 0 ? "pushOutToTop" : "pushOutToBottom");
-  const pushInMotion = pushOutgoing ? { content: `${pushInName} ${pushEase}` } : null;
-  const pushOutMotion = pushOutgoing ? { bg: `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
+  const wholePage = transitionStyle === "slide"; // the background travels with the content
+  const pushInMotion = pushOutgoing ? { bg: wholePage ? `${pushInName} ${pushEase}` : undefined, content: `${pushInName} ${pushEase}` } : null;
+  const pushOutMotion = pushOutgoing ? { bg: wholePage ? `${pushOutName} ${pushEase} forwards` : `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
   const onTouchStart = (e) => { if (!layoutEditMode && started) touchStartRef.current = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY; };
   const onTouchEnd = (e) => {
     if (layoutEditMode || !started || touchStartRef.current == null) return;
@@ -6921,7 +6925,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "push" ? "none" : transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+          <div key={animKey} className="h-full w-full" style={{ animation: transitionStyle === "push" || transitionStyle === "slide" ? "none" : transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
             <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
             <PageMotionContext.Provider value={pushInMotion}>
             <SliderDragContext.Provider value={sliderDragging}>
@@ -7472,7 +7476,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         <SegmentedToggle
           value={transitionStyle}
           onChange={setTransitionStyle}
-          options={[{ value: "slide", label: "Slide (quick)" }, { value: "stack", label: "Stack (slower)" }, { value: "push", label: "Page push" }]}
+          options={[{ value: "slide", label: "Slide up (whole page)" }, { value: "stack", label: "Stack (slower)" }, { value: "push", label: "Page push" }]}
         />
       </div>
       <div className="mt-4 flex items-center justify-between gap-4">
