@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 # This VPS's kernel hangs Node's io_uring-based filesystem I/O indefinitely
 # once vite/esbuild starts opening the many small files under
@@ -13,13 +13,17 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
+# Same io_uring workaround as the build stage (see above).
+ENV UV_USE_IO_URING=0
 # ffmpeg shrinks uploaded videos (see /api/video/optimize in server.js).
 # yt-dlp (plus python3 to run it) turns a music link into an MP3 (see
 # /api/music/from-link). It's the latest release rather than Alpine's
 # package, since sites like YouTube change often and old versions break.
+# It solves YouTube's JavaScript challenge with this image's Node, which
+# yt-dlp doesn't support on Node 20 (hence Node 24 above).
 RUN apk add --no-cache ffmpeg python3 ca-certificates \
   && wget -q -O /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp
