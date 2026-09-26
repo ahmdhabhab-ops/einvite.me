@@ -4504,7 +4504,7 @@ const BlockPositionsContext = createContext(null);
 // BlockPositionsContext's provider, which only wraps the canvas itself.
 const SliderDragContext = createContext(false);
 
-// A site-wide look (like swipeDirection/transitionStyle) rather than a
+// A site-wide look (like swipeDirection) rather than a
 // per-page setting, so it's read via context straight inside StoryPage —
 // deep in every slide's own component tree — instead of threading a new
 // prop through every one of them individually.
@@ -7224,7 +7224,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", transitionStyle = "slide", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -7319,7 +7319,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   }, [fullscreen]);
   const [gateClosing, setGateClosing] = useState(false);
   const [animKey, setAnimKey] = useState(0);
-  const [direction, setDirection] = useState(1);
   const audioRef = useRef(null);
   const gateVideoRef = useRef(null);
   const touchStartRef = useRef(null);
@@ -7327,22 +7326,21 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 
   useEffect(() => setAnimKey((k) => k + 1), [activeIndex]);
 
-  // "slide" and "push" transitions: remember the page being left so it can
-  // stay on screen and move out while the new one moves in. "slide" moves
-  // each whole page (background and all) — the new page comes up from
-  // below and pushes the old one off the top; "push" moves only the
-  // content and cross-fades the backgrounds. A layout effect (not a plain
-  // effect) so the outgoing page is already in place on the very first
-  // paint of the new one — otherwise there's a one-frame flash of the new
-  // page's background with nothing on it.
-  const PUSH_MS = transitionStyle === "slide" ? 420 : 520;
+  // Page changes move like a vertical video feed (Instagram Reels): the
+  // whole page, background and all, slides off the top while the next one
+  // comes up from below. The page being left is remembered so it stays on
+  // screen while it moves out. A layout effect (not a plain effect) so the
+  // outgoing page is already in place on the very first paint of the new
+  // one — otherwise there's a one-frame flash of the new page's background
+  // with nothing on it. (Invitations saved with the old "stack" or "page
+  // push" transition styles now move this way too.)
+  const PUSH_MS = 420;
   const prevActiveRef = useRef(activeIndex);
   const [pushOutgoing, setPushOutgoing] = useState(null); // { key, dir } while a transition is running
   // Finger-driven swipes (see onTouchMove below) animate the page change
   // themselves, so the navigation they end with must not run a second
   // transition on top.
   const skipNextTransitionRef = useRef(false);
-  const draggedInRef = useRef(false);
   React.useLayoutEffect(() => {
     const prev = prevActiveRef.current;
     prevActiveRef.current = activeIndex;
@@ -7353,8 +7351,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       dragSettlingRef.current = false;
       return;
     }
-    draggedInRef.current = false;
-    if (prev === activeIndex || (transitionStyle !== "push" && transitionStyle !== "slide") || layoutEditMode || !started || !steps[prev]) return;
+    if (prev === activeIndex || layoutEditMode || !started || !steps[prev]) return;
     setPushOutgoing({ key: steps[prev].key, dir: activeIndex > prev ? 1 : -1 });
     const timer = setTimeout(() => setPushOutgoing(null), PUSH_MS);
     return () => clearTimeout(timer);
@@ -7441,16 +7438,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const goDir = (d) => {
     if (layoutEditMode) return;
     const next = Math.min(steps.length - 1, Math.max(0, activeIndex + d));
-    if (next !== activeIndex) { setDirection(d); onNavigate(next); }
+    if (next !== activeIndex) onNavigate(next);
   };
 
   const isHorizontal = swipeDirection === "horizontal";
   const pushEase = `${PUSH_MS}ms cubic-bezier(0.65,0,0.35,1)`;
   const pushInName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushInFromRight" : "pushInFromLeft") : (pushOutgoing.dir > 0 ? "pushInFromBottom" : "pushInFromTop");
   const pushOutName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushOutToLeft" : "pushOutToRight") : (pushOutgoing.dir > 0 ? "pushOutToTop" : "pushOutToBottom");
-  const wholePage = transitionStyle === "slide"; // the background travels with the content
-  const pushInMotion = pushOutgoing ? { bg: wholePage ? `${pushInName} ${pushEase}` : undefined, content: `${pushInName} ${pushEase}` } : null;
-  const pushOutMotion = pushOutgoing ? { bg: wholePage ? `${pushOutName} ${pushEase} forwards` : `pushBgOut ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
+  const pushInMotion = pushOutgoing ? { bg: `${pushInName} ${pushEase}`, content: `${pushInName} ${pushEase}` } : null;
+  const pushOutMotion = pushOutgoing ? { bg: `${pushOutName} ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
   // Swiping follows the finger: the current page moves with it and the
   // next (or previous) page comes into view alongside, whatever the
   // transition style. As soon as the finger has clearly moved (~35px) the
@@ -7511,8 +7507,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       applyDrag(-d.dir * 100, d.dir, ease);
       setTimeout(() => {
         skipNextTransitionRef.current = true;
-        draggedInRef.current = true;
-        setDirection(d.dir);
         onNavigate(activeIndex + d.dir);
       }, DRAG_SETTLE_MS);
     } else {
@@ -7817,9 +7811,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   return (
     <>
       <style>{`
-        @keyframes slideUpIn { from { transform: translateY(24px); } to { transform: translateY(0); } }
-        @keyframes slideDownIn { from { transform: translateY(-24px); } to { transform: translateY(0); } }
-        @keyframes stackIn { from { transform: scale(0.96) translateY(10px); } to { transform: scale(1) translateY(0); } }
         @keyframes pushInFromBottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes pushInFromTop { from { transform: translateY(-100%); } to { transform: translateY(0); } }
         @keyframes pushOutToTop { from { transform: translateY(0); } to { transform: translateY(-100%); } }
@@ -7828,7 +7819,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes pushInFromLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
         @keyframes pushOutToLeft { from { transform: translateX(0); } to { transform: translateX(-100%); } }
         @keyframes pushOutToRight { from { transform: translateX(0); } to { transform: translateX(100%); } }
-        @keyframes pushBgOut { from { opacity: 1; } to { opacity: 0; } }
         @keyframes bounceUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes bounceLeft { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
         @keyframes musicPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.75; } }
@@ -7889,7 +7879,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} ref={currentPageRef} className="h-full w-full" style={{ animation: draggedInRef.current || transitionStyle === "push" || transitionStyle === "slide" ? "none" : transitionStyle === "stack" ? "stackIn 0.55s cubic-bezier(0.22,1,0.36,1)" : `${direction > 0 ? "slideUpIn" : "slideDownIn"} 0.5s cubic-bezier(0.22,1,0.36,1)` }}>
+          <div key={animKey} ref={currentPageRef} className="h-full w-full">
             <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
             <PageMotionContext.Provider value={pushInMotion}>
             <SliderDragContext.Provider value={sliderDragging}>
@@ -8365,7 +8355,7 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, transitionStyle, setTransitionStyle, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -8444,17 +8434,6 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           value={swipeDirection}
           onChange={setSwipeDirection}
           options={[{ value: "vertical", label: "Swipe up" }, { value: "horizontal", label: "Swipe left" }]}
-        />
-      </div>
-      <div className="mt-4 flex items-center justify-between gap-4" style={{ opacity: viewStyle === "scroll" ? 0.4 : 1 }}>
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Transition style</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>How each page animates in when guests navigate{viewStyle === "scroll" && " — not used in Scroll story"}</div>
-        </div>
-        <SegmentedToggle
-          value={transitionStyle}
-          onChange={setTransitionStyle}
-          options={[{ value: "slide", label: "Slide up (whole page)" }, { value: "stack", label: "Stack (slower)" }, { value: "push", label: "Page push" }]}
         />
       </div>
       <div className="mt-4 flex items-center justify-between gap-4">
@@ -13928,7 +13907,6 @@ export default function InvitationBuilder() {
   const [swipeDirection, setSwipeDirection] = useState("vertical"); // "vertical" (swipe up) or "horizontal" (swipe left)
   const [tornPhotoEdges, setTornPhotoEdges] = useState(false); // torn-paper-style top/bottom edges on every uploaded photo background, site-wide
   const [viewStyle, setViewStyle] = useState("cards"); // "cards" (swipe between pages, current default) or "scroll" (ScrollStoryPreview — pages stack and reveal on scroll)
-  const [transitionStyle, setTransitionStyle] = useState("slide"); // "slide" (current quick fade) or "stack" (slower, card-emerging-from-a-stack feel)
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [og, setOg] = useState({ image: null, title: "", description: "" });
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
@@ -14079,13 +14057,13 @@ export default function InvitationBuilder() {
     reminderFeatureUnlocked: false, reminderPaymentUrl: "",
     },
     intro: defaultIntroSettings,
-    swipeDirection: "vertical", transitionStyle: "slide", tornPhotoEdges: false, viewStyle: "cards",
+    swipeDirection: "vertical", tornPhotoEdges: false, viewStyle: "cards",
   });
 
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
-    swipeDirection, transitionStyle, tornPhotoEdges, viewStyle, openInviteLinks, venueElements,
+    swipeDirection, tornPhotoEdges, viewStyle, openInviteLinks, venueElements,
   });
 
   const applySnapshot = (snap) => {
@@ -14095,7 +14073,7 @@ export default function InvitationBuilder() {
     setDefaultLang(snap.defaultLang); setEnabledLanguages(snap.enabledLanguages || LANGS); setLayouts(mergeLayoutsWithDefaults(snap.layouts)); setCustomBlocks(mergeCustomBlocksWithDefaults(snap.customBlocks));
     setOg(snap.og); setGuestGroups(snap.guestGroups); setTables(snap.tables || []); setRsvpSettings(snap.rsvpSettings);
     setIntegrations(snap.integrations); setIntro(snap.intro);
-    setSwipeDirection(snap.swipeDirection || "vertical"); setTransitionStyle(snap.transitionStyle || "slide");
+    setSwipeDirection(snap.swipeDirection || "vertical");
     setTornPhotoEdges(!!snap.tornPhotoEdges);
     setViewStyle(snap.viewStyle || "cards");
     setOpenInviteLinks(snap.openInviteLinks || []);
@@ -14307,7 +14285,6 @@ export default function InvitationBuilder() {
         if (d.rsvpSettings) setRsvpSettings((s) => ({ ...s, ...d.rsvpSettings }));
         if (d.integrations) setIntegrations((i) => ({ ...i, ...d.integrations }));
         if (d.swipeDirection) setSwipeDirection(d.swipeDirection);
-        if (d.transitionStyle) setTransitionStyle(d.transitionStyle);
         if (d.tornPhotoEdges) setTornPhotoEdges(d.tornPhotoEdges);
         if (d.viewStyle) setViewStyle(d.viewStyle);
         if (Array.isArray(d.invitationIds) && d.invitationIds.length) {
@@ -14362,7 +14339,6 @@ export default function InvitationBuilder() {
               if (activeSnapshot.defaultLang) setDefaultLang(activeSnapshot.defaultLang);
               if (activeSnapshot.enabledLanguages) setEnabledLanguages(activeSnapshot.enabledLanguages);
               if (activeSnapshot.swipeDirection) setSwipeDirection(activeSnapshot.swipeDirection);
-              if (activeSnapshot.transitionStyle) setTransitionStyle(activeSnapshot.transitionStyle);
               if (activeSnapshot.tornPhotoEdges) setTornPhotoEdges(activeSnapshot.tornPhotoEdges);
               if (activeSnapshot.viewStyle) setViewStyle(activeSnapshot.viewStyle);
             } catch {}
@@ -14515,7 +14491,7 @@ export default function InvitationBuilder() {
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
-      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, transitionStyle, tornPhotoEdges, viewStyle, introMediaLibrary,
+      guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, tornPhotoEdges, viewStyle, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
       ogText: { title: og.title, description: og.description },
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
@@ -15873,9 +15849,8 @@ export default function InvitationBuilder() {
   if (guestView && guestView.found) {
     // The invitation's own saved settings — not whatever the Builder
     // happens to have loaded (which a guest's browser no longer loads).
-    const guestSettings = guestView.ownSlug ? { swipeDirection, transitionStyle, tornPhotoEdges } : {
+    const guestSettings = guestView.ownSlug ? { swipeDirection, tornPhotoEdges } : {
       swipeDirection: guestData?.swipeDirection || "vertical",
-      transitionStyle: guestData?.transitionStyle || "slide",
       tornPhotoEdges: !!guestData?.tornPhotoEdges,
     };
     return (
@@ -15927,7 +15902,6 @@ export default function InvitationBuilder() {
               guestGroupId={guestView.groupId}
               onUpdateRsvpContent={() => {}}
               swipeDirection={guestSettings.swipeDirection}
-              transitionStyle={guestSettings.transitionStyle}
             />
           )}
         </TornEdgesContext.Provider>
@@ -16444,7 +16418,7 @@ export default function InvitationBuilder() {
             <div className="flex w-full flex-col items-center gap-3 overflow-x-auto md:sticky md:top-10 md:w-auto md:self-start">
               <div className="relative">
                 <TornEdgesContext.Provider value={tornPhotoEdges}>
-                  <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} transitionStyle={transitionStyle} sliderDragging={sliderDragging} />
+                  <PhonePreview data={data} steps={steps} activeIndex={safeIndex} onNavigate={selectStep} lang={activeLang} layoutEditMode={layoutEditMode} onMoveBlock={moveBlock} started={started} onStart={() => setStarted(true)} selectedBlockId={selectedBlockId} onSelectBlock={setSelectedBlockId} onMoveCustomBlock={moveCustomBlock} onRemoveCustomBlock={removeCustomBlock} onDuplicateCustomBlock={duplicateCustomBlock} onMoveLocation={moveLocationItem} onSubmitRsvp={submitGuestRsvp} slug={slug} siteDomain={siteDomain} onUpdateRsvpContent={(patch) => updateContentSection("rsvp", patch)} swipeDirection={swipeDirection} sliderDragging={sliderDragging} />
                 </TornEdgesContext.Provider>
                 {/* Fades to hide the instant background/style swap behind an
                     opaque cover, then fades back in — this is what makes
@@ -16476,7 +16450,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} transitionStyle={transitionStyle} setTransitionStyle={setTransitionStyle} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} viewStyle={viewStyle} setViewStyle={setViewStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} viewStyle={viewStyle} setViewStyle={setViewStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
