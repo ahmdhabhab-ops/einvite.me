@@ -7447,16 +7447,18 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const pushOutName = !pushOutgoing ? null : isHorizontal ? (pushOutgoing.dir > 0 ? "pushOutToLeft" : "pushOutToRight") : (pushOutgoing.dir > 0 ? "pushOutToTop" : "pushOutToBottom");
   const pushInMotion = pushOutgoing ? { bg: `${pushInName} ${pushEase}`, content: `${pushInName} ${pushEase}` } : null;
   const pushOutMotion = pushOutgoing ? { bg: `${pushOutName} ${pushEase} forwards`, content: `${pushOutName} ${pushEase} forwards` } : null;
-  // Swiping follows the finger: the current page moves with it and the
-  // next (or previous) page comes into view alongside, whatever the
-  // transition style. As soon as the finger has clearly moved (~35px) the
-  // page carries on to the next one by itself, without waiting for the
-  // finger to lift; a smaller movement springs back on release. Transforms
-  // are set directly on the two layers rather than through React state, so
-  // dragging doesn't re-render the whole invitation on every touch move.
-  const DRAG_SETTLE_MS = 220;
-  const DRAG_COMMIT_PX = 35;
-  const dragRef = useRef(null); // { start, t, size, pct, dir, active } while a finger is down
+  // Swiping works like a vertical video feed (Instagram Reels): the page
+  // stays under the finger the whole time, with the next (or previous)
+  // page coming into view alongside. On release it carries on to that page
+  // if it was dragged at least a quarter of the way, or flicked quickly in
+  // that direction; otherwise it springs back. Transforms are set directly
+  // on the two layers rather than through React state, so dragging doesn't
+  // re-render the whole invitation on every touch move.
+  const DRAG_COMMIT_FRACTION = 0.25; // of the page's height (or width)
+  const DRAG_FLICK_PX_PER_MS = 0.35; // a quick flick commits even when short
+  const DRAG_FLICK_MIN_PX = 20;
+  const DRAG_SPRING_BACK_MS = 220;
+  const dragRef = useRef(null); // { start, t, size, pct, dir, active, samples } while a finger is down
   const dragSettlingRef = useRef(false);
   const [dragNeighborDir, setDragNeighborDir] = useState(0); // 1 = next page mounted after, -1 = previous before, 0 = none
   const currentPageRef = useRef(null);
@@ -7482,12 +7484,18 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     if (layoutEditMode || !started || pushOutgoing || dragSettlingRef.current) return;
     const p = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY;
     const rect = canvasRef.current?.getBoundingClientRect();
-    dragRef.current = { start: p, t: Date.now(), size: (isHorizontal ? rect?.width : rect?.height) || 600, pct: 0, dir: 0, active: false };
+    dragRef.current = { start: p, t: Date.now(), size: (isHorizontal ? rect?.width : rect?.height) || 600, pct: 0, dir: 0, active: false, deltaPx: 0, samples: [{ p, t: Date.now() }] };
   };
   const onTouchMove = (e) => {
     const d = dragRef.current;
     if (!d || d.done || sliderDragging) return;
-    const deltaPx = (isHorizontal ? e.touches[0].clientX : e.touches[0].clientY) - d.start;
+    const p = isHorizontal ? e.touches[0].clientX : e.touches[0].clientY;
+    const deltaPx = p - d.start;
+    // The last ~100ms of movement, to tell a flick from a slow drag on release.
+    const now = Date.now();
+    d.samples.push({ p, t: now });
+    while (d.samples.length > 2 && now - d.samples[0].t > 100) d.samples.shift();
+    d.deltaPx = deltaPx;
     if (!d.active && Math.abs(deltaPx) < 8) return; // still a tap
     d.active = true;
     const dir = deltaPx < 0 ? 1 : -1; // up/left brings the next page
@@ -7497,28 +7505,37 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     d.dir = hasNeighbor ? dir : 0;
     if (d.dir !== dragNeighborDir) setDragNeighborDir(d.dir);
     applyDrag(d.pct, d.dir);
-    if (d.dir !== 0 && Math.abs(deltaPx) > DRAG_COMMIT_PX) finishDrag(d, true); // moved enough — go now
   };
-  const finishDrag = (d, commit) => {
+  const finishDrag = (d, commit, velocity = 0) => {
     d.done = true;
-    const ease = `transform ${DRAG_SETTLE_MS}ms cubic-bezier(0.25,0.9,0.3,1)`;
     dragSettlingRef.current = true;
     if (commit) {
-      applyDrag(-d.dir * 100, d.dir, ease);
+      // Finish the rest of the way at about the speed the finger left off
+      // (a flick lands quickly, a slow drag glides), within sensible limits.
+      const remainingPx = (1 - Math.abs(d.pct) / 100) * d.size;
+      const ms = Math.round(Math.min(380, Math.max(160, remainingPx / Math.max(Math.abs(velocity), 1.2))));
+      applyDrag(-d.dir * 100, d.dir, `transform ${ms}ms cubic-bezier(0.2,0.8,0.2,1)`);
       setTimeout(() => {
         skipNextTransitionRef.current = true;
         onNavigate(activeIndex + d.dir);
-      }, DRAG_SETTLE_MS);
+      }, ms);
     } else {
-      applyDrag(0, d.dir, ease);
-      setTimeout(() => { applyDrag(0, 0); setDragNeighborDir(0); dragSettlingRef.current = false; }, DRAG_SETTLE_MS);
+      applyDrag(0, d.dir, `transform ${DRAG_SPRING_BACK_MS}ms cubic-bezier(0.25,0.9,0.3,1)`);
+      setTimeout(() => { applyDrag(0, 0); setDragNeighborDir(0); dragSettlingRef.current = false; }, DRAG_SPRING_BACK_MS);
     }
   };
   const onTouchEnd = () => {
     const d = dragRef.current;
     dragRef.current = null;
     if (!d || !d.active || d.done) return;
-    finishDrag(d, false); // released before moving far enough — spring back
+    const first = d.samples[0];
+    const last = d.samples[d.samples.length - 1];
+    const velocity = last.t > first.t ? (last.p - first.p) / (last.t - first.t) : 0; // px/ms, negative = towards the next page
+    const towardsNeighbor = d.dir !== 0 && Math.sign(-velocity) === d.dir;
+    const farEnough = Math.abs(d.pct) >= DRAG_COMMIT_FRACTION * 100;
+    const flicked = towardsNeighbor && Math.abs(velocity) >= DRAG_FLICK_PX_PER_MS && Math.abs(d.deltaPx) >= DRAG_FLICK_MIN_PX;
+    const draggedBack = d.dir !== 0 && Math.sign(-velocity) === -d.dir && Math.abs(velocity) >= DRAG_FLICK_PX_PER_MS;
+    finishDrag(d, d.dir !== 0 && (flicked || (farEnough && !draggedBack)), velocity);
   };
   const onWheel = (e) => {
     if (layoutEditMode || !started || wheelLockRef.current) return;
