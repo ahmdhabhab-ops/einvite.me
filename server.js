@@ -20,6 +20,7 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { marked } from "marked";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "dist");
@@ -528,6 +529,212 @@ app.get(/^\/e\/([^/]+)\/?$/, async (req, res, next) => {
     console.error("og-middleware error:", err);
     next();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Blog: the Markdown articles in blog/ served as plain server-rendered HTML
+// pages (/blog and /blog/<slug>), so search engines get the full text,
+// title and description without running the app's JavaScript. Each file
+// starts with an HTML comment holding its SEO fields (title, description,
+// slug, keywords); the rest is the article. Files are read once at start.
+// ---------------------------------------------------------------------------
+
+const BLOG_DIR = path.join(__dirname, "blog");
+const SITE_URL = (process.env.SITE_URL || "https://einvite.me").replace(/\/+$/, "");
+let blogPosts = [];
+
+function blogField(header, label) {
+  const m = header.match(new RegExp(`^\\s*${label}[^:\\n]*:\\s*(.+)$`, "m"));
+  return m ? m[1].trim() : "";
+}
+
+function parseBlogPost(file, raw) {
+  const header = (raw.match(/^\s*<!--([\s\S]*?)-->/) || [])[1] || "";
+  const body = raw.replace(/^\s*<!--[\s\S]*?-->\s*/, "");
+  const title = ((body.match(/^#\s+(.+)$/m) || [])[1] || "").trim();
+  const slug = blogField(header, "الرابط المقترح").replace(/^\/?blog\//, "").replace(/\/+$/, "") || file.replace(/\.md$/, "");
+  const excerpt = ((body.match(/^>\s*(.+)$/m) || [])[1] || "")
+    .replace(/\*\*/g, "")
+    .replace(/^باختصار:\s*/, "")
+    .trim();
+  const html = marked
+    .parse(body)
+    .replace(/<table>/g, '<div class="table-wrap"><table>')
+    .replace(/<\/table>/g, "</table></div>")
+    .replace(/<li><input [^>]*type="checkbox"[^>]*>/g, '<li class="check"><span class="box"></span>')
+    .replace(/<p><strong>👈\s*/g, '<p class="cta"><strong>');
+  return {
+    slug,
+    title,
+    seoTitle: blogField(header, "عنوان SEO") || title,
+    description: blogField(header, "الوصف التعريفي") || excerpt,
+    keywords: blogField(header, "الكلمات المفتاحية"),
+    excerpt,
+    html,
+  };
+}
+
+async function loadBlogPosts() {
+  try {
+    const files = (await fs.readdir(BLOG_DIR)).filter((f) => f.endsWith(".md")).sort();
+    blogPosts = await Promise.all(files.map(async (f) => parseBlogPost(f, await fs.readFile(path.join(BLOG_DIR, f), "utf8"))));
+    console.log(`blog: ${blogPosts.length} articles loaded`);
+  } catch (err) {
+    console.warn("blog: no articles loaded:", err.message);
+  }
+}
+loadBlogPosts();
+
+const BLOG_CSS = `
+:root { --bg: #2B3830; --card: rgba(243,237,225,0.045); --text: #F3EDE1; --text2: #CFC3AC; --gold: #D4AB4E; --line: rgba(243,237,225,0.13); }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: "Cairo", system-ui, sans-serif; line-height: 1.9; font-size: 17px; }
+a { color: var(--gold); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+header.site { border-bottom: 1px solid var(--line); }
+header.site .wrap { max-width: 1080px; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 64px; }
+.logo { color: var(--text); text-decoration: none; font-weight: 700; font-size: 20px; direction: ltr; }
+.logo span { color: var(--gold); }
+nav.site { display: flex; align-items: center; gap: 18px; font-size: 15px; }
+nav.site a { color: var(--text2); text-decoration: none; }
+nav.site a.start { background: var(--gold); color: #1F2A23; padding: 7px 16px; border-radius: 999px; font-weight: 700; }
+main { padding: 40px 0 64px; }
+.crumbs { font-size: 14px; color: var(--text2); margin-bottom: 12px; }
+.crumbs a { color: var(--text2); }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.45; margin: 0 0 20px; }
+h2 { font-size: clamp(22px, 3.6vw, 28px); line-height: 1.5; margin: 44px 0 12px; color: var(--gold); }
+h3 { font-size: 20px; margin: 30px 0 8px; }
+p, li { color: var(--text); }
+article p, article li { color: #EAE3D6; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+blockquote { margin: 22px 0; padding: 14px 18px; background: var(--card); border-right: 3px solid var(--gold); border-radius: 10px; }
+blockquote p { margin: 0; }
+ul, ol { padding-right: 22px; padding-left: 0; }
+li { margin: 6px 0; }
+li.check { list-style: none; margin-right: -22px; display: flex; gap: 10px; align-items: baseline; }
+li.check .box { flex: none; width: 15px; height: 15px; border: 1.5px solid var(--gold); border-radius: 4px; transform: translateY(2px); }
+.table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--card); color: var(--gold); font-weight: 700; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+p.cta { margin-top: 28px; text-align: center; }
+p.cta a { display: inline-block; background: var(--gold); color: #1F2A23; text-decoration: none; padding: 12px 26px; border-radius: 999px; font-weight: 700; }
+.posts { display: grid; gap: 18px; grid-template-columns: 1fr; margin-top: 28px; }
+@media (min-width: 760px) { .posts { grid-template-columns: 1fr 1fr; } }
+.post-card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; text-decoration: none; color: var(--text); }
+.post-card:hover { border-color: rgba(212,171,78,0.55); }
+.post-card h2 { font-size: 20px; margin: 0 0 8px; color: var(--text); }
+.post-card p { margin: 0 0 12px; color: var(--text2); font-size: 15px; line-height: 1.8; }
+.post-card .more { color: var(--gold); font-size: 15px; font-weight: 700; }
+.lead { color: var(--text2); margin: 0; }
+footer.site { border-top: 1px solid var(--line); padding: 24px 0 36px; font-size: 14px; color: var(--text2); }
+footer.site a { color: var(--text2); }
+`;
+
+function blogPage({ title, description, keywords, canonical, type = "website", jsonLd, body }) {
+  return `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<meta name="description" content="${escapeHtml(description)}">
+${keywords ? `<meta name="keywords" content="${escapeHtml(keywords)}">` : ""}
+<link rel="canonical" href="${escapeHtml(canonical)}">
+<meta property="og:type" content="${type}">
+<meta property="og:site_name" content="eInvite.me">
+<meta property="og:locale" content="ar_AR">
+<meta property="og:title" content="${escapeHtml(title)}">
+<meta property="og:description" content="${escapeHtml(description)}">
+<meta property="og:url" content="${escapeHtml(canonical)}">
+<meta name="twitter:card" content="summary">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+<style>${BLOG_CSS}</style>
+${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>` : ""}
+</head>
+<body>
+<header class="site"><div class="wrap">
+  <a class="logo" href="/">e<span>Invite</span>.me</a>
+  <nav class="site"><a href="/blog">المدونة</a><a href="/shop">التصاميم</a><a class="start" href="/">ابدأ دعوتك</a></nav>
+</div></header>
+<main><div class="wrap">
+${body}
+</div></main>
+<footer class="site"><div class="wrap">© ${new Date().getFullYear()} <a href="/">eInvite.me</a> · استوديو دعوات رقمية في بيروت، لبنان</div></footer>
+</body>
+</html>`;
+}
+
+app.get(/^\/blog\/?$/, (_req, res) => {
+  const cards = blogPosts.map((p) => `<a class="post-card" href="/blog/${encodeURIComponent(p.slug)}">
+  <h2>${escapeHtml(p.title)}</h2>
+  <p>${escapeHtml(p.excerpt)}</p>
+  <span class="more">اقرأ المقال ←</span>
+</a>`).join("\n");
+  const html = blogPage({
+    title: "مدونة eInvite.me: أفكار ونصائح للدعوات الإلكترونية وتنظيم الحفلات",
+    description: "نصائح وأفكار لتنظيم الأعراس والحفلات في لبنان والعالم العربي: تصميم الدعوات الإلكترونية، إدارة حضور الضيوف، أحدث التصاميم، والخرائط الرقمية.",
+    canonical: `${SITE_URL}/blog`,
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Blog",
+      name: "مدونة eInvite.me",
+      url: `${SITE_URL}/blog`,
+      inLanguage: "ar",
+      blogPost: blogPosts.map((p) => ({ "@type": "BlogPosting", headline: p.title, url: `${SITE_URL}/blog/${p.slug}` })),
+    },
+    body: `<h1>مدونة eInvite.me</h1>
+<p class="lead">أفكار ونصائح عملية لتنظيم الأعراس والحفلات، ولدعوات إلكترونية تليق بمناسبتك.</p>
+<div class="posts">${cards}</div>`,
+  });
+  res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }).send(html);
+});
+
+app.get(/^\/blog\/([^/]+)\/?$/, (req, res, next) => {
+  const slug = decodeURIComponent(req.params[0]);
+  const post = blogPosts.find((p) => p.slug === slug);
+  if (!post) return next();
+  const url = `${SITE_URL}/blog/${post.slug}`;
+  const html = blogPage({
+    title: post.seoTitle,
+    description: post.description,
+    keywords: post.keywords,
+    canonical: url,
+    type: "article",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: post.title,
+      description: post.description,
+      inLanguage: "ar",
+      url,
+      mainEntityOfPage: url,
+      author: { "@type": "Organization", name: "eInvite.me", url: SITE_URL },
+      publisher: { "@type": "Organization", name: "eInvite.me", url: SITE_URL },
+    },
+    body: `<div class="crumbs"><a href="/">الرئيسية</a> / <a href="/blog">المدونة</a></div>
+<article>${post.html}</article>`,
+  });
+  res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }).send(html);
+});
+
+// Search engines: the public pages and articles go in the sitemap; the
+// admin area and personal invitation/DJ links stay out of search results.
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /e/\nDisallow: /dj/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+});
+
+app.get("/sitemap.xml", (_req, res) => {
+  const urls = ["/", "/shop", "/blog", ...blogPosts.map((p) => `/blog/${p.slug}`)];
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((u) => `  <url><loc>${escapeHtml(SITE_URL + (u === "/" ? "/" : u))}</loc></url>`).join("\n")}
+</urlset>
+`);
 });
 
 // Hashed build assets can be cached forever; index.html must always revalidate.
