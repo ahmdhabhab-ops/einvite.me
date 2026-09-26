@@ -325,6 +325,30 @@ app.post("/api/video/optimize-url", express.json({ limit: "10kb" }), (req, res) 
   }, req.body?.audio === true);
 });
 
+// Crop and erase in the Builder need to read a stored photo back from a
+// canvas, which the browser only allows for same-origin (or CORS-enabled)
+// images. This serves photos from our own public Storage through the app,
+// as a fallback for when Storage doesn't send CORS headers.
+const IMAGE_PROXY_MAX = 25 * 1024 * 1024;
+app.get("/api/image-proxy", async (req, res) => {
+  const url = String(req.query.url || "");
+  if (!url.startsWith(`${SUPABASE_URL}/storage/v1/object/public/`) || url.includes("..")) return res.status(400).json({ error: "Only images stored on this site can be edited." });
+  try {
+    const src = await fetch(url);
+    const type = src.headers.get("content-type") || "";
+    if (!src.ok) return res.status(src.status).end();
+    if (!type.startsWith("image/")) return res.status(415).json({ error: "Not an image." });
+    const buf = Buffer.from(await src.arrayBuffer());
+    if (buf.length > IMAGE_PROXY_MAX) return res.status(413).json({ error: "Image too large." });
+    res.set("Content-Type", type);
+    res.set("Cache-Control", "no-store");
+    res.send(buf);
+  } catch (err) {
+    console.error("image proxy failed:", err.message);
+    res.status(502).json({ error: "Couldn't load the image." });
+  }
+});
+
 app.get(/^\/e\/([^/]+)\/?$/, async (req, res, next) => {
   const userAgent = (req.headers["user-agent"] || "").toLowerCase();
   const isCrawler = CRAWLER_USER_AGENTS.some((ua) => userAgent.includes(ua));
