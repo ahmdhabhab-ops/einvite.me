@@ -294,6 +294,7 @@ async function checkPublicUrl(raw) {
 function musicLinkError(message) {
   const m = message || "";
   if (/does not pass filter|is_live|duration/i.test(m)) return "That song is too long (over 15 minutes) or is a live stream. Pick a shorter track.";
+  if (/cookies are no longer valid/i.test(m)) return "Our YouTube connection needs refreshing. Download the song and use Upload track for now.";
   if (/sign in to confirm|not a bot|429|too many requests/i.test(m)) return "That site blocked the download from our server. Download the song to your device and use Upload track instead.";
   if (/drm/i.test(m)) return "That site protects its music (DRM), so it can't be converted. Try a YouTube or SoundCloud link, or upload the file.";
   if (/unsupported url|no video formats|no suitable formats|unable to extract|http error 40[04]|not found/i.test(m)) return "Couldn't find a song at that link. Check the link, or upload the file instead.";
@@ -302,10 +303,33 @@ function musicLinkError(message) {
   return "Couldn't convert that link. Try another link, or upload the file instead.";
 }
 
+// YouTube often refuses downloads from server IPs ("Sign in to confirm
+// you're not a bot"). Two optional settings on the app in Dokploy help:
+//   - a cookies.txt from a spare YouTube account, mounted at
+//     /app/secrets/yt-cookies.txt (or wherever YTDLP_COOKIES_FILE says);
+//   - YTDLP_PROXY, a proxy for yt-dlp to download through.
+const YTDLP_COOKIES_FILE = process.env.YTDLP_COOKIES_FILE || "/app/secrets/yt-cookies.txt";
+
+async function ytdlpAccessArgs(dir) {
+  const args = [];
+  if (process.env.YTDLP_PROXY) args.push("--proxy", process.env.YTDLP_PROXY);
+  // A copy per job: yt-dlp writes cookies back when it finishes, and jobs
+  // shouldn't touch the mounted original.
+  const copy = path.join(dir, "cookies.txt");
+  try {
+    await fs.copyFile(YTDLP_COOKIES_FILE, copy);
+    args.push("--cookies", copy);
+  } catch {
+    // No cookies file set up: download without one.
+  }
+  return args;
+}
+
 async function processMusicLink(url) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "einvite-music-"));
   try {
     const out = await runProcess("yt-dlp", [
+      ...(await ytdlpAccessArgs(dir)),
       "--no-playlist", "--no-warnings", "--no-progress", "--no-cache-dir",
       "--js-runtimes", "node",
       "-f", "bestaudio/best",
@@ -348,6 +372,10 @@ app.post("/api/music/from-link", express.json({ limit: "10kb" }), async (req, re
 
 // Sites change often and an old yt-dlp stops working with them, so it
 // updates itself in the background whenever the server starts.
+fs.access(YTDLP_COOKIES_FILE).then(
+  () => console.log("yt-dlp: using YouTube cookies from", YTDLP_COOKIES_FILE),
+  () => console.log("yt-dlp: no YouTube cookies file at", YTDLP_COOKIES_FILE),
+);
 runProcess("yt-dlp", ["-U"], 120000).then(
   (out) => console.log("yt-dlp:", out.trim().split("\n").pop()),
   (err) => console.warn("yt-dlp update skipped:", err.message),
