@@ -10,7 +10,7 @@ export const LANDING_LANG_NAMES = { en: "English", ar: "العربية", fr: "Fr
 
 export const LANDING_TEXT = {
   en: {
-    nav: { how: "How it works", features: "Features", designs: "Designs", faq: "FAQ", about: "About", contact: "Contact", logIn: "Log in", start: "Start" },
+    nav: { how: "How it works", features: "Features", designs: "Designs", blog: "Blog", faq: "FAQ", about: "About", contact: "Contact", logIn: "Log in", start: "Start" },
     hero: {
       eyebrow: "Digital invitations for every occasion",
       title: "An invitation that opens like a real envelope.",
@@ -103,7 +103,7 @@ export const LANDING_TEXT = {
   },
 
   ar: {
-    nav: { how: "كيف يعمل", features: "المميزات", designs: "التصاميم", faq: "الأسئلة الشائعة", about: "من نحن", contact: "تواصل معنا", logIn: "تسجيل الدخول", start: "ابدأ" },
+    nav: { how: "كيف يعمل", features: "المميزات", designs: "التصاميم", blog: "المدونة", faq: "الأسئلة الشائعة", about: "من نحن", contact: "تواصل معنا", logIn: "تسجيل الدخول", start: "ابدأ" },
     hero: {
       eyebrow: "دعوات رقمية لكل مناسبة",
       title: "دعوة تُفتح كظرفٍ حقيقي.",
@@ -196,7 +196,7 @@ export const LANDING_TEXT = {
   },
 
   fr: {
-    nav: { how: "Comment ça marche", features: "Fonctionnalités", designs: "Modèles", faq: "FAQ", about: "À propos", contact: "Contact", logIn: "Se connecter", start: "Commencer" },
+    nav: { how: "Comment ça marche", features: "Fonctionnalités", designs: "Modèles", blog: "Blog", faq: "FAQ", about: "À propos", contact: "Contact", logIn: "Se connecter", start: "Commencer" },
     hero: {
       eyebrow: "Invitations numériques pour toutes les occasions",
       title: "Une invitation qui s'ouvre comme une vraie enveloppe.",
@@ -289,7 +289,7 @@ export const LANDING_TEXT = {
   },
 
   es: {
-    nav: { how: "Cómo funciona", features: "Funciones", designs: "Diseños", faq: "Preguntas", about: "Nosotros", contact: "Contacto", logIn: "Iniciar sesión", start: "Empezar" },
+    nav: { how: "Cómo funciona", features: "Funciones", designs: "Diseños", blog: "Blog", faq: "Preguntas", about: "Nosotros", contact: "Contacto", logIn: "Iniciar sesión", start: "Empezar" },
     hero: {
       eyebrow: "Invitaciones digitales para cada ocasión",
       title: "Una invitación que se abre como un sobre de verdad.",
@@ -382,7 +382,7 @@ export const LANDING_TEXT = {
   },
 
   hy: {
-    nav: { how: "Ինչպես է աշխատում", features: "Հնարավորություններ", designs: "Դիզայններ", faq: "Հարցեր", about: "Մեր մասին", contact: "Կապ", logIn: "Մուտք", start: "Սկսել" },
+    nav: { how: "Ինչպես է աշխատում", features: "Հնարավորություններ", designs: "Դիզայններ", blog: "Բլոգ", faq: "Հարցեր", about: "Մեր մասին", contact: "Կապ", logIn: "Մուտք", start: "Սկսել" },
     hero: {
       eyebrow: "Թվային հրավերներ ցանկացած առիթի համար",
       title: "Հրավեր, որը բացվում է իսկական ծրարի պես։",

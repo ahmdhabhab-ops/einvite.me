@@ -12810,6 +12810,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="#how" className="landing-link hidden lg:inline">{t.nav.how}</a>
             <a href="#features" className="landing-link hidden md:inline">{t.nav.features}</a>
             <a href="/shop" className="landing-link hidden md:inline">{t.nav.designs}</a>
+            <a href="/blog" className="landing-link hidden md:inline">{t.nav.blog}</a>
             <a href="#faq" className="landing-link hidden lg:inline">{t.nav.faq}</a>
             <a href="#about" className="landing-link hidden lg:inline">{t.nav.about}</a>
             {hasContact && <a href="#contact" className="landing-link hidden md:inline">{t.nav.contact}</a>}
@@ -12991,6 +12992,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="#about" className="landing-link">{t.nav.about}</a>
             {hasContact && <a href="#contact" className="landing-link">{t.nav.contact}</a>}
             <a href="/shop" className="landing-link">{t.nav.designs}</a>
+            <a href="/blog" className="landing-link">{t.nav.blog}</a>
             <a href="/privacy" className="landing-link">{t.footer.privacy}</a>
             <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
           </div>
