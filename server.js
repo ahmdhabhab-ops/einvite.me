@@ -532,19 +532,85 @@ app.get(/^\/e\/([^/]+)\/?$/, async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
-// Blog: the Markdown articles in blog/ served as plain server-rendered HTML
-// pages (/blog and /blog/<slug>), so search engines get the full text,
-// title and description without running the app's JavaScript. Each file
-// starts with an HTML comment holding its SEO fields (title, description,
-// slug, keywords); the rest is the article. Files are read once at start.
+// Blog: the Markdown articles in blog/<lang>/ served as plain server-rendered
+// HTML pages, so search engines get the full text, title and description
+// without running the app's JavaScript:
+//   /blog              -> redirects to the visitor's language (default English)
+//   /blog/<lang>       -> that language's article list
+//   /blog/<lang>/<slug> -> one article
+// Articles are named "<order>-<slug>.md" and share the same slug in every
+// language, which links the translations together (hreflang + the language
+// switcher). Each starts with an HTML comment holding its SEO fields
+// (title, description, keywords). Files are read once at start.
 // ---------------------------------------------------------------------------
 
 const BLOG_DIR = path.join(__dirname, "blog");
 const SITE_URL = (process.env.SITE_URL || "https://einvite.me").replace(/\/+$/, "");
-let blogPosts = [];
+const BLOG_LANGS = ["en", "ar", "fr", "es", "hy"];
+const BLOG_DEFAULT_LANG = "en";
+let blogPosts = {}; // { [lang]: [post, ...] } in reading order
 
-function blogField(header, label) {
-  const m = header.match(new RegExp(`^\\s*${label}[^:\\n]*:\\s*(.+)$`, "m"));
+const BLOG_UI = {
+  en: {
+    name: "English", locale: "en_US", dir: "ltr",
+    blog: "Blog", designs: "Designs", start: "Create your invitation", home: "Home",
+    indexTitle: "eInvite.me Blog: Digital Invitation Ideas and Event Planning Tips",
+    indexDescription: "Ideas and practical tips for planning weddings and celebrations: designing digital invitations, managing guest RSVPs, the latest designs, and digital maps.",
+    heading: "The eInvite.me Blog",
+    lead: "Practical ideas and tips for planning weddings and celebrations, and for invitations worthy of your occasion.",
+    readMore: "Read the article →", languages: "Languages",
+    footer: "Digital invitation studio in Beirut, Lebanon",
+  },
+  ar: {
+    name: "العربية", locale: "ar_AR", dir: "rtl",
+    blog: "المدونة", designs: "التصاميم", start: "ابدأ دعوتك", home: "الرئيسية",
+    indexTitle: "مدونة eInvite.me: أفكار ونصائح للدعوات الإلكترونية وتنظيم الحفلات",
+    indexDescription: "نصائح وأفكار لتنظيم الأعراس والحفلات في لبنان والعالم العربي: تصميم الدعوات الإلكترونية، إدارة حضور الضيوف، أحدث التصاميم، والخرائط الرقمية.",
+    heading: "مدونة eInvite.me",
+    lead: "أفكار ونصائح عملية لتنظيم الأعراس والحفلات، ولدعوات إلكترونية تليق بمناسبتك.",
+    readMore: "اقرأ المقال ←", languages: "اللغات",
+    footer: "استوديو دعوات رقمية في بيروت، لبنان",
+  },
+  fr: {
+    name: "Français", locale: "fr_FR", dir: "ltr",
+    blog: "Blog", designs: "Modèles", start: "Créer votre invitation", home: "Accueil",
+    indexTitle: "Le blog eInvite.me : idées de faire-part digitaux et conseils d'organisation",
+    indexDescription: "Idées et conseils pratiques pour organiser mariages et fêtes : créer un faire-part digital, gérer les réponses des invités, les dernières tendances et les cartes numériques.",
+    heading: "Le blog eInvite.me",
+    lead: "Des idées et des conseils pratiques pour organiser vos mariages et vos fêtes, et pour des invitations à la hauteur de l'occasion.",
+    readMore: "Lire l'article →", languages: "Langues",
+    footer: "Studio d'invitations digitales à Beyrouth, Liban",
+  },
+  es: {
+    name: "Español", locale: "es_ES", dir: "ltr",
+    blog: "Blog", designs: "Diseños", start: "Crea tu invitación", home: "Inicio",
+    indexTitle: "Blog de eInvite.me: ideas de invitaciones digitales y consejos para eventos",
+    indexDescription: "Ideas y consejos prácticos para organizar bodas y celebraciones: diseñar invitaciones digitales, gestionar las confirmaciones, las últimas tendencias y los mapas digitales.",
+    heading: "El blog de eInvite.me",
+    lead: "Ideas y consejos prácticos para organizar bodas y celebraciones, y para invitaciones a la altura de tu ocasión.",
+    readMore: "Leer el artículo →", languages: "Idiomas",
+    footer: "Estudio de invitaciones digitales en Beirut, Líbano",
+  },
+  hy: {
+    name: "Հայերեն", locale: "hy_AM", dir: "ltr",
+    blog: "Բլոգ", designs: "Դիզայններ", start: "Ստեղծել հրավեր", home: "Գլխավոր",
+    indexTitle: "eInvite.me բլոգ. թվային հրավերների գաղափարներ և տոների կազմակերպման խորհուրդներ",
+    indexDescription: "Գաղափարներ և գործնական խորհուրդներ հարսանիքներ ու տոներ կազմակերպելու համար. թվային հրավերների ձևավորում, հյուրերի պատասխանների կառավարում, նորագույն դիզայններ և թվային քարտեզներ:",
+    heading: "eInvite.me բլոգ",
+    lead: "Գործնական գաղափարներ և խորհուրդներ հարսանիքներ ու տոներ կազմակերպելու և ձեր առիթին վայել հրավերների համար:",
+    readMore: "Կարդալ հոդվածը →", languages: "Լեզուներ",
+    footer: "Թվային հրավերների ստուդիա Բեյրութում, Լիբանան",
+  },
+};
+
+const BLOG_FONTS = {
+  ar: { href: "family=Cairo:wght@400;600;700", stack: '"Cairo", system-ui, sans-serif' },
+  hy: { href: "family=Noto+Sans+Armenian:wght@400;600;700", stack: '"Noto Sans Armenian", system-ui, sans-serif' },
+  latin: { href: "family=Inter:wght@400;600;700", stack: '"Inter", system-ui, sans-serif' },
+};
+
+function blogField(header, name) {
+  const m = header.match(new RegExp(`^\\s*${name}:\\s*(.+)$`, "m"));
   return m ? m[1].trim() : "";
 }
 
@@ -552,72 +618,92 @@ function parseBlogPost(file, raw) {
   const header = (raw.match(/^\s*<!--([\s\S]*?)-->/) || [])[1] || "";
   const body = raw.replace(/^\s*<!--[\s\S]*?-->\s*/, "");
   const title = ((body.match(/^#\s+(.+)$/m) || [])[1] || "").trim();
-  const slug = blogField(header, "الرابط المقترح").replace(/^\/?blog\//, "").replace(/\/+$/, "") || file.replace(/\.md$/, "");
+  const slug = file.replace(/\.md$/, "").replace(/^\d+-/, "");
   const excerpt = ((body.match(/^>\s*(.+)$/m) || [])[1] || "")
+    .replace(/^\*\*[^*]{1,30}\*\*\s*/, "") // the "In short:" label
     .replace(/\*\*/g, "")
-    .replace(/^باختصار:\s*/, "")
     .trim();
   const html = marked
     .parse(body)
     .replace(/<table>/g, '<div class="table-wrap"><table>')
     .replace(/<\/table>/g, "</table></div>")
     .replace(/<li><input [^>]*type="checkbox"[^>]*>/g, '<li class="check"><span class="box"></span>')
-    .replace(/<p><strong>👈\s*/g, '<p class="cta"><strong>');
+    .replace(/<p><strong>(?:👈|👉)\s*/g, '<p class="cta"><strong>');
   return {
     slug,
     title,
-    seoTitle: blogField(header, "عنوان SEO") || title,
-    description: blogField(header, "الوصف التعريفي") || excerpt,
-    keywords: blogField(header, "الكلمات المفتاحية"),
+    seoTitle: blogField(header, "title") || title,
+    description: blogField(header, "description") || excerpt,
+    keywords: blogField(header, "keywords"),
     excerpt,
     html,
   };
 }
 
 async function loadBlogPosts() {
-  try {
-    const files = (await fs.readdir(BLOG_DIR)).filter((f) => f.endsWith(".md")).sort();
-    blogPosts = await Promise.all(files.map(async (f) => parseBlogPost(f, await fs.readFile(path.join(BLOG_DIR, f), "utf8"))));
-    console.log(`blog: ${blogPosts.length} articles loaded`);
-  } catch (err) {
-    console.warn("blog: no articles loaded:", err.message);
+  const loaded = {};
+  for (const lang of BLOG_LANGS) {
+    try {
+      const dir = path.join(BLOG_DIR, lang);
+      const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".md")).sort((a, b) => parseInt(a, 10) - parseInt(b, 10) || a.localeCompare(b));
+      loaded[lang] = await Promise.all(files.map(async (f) => parseBlogPost(f, await fs.readFile(path.join(dir, f), "utf8"))));
+    } catch {
+      loaded[lang] = [];
+    }
   }
+  blogPosts = loaded;
+  console.log(`blog: ${BLOG_LANGS.map((l) => `${l} ${loaded[l].length}`).join(", ")} articles loaded`);
 }
 loadBlogPosts();
+
+const blogUrl = (lang, slug) => `${SITE_URL}/blog/${lang}${slug ? `/${slug}` : ""}`;
+
+// The visitor's preferred blog language from Accept-Language, else English.
+function preferredBlogLang(req) {
+  const header = String(req.headers["accept-language"] || "").toLowerCase();
+  for (const part of header.split(",")) {
+    const code = part.trim().slice(0, 2);
+    if (BLOG_LANGS.includes(code) && blogPosts[code]?.length) return code;
+  }
+  return BLOG_DEFAULT_LANG;
+}
 
 const BLOG_CSS = `
 :root { --bg: #2B3830; --card: rgba(243,237,225,0.045); --text: #F3EDE1; --text2: #CFC3AC; --gold: #D4AB4E; --line: rgba(243,237,225,0.13); }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: "Cairo", system-ui, sans-serif; line-height: 1.9; font-size: 17px; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.8; font-size: 17px; }
+body[dir="rtl"] { line-height: 1.9; }
 a { color: var(--gold); }
 .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+header.site .wrap { max-width: 1080px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
 header.site { border-bottom: 1px solid var(--line); }
-header.site .wrap { max-width: 1080px; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 64px; }
-.logo { color: var(--text); text-decoration: none; font-weight: 700; font-size: 20px; direction: ltr; }
+.logo { color: var(--text); text-decoration: none; font-weight: 700; font-size: 20px; direction: ltr; font-family: "Inter", system-ui, sans-serif; }
 .logo span { color: var(--gold); }
-nav.site { display: flex; align-items: center; gap: 18px; font-size: 15px; }
+nav.site { display: flex; align-items: center; gap: 16px; font-size: 15px; flex-wrap: wrap; }
 nav.site a { color: var(--text2); text-decoration: none; }
 nav.site a.start { background: var(--gold); color: #1F2A23; padding: 7px 16px; border-radius: 999px; font-weight: 700; }
-main { padding: 40px 0 64px; }
+.langs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 22px; font-size: 13px; }
+.langs a, .langs span { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text2); text-decoration: none; }
+.langs span { border-color: var(--gold); color: var(--gold); }
+main { padding: 32px 0 64px; }
 .crumbs { font-size: 14px; color: var(--text2); margin-bottom: 12px; }
 .crumbs a { color: var(--text2); }
-h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.45; margin: 0 0 20px; }
-h2 { font-size: clamp(22px, 3.6vw, 28px); line-height: 1.5; margin: 44px 0 12px; color: var(--gold); }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.35; margin: 0 0 20px; }
+h2 { font-size: clamp(22px, 3.6vw, 28px); line-height: 1.4; margin: 44px 0 12px; color: var(--gold); }
 h3 { font-size: 20px; margin: 30px 0 8px; }
-p, li { color: var(--text); }
 article p, article li { color: #EAE3D6; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
-blockquote { margin: 22px 0; padding: 14px 18px; background: var(--card); border-right: 3px solid var(--gold); border-radius: 10px; }
+blockquote { margin: 22px 0; padding: 14px 18px; background: var(--card); border-inline-start: 3px solid var(--gold); border-radius: 10px; }
 blockquote p { margin: 0; }
-ul, ol { padding-right: 22px; padding-left: 0; }
+ul, ol { padding-inline-start: 22px; }
 li { margin: 6px 0; }
-li.check { list-style: none; margin-right: -22px; display: flex; gap: 10px; align-items: baseline; }
+li.check { list-style: none; margin-inline-start: -22px; display: flex; gap: 10px; align-items: baseline; }
 li.check .box { flex: none; width: 15px; height: 15px; border: 1.5px solid var(--gold); border-radius: 4px; transform: translateY(2px); }
 .table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--line); border-radius: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
-th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { background: var(--card); color: var(--gold); font-weight: 700; white-space: nowrap; }
+th, td { padding: 10px 14px; text-align: start; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--card); color: var(--gold); font-weight: 700; }
 tr:last-child td { border-bottom: 0; }
 p.cta { margin-top: 28px; text-align: center; }
 p.cta a { display: inline-block; background: var(--gold); color: #1F2A23; text-decoration: none; padding: 12px 26px; border-radius: 999px; font-weight: 700; }
@@ -626,16 +712,26 @@ p.cta a { display: inline-block; background: var(--gold); color: #1F2A23; text-d
 .post-card { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; text-decoration: none; color: var(--text); }
 .post-card:hover { border-color: rgba(212,171,78,0.55); }
 .post-card h2 { font-size: 20px; margin: 0 0 8px; color: var(--text); }
-.post-card p { margin: 0 0 12px; color: var(--text2); font-size: 15px; line-height: 1.8; }
+.post-card p { margin: 0 0 12px; color: var(--text2); font-size: 15px; line-height: 1.7; }
 .post-card .more { color: var(--gold); font-size: 15px; font-weight: 700; }
 .lead { color: var(--text2); margin: 0; }
 footer.site { border-top: 1px solid var(--line); padding: 24px 0 36px; font-size: 14px; color: var(--text2); }
 footer.site a { color: var(--text2); }
 `;
 
-function blogPage({ title, description, keywords, canonical, type = "website", jsonLd, body }) {
+// alternates: { [lang]: absolute url } for the same page in every language it exists in.
+function blogPage({ lang, title, description, keywords, canonical, alternates, type = "website", jsonLd, body }) {
+  const ui = BLOG_UI[lang];
+  const font = BLOG_FONTS[lang] || BLOG_FONTS.latin;
+  const hreflang = Object.entries(alternates)
+    .map(([l, href]) => `<link rel="alternate" hreflang="${l}" href="${escapeHtml(href)}">`)
+    .concat(alternates[BLOG_DEFAULT_LANG] ? [`<link rel="alternate" hreflang="x-default" href="${escapeHtml(alternates[BLOG_DEFAULT_LANG])}">`] : [])
+    .join("\n");
+  const langLinks = BLOG_LANGS.filter((l) => alternates[l])
+    .map((l) => (l === lang ? `<span>${BLOG_UI[l].name}</span>` : `<a href="${escapeHtml(alternates[l].replace(SITE_URL, ""))}" hreflang="${l}" lang="${l}">${BLOG_UI[l].name}</a>`))
+    .join("");
   return `<!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="${lang}" dir="${ui.dir}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -643,83 +739,108 @@ function blogPage({ title, description, keywords, canonical, type = "website", j
 <meta name="description" content="${escapeHtml(description)}">
 ${keywords ? `<meta name="keywords" content="${escapeHtml(keywords)}">` : ""}
 <link rel="canonical" href="${escapeHtml(canonical)}">
+${hreflang}
 <meta property="og:type" content="${type}">
 <meta property="og:site_name" content="eInvite.me">
-<meta property="og:locale" content="ar_AR">
+<meta property="og:locale" content="${ui.locale}">
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${escapeHtml(canonical)}">
 <meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
-<style>${BLOG_CSS}</style>
+<link href="https://fonts.googleapis.com/css2?${font.href}${font === BLOG_FONTS.latin ? "" : `&${BLOG_FONTS.latin.href}`}&display=swap" rel="stylesheet">
+<style>:root { --font: ${font.stack}; }${BLOG_CSS}</style>
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>` : ""}
 </head>
-<body>
+<body dir="${ui.dir}">
 <header class="site"><div class="wrap">
   <a class="logo" href="/">e<span>Invite</span>.me</a>
-  <nav class="site"><a href="/blog">المدونة</a><a href="/shop">التصاميم</a><a class="start" href="/">ابدأ دعوتك</a></nav>
+  <nav class="site"><a href="/blog/${lang}">${ui.blog}</a><a href="/shop">${ui.designs}</a><a class="start" href="/">${ui.start}</a></nav>
 </div></header>
 <main><div class="wrap">
+<nav class="langs" aria-label="${escapeHtml(ui.languages)}">${langLinks}</nav>
 ${body}
 </div></main>
-<footer class="site"><div class="wrap">© ${new Date().getFullYear()} <a href="/">eInvite.me</a> · استوديو دعوات رقمية في بيروت، لبنان</div></footer>
+<footer class="site"><div class="wrap">© ${new Date().getFullYear()} <a href="/">eInvite.me</a> · ${ui.footer}</div></footer>
 </body>
 </html>`;
 }
 
-app.get(/^\/blog\/?$/, (_req, res) => {
-  const cards = blogPosts.map((p) => `<a class="post-card" href="/blog/${encodeURIComponent(p.slug)}">
+const sendBlogHtml = (res, html) => res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }).send(html);
+
+app.get(/^\/blog\/?$/, (req, res) => {
+  res.set("vary", "Accept-Language").redirect(302, `/blog/${preferredBlogLang(req)}`);
+});
+
+app.get(/^\/blog\/([a-z]{2})\/?$/, (req, res, next) => {
+  const lang = req.params[0];
+  if (!BLOG_LANGS.includes(lang)) return next();
+  const ui = BLOG_UI[lang];
+  const posts = blogPosts[lang] || [];
+  const alternates = Object.fromEntries(BLOG_LANGS.filter((l) => blogPosts[l]?.length).map((l) => [l, blogUrl(l)]));
+  const cards = posts.map((p) => `<a class="post-card" href="/blog/${lang}/${encodeURIComponent(p.slug)}">
   <h2>${escapeHtml(p.title)}</h2>
   <p>${escapeHtml(p.excerpt)}</p>
-  <span class="more">اقرأ المقال ←</span>
+  <span class="more">${ui.readMore}</span>
 </a>`).join("\n");
-  const html = blogPage({
-    title: "مدونة eInvite.me: أفكار ونصائح للدعوات الإلكترونية وتنظيم الحفلات",
-    description: "نصائح وأفكار لتنظيم الأعراس والحفلات في لبنان والعالم العربي: تصميم الدعوات الإلكترونية، إدارة حضور الضيوف، أحدث التصاميم، والخرائط الرقمية.",
-    canonical: `${SITE_URL}/blog`,
+  sendBlogHtml(res, blogPage({
+    lang,
+    title: ui.indexTitle,
+    description: ui.indexDescription,
+    canonical: blogUrl(lang),
+    alternates,
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "Blog",
-      name: "مدونة eInvite.me",
-      url: `${SITE_URL}/blog`,
-      inLanguage: "ar",
-      blogPost: blogPosts.map((p) => ({ "@type": "BlogPosting", headline: p.title, url: `${SITE_URL}/blog/${p.slug}` })),
+      name: ui.heading,
+      url: blogUrl(lang),
+      inLanguage: lang,
+      blogPost: posts.map((p) => ({ "@type": "BlogPosting", headline: p.title, url: blogUrl(lang, p.slug) })),
     },
-    body: `<h1>مدونة eInvite.me</h1>
-<p class="lead">أفكار ونصائح عملية لتنظيم الأعراس والحفلات، ولدعوات إلكترونية تليق بمناسبتك.</p>
+    body: `<h1>${escapeHtml(ui.heading)}</h1>
+<p class="lead">${escapeHtml(ui.lead)}</p>
 <div class="posts">${cards}</div>`,
-  });
-  res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }).send(html);
+  }));
 });
 
-app.get(/^\/blog\/([^/]+)\/?$/, (req, res, next) => {
-  const slug = decodeURIComponent(req.params[0]);
-  const post = blogPosts.find((p) => p.slug === slug);
+app.get(/^\/blog\/([a-z]{2})\/([^/]+)\/?$/, (req, res, next) => {
+  const lang = req.params[0];
+  const slug = decodeURIComponent(req.params[1]);
+  const post = BLOG_LANGS.includes(lang) && blogPosts[lang]?.find((p) => p.slug === slug);
   if (!post) return next();
-  const url = `${SITE_URL}/blog/${post.slug}`;
-  const html = blogPage({
+  const ui = BLOG_UI[lang];
+  const url = blogUrl(lang, post.slug);
+  const alternates = Object.fromEntries(BLOG_LANGS.filter((l) => blogPosts[l]?.some((p) => p.slug === slug)).map((l) => [l, blogUrl(l, slug)]));
+  sendBlogHtml(res, blogPage({
+    lang,
     title: post.seoTitle,
     description: post.description,
     keywords: post.keywords,
     canonical: url,
+    alternates,
     type: "article",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       headline: post.title,
       description: post.description,
-      inLanguage: "ar",
+      inLanguage: lang,
       url,
       mainEntityOfPage: url,
       author: { "@type": "Organization", name: "eInvite.me", url: SITE_URL },
       publisher: { "@type": "Organization", name: "eInvite.me", url: SITE_URL },
     },
-    body: `<div class="crumbs"><a href="/">الرئيسية</a> / <a href="/blog">المدونة</a></div>
+    body: `<div class="crumbs"><a href="/">${ui.home}</a> / <a href="/blog/${lang}">${ui.blog}</a></div>
 <article>${post.html}</article>`,
-  });
-  res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }).send(html);
+  }));
+});
+
+// The first version of the blog was Arabic only, at /blog/<slug>.
+app.get(/^\/blog\/([^/]+)\/?$/, (req, res, next) => {
+  const slug = decodeURIComponent(req.params[0]);
+  if (!blogPosts.ar?.some((p) => p.slug === slug)) return next();
+  res.redirect(301, `/blog/ar/${slug}`);
 });
 
 // Search engines: the public pages and articles go in the sitemap; the
@@ -729,7 +850,7 @@ app.get("/robots.txt", (_req, res) => {
 });
 
 app.get("/sitemap.xml", (_req, res) => {
-  const urls = ["/", "/shop", "/blog", ...blogPosts.map((p) => `/blog/${p.slug}`)];
+  const urls = ["/", "/shop", ...BLOG_LANGS.flatMap((l) => (blogPosts[l]?.length ? [`/blog/${l}`, ...blogPosts[l].map((p) => `/blog/${l}/${p.slug}`)] : []))];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url><loc>${escapeHtml(SITE_URL + (u === "/" ? "/" : u))}</loc></url>`).join("\n")}
