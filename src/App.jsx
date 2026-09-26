@@ -12777,6 +12777,14 @@ function LandingPage({ onSignUp, onLogIn }) {
   }, [lang]);
   const t = LANDING_TEXT[lang] || LANDING_TEXT.en;
   const fonts = landingFonts(lang);
+  // The Blog link only appears once the blog has been made public
+  // (BLOG_PUBLIC on the server); until then it's a private preview.
+  const [blogPublic, setBlogPublic] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/blog/status").then((r) => (r.ok ? r.json() : null)).then((d) => { if (!cancelled && d?.public) setBlogPublic(true); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
   const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, color: LP.text, fontSize: size, lineHeight: lang === "ar" ? 1.4 : 1.15 });
   const primaryBtn = "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold";
   return (
@@ -12810,7 +12818,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="#how" className="landing-link hidden lg:inline">{t.nav.how}</a>
             <a href="#features" className="landing-link hidden md:inline">{t.nav.features}</a>
             <a href="/shop" className="landing-link hidden md:inline">{t.nav.designs}</a>
-            <a href={`/blog/${lang}`} className="landing-link hidden md:inline">{t.nav.blog}</a>
+            {blogPublic && <a href={`/blog/${lang}`} className="landing-link hidden md:inline">{t.nav.blog}</a>}
             <a href="#faq" className="landing-link hidden lg:inline">{t.nav.faq}</a>
             <a href="#about" className="landing-link hidden lg:inline">{t.nav.about}</a>
             {hasContact && <a href="#contact" className="landing-link hidden md:inline">{t.nav.contact}</a>}
@@ -12992,7 +13000,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="#about" className="landing-link">{t.nav.about}</a>
             {hasContact && <a href="#contact" className="landing-link">{t.nav.contact}</a>}
             <a href="/shop" className="landing-link">{t.nav.designs}</a>
-            <a href={`/blog/${lang}`} className="landing-link">{t.nav.blog}</a>
+            {blogPublic && <a href={`/blog/${lang}`} className="landing-link">{t.nav.blog}</a>}
             <a href="/privacy" className="landing-link">{t.footer.privacy}</a>
             <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
           </div>

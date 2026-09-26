@@ -18,7 +18,7 @@ import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
 import dns from "node:dns/promises";
 import net from "node:net";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 
@@ -550,6 +550,33 @@ const BLOG_LANGS = ["en", "ar", "fr", "es", "hy"];
 const BLOG_DEFAULT_LANG = "en";
 let blogPosts = {}; // { [lang]: [post, ...] } in reading order
 
+// The blog stays hidden until BLOG_PUBLIC=true is set on the app in Dokploy.
+// Until then only someone with BLOG_PREVIEW_KEY can see it: opening
+// /blog?preview=<key> once sets a cookie that shows the blog in that
+// browser for 30 days. Hidden pages fall through to the normal site (so
+// /blog just shows the home page), stay out of the sitemap, and previews
+// are marked noindex so search engines never pick them up.
+const BLOG_PUBLIC = /^(1|true|yes|on)$/i.test(process.env.BLOG_PUBLIC || "");
+const BLOG_PREVIEW_KEY = process.env.BLOG_PREVIEW_KEY || "";
+const BLOG_PREVIEW_COOKIE = "blog_preview";
+
+function sameSecret(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+function canSeeBlog(req, res) {
+  if (BLOG_PUBLIC) return true;
+  if (!BLOG_PREVIEW_KEY) return false;
+  if (req.query.preview && sameSecret(req.query.preview, BLOG_PREVIEW_KEY)) {
+    res.cookie(BLOG_PREVIEW_COOKIE, BLOG_PREVIEW_KEY, { httpOnly: true, sameSite: "lax", secure: req.secure || req.get("x-forwarded-proto") === "https", maxAge: 30 * 24 * 3600 * 1000, path: "/blog" });
+    return true;
+  }
+  const cookie = String(req.headers.cookie || "").split(";").map((c) => c.trim()).find((c) => c.startsWith(`${BLOG_PREVIEW_COOKIE}=`));
+  return !!cookie && sameSecret(decodeURIComponent(cookie.slice(BLOG_PREVIEW_COOKIE.length + 1)), BLOG_PREVIEW_KEY);
+}
+
 const BLOG_UI = {
   en: {
     name: "English", locale: "en_US", dir: "ltr",
@@ -652,7 +679,7 @@ async function loadBlogPosts() {
     }
   }
   blogPosts = loaded;
-  console.log(`blog: ${BLOG_LANGS.map((l) => `${l} ${loaded[l].length}`).join(", ")} articles loaded`);
+  console.log(`blog: ${BLOG_LANGS.map((l) => `${l} ${loaded[l].length}`).join(", ")} articles loaded (${BLOG_PUBLIC ? "public" : BLOG_PREVIEW_KEY ? "hidden, preview key set" : "hidden, no preview key"})`);
 }
 loadBlogPosts();
 
@@ -735,6 +762,7 @@ function blogPage({ lang, title, description, keywords, canonical, alternates, t
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+${BLOG_PUBLIC ? "" : '<meta name="robots" content="noindex, nofollow">'}
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}">
 ${keywords ? `<meta name="keywords" content="${escapeHtml(keywords)}">` : ""}
@@ -767,15 +795,19 @@ ${body}
 </html>`;
 }
 
-const sendBlogHtml = (res, html) => res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" }).send(html);
+const sendBlogHtml = (res, html) => res.set({ "content-type": "text/html; charset=utf-8", "cache-control": BLOG_PUBLIC ? "public, max-age=300" : "private, no-store" }).send(html);
 
-app.get(/^\/blog\/?$/, (req, res) => {
+// Lets the home page show its Blog link only once the blog is public.
+app.get("/api/blog/status", (_req, res) => res.set("cache-control", "no-store").json({ public: BLOG_PUBLIC }));
+
+app.get(/^\/blog\/?$/, (req, res, next) => {
+  if (!canSeeBlog(req, res)) return next();
   res.set("vary", "Accept-Language").redirect(302, `/blog/${preferredBlogLang(req)}`);
 });
 
 app.get(/^\/blog\/([a-z]{2})\/?$/, (req, res, next) => {
   const lang = req.params[0];
-  if (!BLOG_LANGS.includes(lang)) return next();
+  if (!BLOG_LANGS.includes(lang) || !canSeeBlog(req, res)) return next();
   const ui = BLOG_UI[lang];
   const posts = blogPosts[lang] || [];
   const alternates = Object.fromEntries(BLOG_LANGS.filter((l) => blogPosts[l]?.length).map((l) => [l, blogUrl(l)]));
@@ -808,7 +840,7 @@ app.get(/^\/blog\/([a-z]{2})\/([^/]+)\/?$/, (req, res, next) => {
   const lang = req.params[0];
   const slug = decodeURIComponent(req.params[1]);
   const post = BLOG_LANGS.includes(lang) && blogPosts[lang]?.find((p) => p.slug === slug);
-  if (!post) return next();
+  if (!post || !canSeeBlog(req, res)) return next();
   const ui = BLOG_UI[lang];
   const url = blogUrl(lang, post.slug);
   const alternates = Object.fromEntries(BLOG_LANGS.filter((l) => blogPosts[l]?.some((p) => p.slug === slug)).map((l) => [l, blogUrl(l, slug)]));
@@ -839,7 +871,7 @@ app.get(/^\/blog\/([a-z]{2})\/([^/]+)\/?$/, (req, res, next) => {
 // The first version of the blog was Arabic only, at /blog/<slug>.
 app.get(/^\/blog\/([^/]+)\/?$/, (req, res, next) => {
   const slug = decodeURIComponent(req.params[0]);
-  if (!blogPosts.ar?.some((p) => p.slug === slug)) return next();
+  if (!blogPosts.ar?.some((p) => p.slug === slug) || !canSeeBlog(req, res)) return next();
   res.redirect(301, `/blog/ar/${slug}`);
 });
 
@@ -850,7 +882,8 @@ app.get("/robots.txt", (_req, res) => {
 });
 
 app.get("/sitemap.xml", (_req, res) => {
-  const urls = ["/", "/shop", ...BLOG_LANGS.flatMap((l) => (blogPosts[l]?.length ? [`/blog/${l}`, ...blogPosts[l].map((p) => `/blog/${l}/${p.slug}`)] : []))];
+  const blogUrls = BLOG_PUBLIC ? BLOG_LANGS.flatMap((l) => (blogPosts[l]?.length ? [`/blog/${l}`, ...blogPosts[l].map((p) => `/blog/${l}/${p.slug}`)] : [])) : [];
+  const urls = ["/", "/shop", ...blogUrls];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url><loc>${escapeHtml(SITE_URL + (u === "/" ? "/" : u))}</loc></url>`).join("\n")}
