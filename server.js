@@ -295,7 +295,7 @@ function musicLinkError(message) {
   const m = message || "";
   if (/does not pass filter|is_live|duration/i.test(m)) return "That song is too long (over 15 minutes) or is a live stream. Pick a shorter track.";
   if (/cookies are no longer valid/i.test(m)) return "Our YouTube connection needs refreshing. Download the song and use Upload track for now.";
-  if (/sign in to confirm|not a bot|429|too many requests/i.test(m)) return "That site blocked the download from our server. Download the song to your device and use Upload track instead.";
+  if (/sign in to confirm|not a bot|429|too many requests|needs to be reloaded/i.test(m)) return "That site blocked the download from our server. Download the song to your device and use Upload track instead.";
   if (/drm/i.test(m)) return "That site protects its music (DRM), so it can't be converted. Try a YouTube or SoundCloud link, or upload the file.";
   if (/unsupported url|no video formats|no suitable formats|unable to extract|http error 40[04]|not found/i.test(m)) return "Couldn't find a song at that link. Check the link, or upload the file instead.";
   if (/\bprivate\b|\blog ?in\b|members[- ]only|premium|age[- ]restricted|confirm your age/i.test(m)) return "That song is private or needs a login, so it can't be converted. Try another link, or upload the file.";
@@ -310,11 +310,12 @@ function musicLinkError(message) {
 //   - YTDLP_PROXY, a proxy for yt-dlp to download through.
 const YTDLP_COOKIES_FILE = process.env.YTDLP_COOKIES_FILE || "/app/secrets/yt-cookies.txt";
 
-async function ytdlpAccessArgs(dir) {
+async function ytdlpAccessArgs(dir, { cookies = true } = {}) {
   const args = [];
   if (process.env.YTDLP_PROXY) args.push("--proxy", process.env.YTDLP_PROXY);
-  // A copy per job: yt-dlp writes cookies back when it finishes, and jobs
-  // shouldn't touch the mounted original.
+  if (!cookies) return args;
+  // A copy per attempt: yt-dlp writes cookies back when it finishes, and
+  // jobs shouldn't touch the mounted original.
   const copy = path.join(dir, "cookies.txt");
   try {
     await fs.copyFile(YTDLP_COOKIES_FILE, copy);
@@ -325,22 +326,56 @@ async function ytdlpAccessArgs(dir) {
   return args;
 }
 
+// YouTube answers differently depending on which of its apps ("clients")
+// yt-dlp pretends to be, and one that's refused ("The page needs to be
+// reloaded", "not a bot") often works as another. So a YouTube link is
+// tried with a few clients in turn; other sites get a single attempt.
+const YOUTUBE_ATTEMPTS = [
+  { label: "default" },
+  { label: "tv", args: ["--extractor-args", "youtube:player_client=tv"] },
+  { label: "mweb", args: ["--extractor-args", "youtube:player_client=mweb"] },
+  { label: "web_safari", args: ["--extractor-args", "youtube:player_client=web_safari"] },
+  { label: "android_vr without cookies", args: ["--extractor-args", "youtube:player_client=android_vr"], cookies: false },
+];
+const isYouTubeUrl = (url) => /^https?:\/\/([a-z0-9-]+\.)*(youtube\.com|youtu\.be|youtube-nocookie\.com)\//i.test(url);
+// Failures another client can't fix: the song itself is the problem.
+const isFinalMusicError = (message) => /does not pass filter|is_live|duration|unsupported url|http error 404|drm|private video|video unavailable|removed|copyright|timed out/i.test(message || "");
+
+async function downloadMusic(url, dir, attempt) {
+  return runProcess("yt-dlp", [
+    ...(await ytdlpAccessArgs(dir, { cookies: attempt.cookies !== false })),
+    ...(attempt.args || []),
+    "--no-playlist", "--no-warnings", "--no-progress", "--no-cache-dir",
+    "--js-runtimes", "node",
+    "-f", "bestaudio/best",
+    "--match-filter", `!is_live & duration <=? ${MUSIC_MAX_SECONDS}`,
+    "--max-filesize", "200M",
+    "-x", "--audio-format", "mp3", "--audio-quality", "128K",
+    "--postprocessor-args", "ExtractAudio:-ac 2 -ar 44100",
+    "-o", path.join(dir, "audio.%(ext)s"),
+    "--print", "after_move:title", "--no-simulate",
+    "--", url,
+  ], MUSIC_TIMEOUT_MS);
+}
+
 async function processMusicLink(url) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "einvite-music-"));
   try {
-    const out = await runProcess("yt-dlp", [
-      ...(await ytdlpAccessArgs(dir)),
-      "--no-playlist", "--no-warnings", "--no-progress", "--no-cache-dir",
-      "--js-runtimes", "node",
-      "-f", "bestaudio/best",
-      "--match-filter", `!is_live & duration <=? ${MUSIC_MAX_SECONDS}`,
-      "--max-filesize", "200M",
-      "-x", "--audio-format", "mp3", "--audio-quality", "128K",
-      "--postprocessor-args", "ExtractAudio:-ac 2 -ar 44100",
-      "-o", path.join(dir, "audio.%(ext)s"),
-      "--print", "after_move:title", "--no-simulate",
-      "--", url,
-    ], MUSIC_TIMEOUT_MS);
+    const attempts = isYouTubeUrl(url) ? YOUTUBE_ATTEMPTS : [{ label: "default" }];
+    let out = null;
+    let lastError = null;
+    for (const attempt of attempts) {
+      try {
+        out = await downloadMusic(url, dir, attempt);
+        if (attempts.length > 1) console.log(`music from link: downloaded with YouTube client "${attempt.label}"`);
+        break;
+      } catch (err) {
+        lastError = err;
+        console.warn(`music from link: attempt "${attempt.label}" failed: ${err.message}`);
+        if (isFinalMusicError(err.message)) break;
+      }
+    }
+    if (out === null) throw lastError;
     const file = path.join(dir, "audio.mp3");
     const bytes = await fs.readFile(file).catch(() => null);
     if (!bytes) throw new Error("does not pass filter"); // yt-dlp skips a filtered song without failing
