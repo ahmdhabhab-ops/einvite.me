@@ -18,7 +18,7 @@ import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
 import dns from "node:dns/promises";
 import net from "node:net";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual, createHmac } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 
@@ -529,6 +529,113 @@ app.get(/^\/e\/([^/]+)\/?$/, async (req, res, next) => {
     console.error("og-middleware error:", err);
     next();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Admin password: /admin (the owner's Builder and dashboards) asks for
+// ADMIN_PASSWORD, set on the app in Dokploy, before the page is served.
+// A correct password sets a signed, httpOnly cookie for 30 days; changing
+// the password logs every browser out. Failed attempts are limited per IP.
+// Without ADMIN_PASSWORD the admin stays open as before (with a warning in
+// the log), so setting it up can't lock the owner out mid-deploy.
+// ---------------------------------------------------------------------------
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const ADMIN_COOKIE = "admin_session";
+const ADMIN_SESSION_MS = 30 * 24 * 3600 * 1000;
+const ADMIN_MAX_FAILURES = 10;
+const ADMIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const adminFailures = new Map(); // ip -> { count, since }
+
+if (!ADMIN_PASSWORD) console.warn("admin: ADMIN_PASSWORD is not set, so /admin is open to anyone");
+
+const adminSignature = (expires) => createHmac("sha256", ADMIN_PASSWORD).update(`einvite-admin:${expires}`).digest("hex");
+
+function readCookie(req, name) {
+  const found = String(req.headers.cookie || "").split(";").map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+  return found ? decodeURIComponent(found.slice(name.length + 1)) : "";
+}
+
+function hasAdminSession(req) {
+  const [expires, sig] = readCookie(req, ADMIN_COOKIE).split(".");
+  if (!expires || !sig || !(Number(expires) > Date.now())) return false;
+  return sameSecret(sig, adminSignature(expires));
+}
+
+const clientIp = (req) => String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+const isHttps = (req) => req.secure || req.get("x-forwarded-proto") === "https";
+// Only ever send someone back to a page inside /admin after logging in.
+const safeAdminPath = (p) => (typeof p === "string" && /^\/admin(\/[^\s\\]*)?$/.test(p) && !p.startsWith("//") ? p : "/admin");
+
+function adminLoginPage({ next = "/admin", error = "" } = {}) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin login · eInvite.me</title>
+<style>
+:root { --bg: #2B3830; --card: rgba(243,237,225,0.05); --text: #F3EDE1; --text2: #CFC3AC; --gold: #D4AB4E; --line: rgba(243,237,225,0.15); }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg); color: var(--text); font-family: "Inter", system-ui, -apple-system, sans-serif; }
+form { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 28px 24px; }
+.logo { font-weight: 700; font-size: 22px; margin: 0 0 4px; }
+.logo span { color: var(--gold); }
+p { margin: 0 0 20px; color: var(--text2); font-size: 14px; }
+label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0,0,0,0.18); color: var(--text); font-size: 16px; outline: none; }
+input:focus { border-color: var(--gold); }
+button { width: 100%; margin-top: 16px; padding: 12px; border: 0; border-radius: 999px; background: var(--gold); color: #1F2A23; font-weight: 700; font-size: 15px; cursor: pointer; }
+.error { margin: 12px 0 0; color: #E8A3A3; font-size: 13px; }
+</style>
+</head>
+<body>
+<form method="post" action="/admin/login">
+  <div class="logo">e<span>Invite</span>.me</div>
+  <p>Admin area. Enter the password to continue.</p>
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+  <input type="hidden" name="next" value="${escapeHtml(next)}">
+  ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
+  <button type="submit">Log in</button>
+</form>
+</body>
+</html>`;
+}
+
+const sendAdminLogin = (res, status, opts) => res.status(status).set({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }).send(adminLoginPage(opts));
+
+app.post("/admin/login", express.urlencoded({ extended: false, limit: "4kb" }), (req, res) => {
+  const next = safeAdminPath(req.body?.next);
+  if (!ADMIN_PASSWORD) return res.redirect(303, next);
+  const ip = clientIp(req);
+  const now = Date.now();
+  const f = adminFailures.get(ip);
+  if (f && now - f.since > ADMIN_FAILURE_WINDOW_MS) adminFailures.delete(ip);
+  if ((adminFailures.get(ip)?.count || 0) >= ADMIN_MAX_FAILURES) {
+    return sendAdminLogin(res, 429, { next, error: "Too many wrong attempts. Try again in 15 minutes." });
+  }
+  if (!sameSecret(String(req.body?.password || ""), ADMIN_PASSWORD)) {
+    const cur = adminFailures.get(ip) || { count: 0, since: now };
+    adminFailures.set(ip, { count: cur.count + 1, since: cur.since });
+    console.warn(`admin: wrong password from ${ip}`);
+    return sendAdminLogin(res, 401, { next, error: "Wrong password." });
+  }
+  adminFailures.delete(ip);
+  const expires = String(now + ADMIN_SESSION_MS);
+  res.cookie(ADMIN_COOKIE, `${expires}.${adminSignature(expires)}`, { httpOnly: true, sameSite: "lax", secure: isHttps(req), maxAge: ADMIN_SESSION_MS, path: "/" });
+  res.redirect(303, next);
+});
+
+app.get("/admin/logout", (req, res) => {
+  res.clearCookie(ADMIN_COOKIE, { path: "/" });
+  res.redirect(303, "/admin");
+});
+
+app.get(/^\/admin(\/.*)?$/, (req, res, next) => {
+  if (!ADMIN_PASSWORD || hasAdminSession(req)) return next();
+  sendAdminLogin(res, 401, { next: safeAdminPath(req.path) });
 });
 
 // ---------------------------------------------------------------------------
