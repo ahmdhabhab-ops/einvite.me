@@ -1963,6 +1963,27 @@ async function optimizeStoredVideo(url, { audio = false } = {}) {
 const INTEGRATION_TEXT_FIELDS = ["djHeading", "djSubtitle", "djButtonLabel", "networkingHeading", "networkingSubtitle", "networkingButtonLabel", "livestreamHeading", "livestreamSubtitle", "livestreamButtonLabel"];
 const integrationText = (integrations, lang, field) => integrations?.texts?.[lang]?.[field] ?? integrations?.[field];
 
+// The DJ song-request form's own texts. Each language keeps its own copy in
+// integrations.djForm[lang]; anything left empty shows the built-in text in
+// that language.
+const DJ_FORM_TEXT_FIELDS = ["song", "artist", "name", "send", "sent"];
+const DJ_FORM_DEFAULTS = {
+  en: { song: "Song name", artist: "Artist (optional)", name: "Your name (optional)", send: "Send request", sent: "Sent to the DJ!", sending: "Sending…", missing: "Please enter a song name." },
+  ar: { song: "اسم الأغنية", artist: "الفنان (اختياري)", name: "اسمك (اختياري)", send: "أرسل الطلب", sent: "تم الإرسال إلى الـ DJ!", sending: "جارٍ الإرسال…", missing: "الرجاء إدخال اسم الأغنية." },
+  fr: { song: "Titre de la chanson", artist: "Artiste (facultatif)", name: "Votre nom (facultatif)", send: "Envoyer la demande", sent: "Envoyé au DJ !", sending: "Envoi…", missing: "Veuillez saisir le titre de la chanson." },
+  es: { song: "Nombre de la canción", artist: "Artista (opcional)", name: "Tu nombre (opcional)", send: "Enviar petición", sent: "¡Enviado al DJ!", sending: "Enviando…", missing: "Escribe el nombre de la canción." },
+  hy: { song: "Երգի անունը", artist: "Կատարող (ըստ ցանկության)", name: "Ձեր անունը (ըստ ցանկության)", send: "Ուղարկել հարցումը", sent: "Ուղարկվեց DJ-ին։", sending: "Ուղարկվում է…", missing: "Խնդրում ենք գրել երգի անունը։" },
+};
+const djFormText = (integrations, lang) => {
+  const custom = integrations?.djForm?.[lang] || {};
+  const base = DJ_FORM_DEFAULTS[lang] || DJ_FORM_DEFAULTS.en;
+  return Object.fromEntries(Object.keys(base).map((k) => [k, (typeof custom[k] === "string" && custom[k].trim()) || base[k]]));
+};
+
+// A registry's name: the main language's is item.label, other languages
+// keep their own in item.labels[lang] and fall back to the main one.
+const registryLabel = (item, lang) => item?.labels?.[lang] ?? item?.label;
+
 // AI translation of an invitation's texts (server.js /api/translate).
 async function aiTranslateTexts(from, to, texts) {
   const res = await fetch("/api/translate", {
@@ -2955,9 +2976,16 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
             <ColorPickerField label="Field text" value={current.fieldText} defaultValue="#F4EDE4" onChange={(v) => onChangeStyle({ fieldText: v })} />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
+            <ColorPickerField label="Field border" value={current.fieldBorder} defaultValue="#F4EDE4" onChange={(v) => onChangeStyle({ fieldBorder: v })} />
+            <ColorPickerField label="Hint text" value={current.placeholderColor} defaultValue="#C8BFB2" onChange={(v) => onChangeStyle({ placeholderColor: v })} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
             <ColorPickerField label="Button background" value={current.buttonBg} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ buttonBg: v })} />
             <ColorPickerField label="Button text" value={current.buttonText} defaultValue="#0F1F1A" onChange={(v) => onChangeStyle({ buttonText: v })} />
           </div>
+          <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            The form's texts are edited from this page's own editor panel below.
+          </p>
         </div>
       )}
 
@@ -4227,7 +4255,7 @@ function NetworkingPanel({ heading, setHeading, subtitle, setSubtitle, buttonLab
   );
 }
 
-function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, bg, setBg, dashboardUrl, slug }) {
+function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, formText, formDefaults, setFormText, formStyle, setFormStyle, bg, setBg, dashboardUrl, slug }) {
   const [copied, setCopied] = useState(false);
   const [pendingCount, setPendingCount] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -4277,6 +4305,35 @@ function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, bg, setBg
         <FieldLabel>Subtitle</FieldLabel>
         <TextInput value={subtitle} onChange={setSubtitle} placeholder="Have a song you want to hear tonight? Send it straight to the DJ." />
       </div>
+
+      <div className="mt-5 rounded-xl p-3" style={{ background: INK_3 }}>
+        <div className="mb-2 text-[11px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>Request form</div>
+        <p className="mb-3 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          Leave a text empty to use the standard wording in this language.
+        </p>
+        {[
+          { key: "song", label: "Song field" },
+          { key: "artist", label: "Artist field" },
+          { key: "name", label: "Name field" },
+          { key: "send", label: "Button" },
+          { key: "sent", label: "Message after sending" },
+        ].map(({ key, label }) => (
+          <div key={key} className="mb-2.5">
+            <FieldLabel>{label}</FieldLabel>
+            <TextInput value={formText[key] || ""} onChange={(v) => setFormText(key, v)} placeholder={formDefaults[key]} />
+          </div>
+        ))}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <ColorPickerField label="Field background" value={formStyle.fieldBg} defaultValue="#122820" onChange={(v) => setFormStyle({ fieldBg: v })} />
+          <ColorPickerField label="Field text" value={formStyle.fieldText} defaultValue="#F4EDE4" onChange={(v) => setFormStyle({ fieldText: v })} />
+          <ColorPickerField label="Field border" value={formStyle.fieldBorder} defaultValue="#F4EDE4" onChange={(v) => setFormStyle({ fieldBorder: v })} />
+          <ColorPickerField label="Hint text" value={formStyle.placeholderColor} defaultValue="#C8BFB2" onChange={(v) => setFormStyle({ placeholderColor: v })} />
+          <ColorPickerField label="Button background" value={formStyle.buttonBg} defaultValue="#C9A44C" onChange={(v) => setFormStyle({ buttonBg: v })} />
+          <ColorPickerField label="Button text" value={formStyle.buttonText} defaultValue="#0F1F1A" onChange={(v) => setFormStyle({ buttonText: v })} />
+          <ColorPickerField label="Message after sending" value={formStyle.sentColor} defaultValue="#F4EDE4" onChange={(v) => setFormStyle({ sentColor: v })} />
+        </div>
+      </div>
+
       <div className="mt-4">
         <BackgroundPicker bg={bg} onChange={setBg} />
       </div>
@@ -4340,8 +4397,9 @@ function IntegrationStep({ label, helpText, projectHint, url, setUrl, buttonLabe
   );
 }
 
-function RegistryStep({ items, update, activeLang, bg, setBg }) {
+function RegistryStep({ items, update, activeLang, defaultLang, bg, setBg }) {
   const setItem = (id, patch) => update(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  const setLabel = (item, v) => setItem(item.id, activeLang === defaultLang ? { label: v } : { labels: { ...(item.labels || {}), [activeLang]: v } });
   const removeItem = (id) => update(items.filter((it) => it.id !== id));
   const addItem = () => update([...items, { id: uid(), label: "New registry", url: "", note: "" }]);
 
@@ -4352,7 +4410,7 @@ function RegistryStep({ items, update, activeLang, bg, setBg }) {
           <div key={item.id} className="rounded-xl p-3" style={{ background: INK_3 }}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex-1">
-                <TextInput value={item.label} onChange={(v) => setItem(item.id, { label: v })} placeholder="Registry name" />
+                <TextInput value={registryLabel(item, activeLang) || ""} onChange={(v) => setLabel(item, v)} placeholder="Registry name" />
               </div>
               <button onClick={() => removeItem(item.id)} style={{ color: "#E29B9B" }}>
                 <Trash2 size={15} />
@@ -6642,7 +6700,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   );
 }
 
-function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+function RegistrySlide({ items, lang, bg, fontDisplay, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const hs = layout.heading, ls = layout.list;
   const [copiedId, setCopiedId] = useState(null);
   const copyNote = async (item) => {
@@ -6666,7 +6724,7 @@ function RegistrySlide({ items, bg, fontDisplay, t, layout, editMode, onMoveBloc
             <div className="flex flex-col gap-3" style={{ width: 220 }}>
               {items.map((item) => (
                 <div key={item.id} className="rounded-xl p-3 text-center" style={{ background: light ? `rgba(255,255,255,${(ls.cardOpacity ?? 12) / 100})` : PAPER_2, backdropFilter: light && (ls.cardOpacity ?? 12) > 0 ? "blur(3px)" : "none" }}>
-                  <div style={{ color: ls.titleColor || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13, fontWeight: ls.fontWeight || 500, fontStyle: ls.italic ? "italic" : "normal" }}>{item.label}</div>
+                  <div style={{ color: ls.titleColor || (light ? PAPER : EMERALD), fontFamily: ls.fontFamily || fontDisplay, fontSize: ls.fontSize ? `${ls.fontSize}px` : 13, fontWeight: ls.fontWeight || 500, fontStyle: ls.italic ? "italic" : "normal" }}>{registryLabel(item, lang)}</div>
                   {item.url ? (
                     <a
                       href={item.url} target="_blank" rel="noreferrer"
@@ -6764,7 +6822,7 @@ function IntegrationSlide({ icon: Icon, heading, subtitle, buttonLabel, url, bg,
   );
 }
 
-function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+function DjRequestSlide({ heading, subtitle, formText, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const [songName, setSongName] = useState("");
   const [artist, setArtist] = useState("");
   const [requesterName, setRequesterName] = useState("");
@@ -6774,7 +6832,7 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
   const hs = layout.heading, fs = layout.form;
 
   const submit = async () => {
-    if (!songName.trim()) { setError("Please enter a song name."); return; }
+    if (!songName.trim()) { setError(formText.missing); return; }
     setError("");
     setSubmitting(true);
     try {
@@ -6789,10 +6847,30 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
 
   const inputStyle = (light) => ({
     width: "100%", background: fs.fieldBg || (light ? "rgba(244,237,228,0.12)" : "rgba(36,70,61,0.08)"),
-    border: `1px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, borderRadius: 8,
+    border: `1px solid ${fs.fieldBorder || (light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)")}`, borderRadius: 8,
     padding: "8px 10px", fontSize: 12, color: fs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY, outline: "none",
     marginBottom: 8, boxSizing: "border-box",
+    "--dj-placeholder": fs.placeholderColor || (fs.fieldText ? hexToRgba(fs.fieldText, 0.6) : light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.5)"),
   });
+  // The same form in the Builder (inputs disabled, so it can be dragged and
+  // its colors and texts checked) and on the real page.
+  const form = (light) => (
+    <div style={{ width: 220, pointerEvents: editMode ? "none" : undefined }}>
+      <style>{`.dj-field::placeholder { color: var(--dj-placeholder); opacity: 1; }`}</style>
+      <input className="dj-field" dir="auto" value={songName} onChange={(e) => setSongName(e.target.value)} placeholder={formText.song} disabled={editMode} style={inputStyle(light)} />
+      <input className="dj-field" dir="auto" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder={formText.artist} disabled={editMode} style={inputStyle(light)} />
+      <input className="dj-field" dir="auto" value={requesterName} onChange={(e) => setRequesterName(e.target.value)} placeholder={formText.name} disabled={editMode} style={inputStyle(light)} />
+      {error && <p style={{ color: "#E29B9B", fontSize: 10.5, marginBottom: 6, fontFamily: FONT_BODY }}>{error}</p>}
+      <button
+        onClick={submit}
+        disabled={submitting || editMode}
+        className="w-full rounded-full text-[11px] font-bold uppercase"
+        style={{ padding: "9px 0", background: fs.buttonBg || (light ? GOLD : EMERALD), color: fs.buttonText || (light ? INK : PAPER), letterSpacing: "0.08em", fontFamily: FONT_BODY, opacity: submitting ? 0.7 : 1 }}
+      >
+        {submitting ? formText.sending : formText.send}
+      </button>
+    </div>
+  );
 
   return (
     <StoryPage bg={bg}>
@@ -6809,31 +6887,16 @@ function DjRequestSlide({ heading, subtitle, slug, bg, fontDisplay, layout, edit
           )}
           <DraggableBlock id="form" pos={fs} editMode={editMode} onMove={(p) => onMoveBlock("form", p)} label="Request form" light={light} selected={selectedBlock === "form"} onSelect={() => onSelectBlock("form")}>
             {editMode ? (
-              <div style={{ width: 220, padding: "12px 14px", borderRadius: 10, border: `1.5px dashed ${light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)"}`, textAlign: "center" }}>
-                <span style={{ fontSize: 11, color: light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)", fontFamily: FONT_BODY }}>Song request form — guests fill this in live on the real page</span>
-              </div>
+              form(light)
             ) : sent ? (
               <div className="text-center" style={{ width: 220 }}>
-                <Check size={20} color={light ? GOLD_SOFT : EMERALD} style={{ margin: "0 auto 8px" }} />
-                <p style={{ color: light ? PAPER : EMERALD, fontFamily: FONT_BODY, fontSize: 12.5 }}>Sent to the DJ!</p>
+                <Check size={20} color={fs.sentColor || (light ? GOLD_SOFT : EMERALD)} style={{ margin: "0 auto 8px" }} />
+                <p style={{ color: fs.sentColor || (light ? PAPER : EMERALD), fontFamily: FONT_BODY, fontSize: 12.5 }}>{formText.sent}</p>
               </div>
             ) : !slug ? (
               <p style={{ color: light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)", fontFamily: FONT_BODY, fontSize: 11, textAlign: "center", width: 220 }}>Song requests aren't available in this preview.</p>
             ) : (
-              <div style={{ width: 220 }}>
-                <input value={songName} onChange={(e) => setSongName(e.target.value)} placeholder="Song name" style={inputStyle(light)} />
-                <input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist (optional)" style={inputStyle(light)} />
-                <input value={requesterName} onChange={(e) => setRequesterName(e.target.value)} placeholder="Your name (optional)" style={inputStyle(light)} />
-                {error && <p style={{ color: "#E29B9B", fontSize: 10.5, marginBottom: 6, fontFamily: FONT_BODY }}>{error}</p>}
-                <button
-                  onClick={submit}
-                  disabled={submitting}
-                  className="w-full rounded-full text-[11px] font-bold uppercase"
-                  style={{ padding: "9px 0", background: fs.buttonBg || (light ? GOLD : EMERALD), color: fs.buttonText || (light ? INK : PAPER), letterSpacing: "0.08em", fontFamily: FONT_BODY, opacity: submitting ? 0.7 : 1 }}
-                >
-                  {submitting ? "Sending…" : "Send Request"}
-                </button>
-              </div>
+              form(light)
             )}
           </DraggableBlock>
         </div>
@@ -7644,12 +7707,13 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "rsvp":
         return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
-        return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
+        return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
         return (
           <DjRequestSlide
             heading={integrationText(data.integrations, lang, "djHeading")}
             subtitle={integrationText(data.integrations, lang, "djSubtitle")}
+            formText={djFormText(data.integrations, lang)}
             slug={slug}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
@@ -8162,9 +8226,9 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       case "rsvp":
         return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
-        return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
+        return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
       case "djRequests":
-        return <DjRequestSlide heading={integrationText(data.integrations, lang, "djHeading")} subtitle={integrationText(data.integrations, lang, "djSubtitle")} slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
+        return <DjRequestSlide heading={integrationText(data.integrations, lang, "djHeading")} subtitle={integrationText(data.integrations, lang, "djSubtitle")} formText={djFormText(data.integrations, lang)} slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
       case "networking":
         return <IntegrationSlide icon={Handshake} heading={integrationText(data.integrations, lang, "networkingHeading")} subtitle={integrationText(data.integrations, lang, "networkingSubtitle")} buttonLabel={integrationText(data.integrations, lang, "networkingButtonLabel")} url={slug ? `https://${siteDomain}/network/${slug}` : ""} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
       case "livestream":
@@ -13612,6 +13676,18 @@ export default function InvitationBuilder() {
     timeline.forEach((item) => { const v = item.label?.[from]; if (v?.trim()) texts[`t.${item.id}`] = v; });
     locations.forEach((loc) => { const v = loc.title?.[from]; if (v?.trim()) texts[`l.${loc.id}`] = v; });
     INTEGRATION_TEXT_FIELDS.forEach((field) => { const v = integrationText(integrations, from, field); if (typeof v === "string" && v.trim()) texts[`i.${field}`] = v; });
+    // Only texts the couple wrote themselves; empty ones already show the
+    // standard wording in every language.
+    DJ_FORM_TEXT_FIELDS.forEach((field) => { const v = integrations.djForm?.[from]?.[field]; if (typeof v === "string" && v.trim()) texts[`d.${field}`] = v; });
+    registry.forEach((item) => { const v = registryLabel(item, from); if (typeof v === "string" && v.trim()) texts[`r.${item.id}`] = v; });
+    // Texts that live in the page layouts (e.g. the Gift Registry heading,
+    // the locations' directions button).
+    const LAYOUT_TEXT_KEYS = ["titleText", "subtitleText", "directionsLabel"];
+    for (const [step, blocks] of Object.entries(layouts[from] || {})) {
+      for (const [blockId, style] of Object.entries(blocks || {})) {
+        LAYOUT_TEXT_KEYS.forEach((k) => { const v = style?.[k]; if (typeof v === "string" && v.trim()) texts[`y.${step}.${blockId}.${k}`] = v; });
+      }
+    }
     setTranslatingLang(to);
     try {
       const out = Object.keys(texts).length ? await aiTranslateTexts(from, to, texts) : {};
@@ -13634,13 +13710,33 @@ export default function InvitationBuilder() {
           (blocks || []).map((b) => (b.type === "text" && `b.${step}.${b.id}` in texts ? { ...b, text: tr(`b.${step}.${b.id}`) } : { ...b })),
         ])),
       }));
-      setLayouts((l) => ({ ...l, [to]: JSON.parse(JSON.stringify(l[from] || DEFAULT_LAYOUTS)) }));
+      setLayouts((l) => {
+        const copy = JSON.parse(JSON.stringify(l[from] || DEFAULT_LAYOUTS));
+        for (const [step, blocks] of Object.entries(copy)) {
+          for (const [blockId, style] of Object.entries(blocks || {})) {
+            for (const k of Object.keys(style || {})) {
+              const key = `y.${step}.${blockId}.${k}`;
+              if (key in texts) style[k] = tr(key);
+            }
+          }
+        }
+        return { ...l, [to]: copy };
+      });
+      setRegistry((list) => list.map((item) => {
+        const key = `r.${item.id}`;
+        if (!(key in texts)) return item;
+        return to === defaultLang ? { ...item, label: tr(key) } : { ...item, labels: { ...(item.labels || {}), [to]: tr(key) } };
+      }));
       setTimeline((list) => list.map((item) => (`t.${item.id}` in texts ? { ...item, label: { ...item.label, [to]: tr(`t.${item.id}`) } } : item)));
       setLocations((list) => list.map((loc) => (`l.${loc.id}` in texts ? { ...loc, title: { ...loc.title, [to]: tr(`l.${loc.id}`) } } : loc)));
       setIntro((i) => (i.media?.[from] && !i.media?.[to] ? { ...i, media: { ...i.media, [to]: i.media[from] } } : i));
       const integrationTexts = Object.fromEntries(INTEGRATION_TEXT_FIELDS.filter((field) => `i.${field}` in texts).map((field) => [field, tr(`i.${field}`)]));
       if (Object.keys(integrationTexts).length) {
         setIntegrations((i) => (to === defaultLang ? { ...i, ...integrationTexts } : { ...i, texts: { ...(i.texts || {}), [to]: { ...(i.texts?.[to] || {}), ...integrationTexts } } }));
+      }
+      const djTexts = Object.fromEntries(DJ_FORM_TEXT_FIELDS.filter((field) => `d.${field}` in texts).map((field) => [field, tr(`d.${field}`)]));
+      if (Object.keys(djTexts).length) {
+        setIntegrations((i) => ({ ...i, djForm: { ...(i.djForm || {}), [to]: { ...(i.djForm?.[to] || {}), ...djTexts } } }));
       }
       setActiveLang(to);
     } catch (err) {
@@ -16177,13 +16273,18 @@ export default function InvitationBuilder() {
               {stepKey === "locations" && <LocationsStep items={locations} update={setLocations} activeLang={activeLang} bg={pageBackgrounds.locations} setBg={setBgFor("locations")} />}
               {stepKey === "countdown" && <CountdownStep schedule={rsvpSchedule} setSchedule={(p) => setRsvpSchedule((s) => ({ ...s, ...p }))} bg={pageBackgrounds.countdown} setBg={setBgFor("countdown")} />}
               {stepKey === "rsvp" && <RsvpStep c={c.rsvp} updateContent={(p) => updateContentSection("rsvp", p)} bg={pageBackgrounds.rsvp} setBg={setBgFor("rsvp")} rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />}
-              {stepKey === "registry" && <RegistryStep items={registry} update={setRegistry} activeLang={activeLang} bg={pageBackgrounds.registry} setBg={setBgFor("registry")} />}
+              {stepKey === "registry" && <RegistryStep items={registry} update={setRegistry} activeLang={activeLang} defaultLang={defaultLang} bg={pageBackgrounds.registry} setBg={setBgFor("registry")} />}
               {stepKey === "djRequests" && (
                 <DjRequestsPanel
                   heading={integrationText(integrations, activeLang, "djHeading")}
                   setHeading={(v) => setIntegrationText(activeLang, "djHeading", v)}
                   subtitle={integrationText(integrations, activeLang, "djSubtitle")}
                   setSubtitle={(v) => setIntegrationText(activeLang, "djSubtitle", v)}
+                  formText={integrations.djForm?.[activeLang] || {}}
+                  formDefaults={DJ_FORM_DEFAULTS[activeLang] || DJ_FORM_DEFAULTS.en}
+                  setFormText={(key, v) => setIntegrations((i) => ({ ...i, djForm: { ...(i.djForm || {}), [activeLang]: { ...(i.djForm?.[activeLang] || {}), [key]: v } } }))}
+                  formStyle={layouts[activeLang]?.djRequests?.form || {}}
+                  setFormStyle={(patch) => updateBlockStyle("djRequests", "form", patch)}
                   bg={pageBackgrounds.djRequests}
                   setBg={setBgFor("djRequests")}
                   dashboardUrl={`https://${siteDomain}/dj/${slug}`}
