@@ -18,7 +18,7 @@ import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
 import dns from "node:dns/promises";
 import net from "node:net";
-import { randomUUID, timingSafeEqual, createHmac } from "node:crypto";
+import { randomUUID, timingSafeEqual, createHmac, scrypt, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 
@@ -33,6 +33,13 @@ const supabaseHeaders = {
   Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
   "Content-Type": "application/json",
 };
+// The service_role key (set on the app in Dokploy, never sent to browsers)
+// lets this server read and write data the website's public anon key
+// can't, such as the hashed client passwords in app_accounts.
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const serviceHeaders = SUPABASE_SERVICE_KEY
+  ? { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, "Content-Type": "application/json" }
+  : null;
 
 const CRAWLER_USER_AGENTS = [
   "whatsapp", "facebookexternalhit", "twitterbot", "linkedinbot",
@@ -50,15 +57,15 @@ function escapeHtml(str) {
 
 async function getKvValue(key) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: supabaseHeaders });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: serviceHeaders || supabaseHeaders });
     if (!res.ok) {
-      console.error(`og-middleware: getKvValue("${key}") failed with status ${res.status}`);
+      console.error(`getKvValue("${key}") failed with status ${res.status}`);
       return null;
     }
     const rows = await res.json();
     return rows[0]?.value ? JSON.parse(rows[0].value) : null;
   } catch (err) {
-    console.error(`og-middleware: getKvValue("${key}") threw:`, err);
+    console.error(`getKvValue("${key}") threw:`, err);
     return null;
   }
 }
@@ -528,6 +535,207 @@ app.get(/^\/e\/([^/]+)\/?$/, async (req, res, next) => {
   } catch (err) {
     console.error("og-middleware error:", err);
     next();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Client accounts. Passwords used to sit in plain text in the users list of
+// einvite:draft-core, which every browser could read. Now each account's
+// password is stored only as a scrypt hash in the app_accounts table (see
+// supabase/sql/app_accounts.sql), which only this server can read, and the
+// server checks passwords at login:
+//   POST /api/auth/login   { email, password } -> { userId }
+//   POST /api/auth/signup  { userId, email, password } for a brand-new user
+//   POST /api/auth/migrate  hashes any plain-text passwords still in the
+//                           users list, so the app can drop them on save
+//   GET  /api/auth/status  { ready } - the app only switches to server
+//                           logins once this server has the service key,
+//                           the table exists and the passwords are migrated
+// ---------------------------------------------------------------------------
+
+const DRAFT_KEY = "einvite:draft-core";
+const SCRYPT_N = 16384;
+let authReady = false;
+
+function scryptAsync(password, salt, keylen, opts) {
+  return new Promise((resolve, reject) => scrypt(password, salt, keylen, opts, (err, key) => (err ? reject(err) : resolve(key))));
+}
+
+async function hashPassword(password) {
+  const salt = randomBytes(16);
+  const key = await scryptAsync(String(password), salt, 64, { N: SCRYPT_N, r: 8, p: 1 });
+  return `scrypt$${SCRYPT_N}$8$1$${salt.toString("base64")}$${key.toString("base64")}`;
+}
+
+async function verifyPassword(password, stored) {
+  const [kind, n, r, p, saltB64, keyB64] = String(stored || "").split("$");
+  if (kind !== "scrypt" || !saltB64 || !keyB64) return false;
+  const expected = Buffer.from(keyB64, "base64");
+  const key = await scryptAsync(String(password), Buffer.from(saltB64, "base64"), expected.length, { N: Number(n), r: Number(r), p: Number(p) });
+  return key.length === expected.length && timingSafeEqual(key, expected);
+}
+
+async function readDraftUsers() {
+  const draft = await getKvValue(DRAFT_KEY);
+  return Array.isArray(draft?.users) ? draft.users : [];
+}
+
+async function getAccountHash(userId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_accounts?user_id=eq.${encodeURIComponent(userId)}&select=password_hash`, { headers: serviceHeaders });
+  if (!res.ok) throw new Error(`app_accounts read failed (${res.status})`);
+  const rows = await res.json();
+  return rows[0]?.password_hash || null;
+}
+
+async function listAccountIds() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_accounts?select=user_id`, { headers: serviceHeaders });
+  if (!res.ok) throw new Error(`app_accounts list failed (${res.status}): ${(await res.text().catch(() => "")).slice(0, 200)}`);
+  return new Set((await res.json()).map((r) => r.user_id));
+}
+
+async function saveAccountHash(userId, passwordHash) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/app_accounts`, {
+    method: "POST",
+    headers: { ...serviceHeaders, Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ user_id: userId, password_hash: passwordHash, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`app_accounts write failed (${res.status}): ${(await res.text().catch(() => "")).slice(0, 200)}`);
+}
+
+// A real plain-text password (Google sign-ins get a random placeholder).
+const isLegacyPassword = (pw) => typeof pw === "string" && pw.length > 0 && !pw.startsWith("google-oauth-");
+
+// Hashes every plain-text password in the users list that has no account
+// row yet. Safe to run any number of times. Returns the ids that now have
+// an account row.
+let migrateRunning = null;
+function migrateLegacyPasswords() {
+  if (!migrateRunning) {
+    migrateRunning = (async () => {
+      const [users, ids] = await Promise.all([readDraftUsers(), listAccountIds()]);
+      let added = 0;
+      for (const u of users) {
+        if (!u?.id || ids.has(u.id) || !isLegacyPassword(u.password)) continue;
+        await saveAccountHash(u.id, await hashPassword(u.password));
+        ids.add(u.id);
+        added++;
+      }
+      if (added) console.log(`auth: hashed ${added} plain-text password(s)`);
+      return ids;
+    })().finally(() => { migrateRunning = null; });
+  }
+  return migrateRunning;
+}
+
+(async () => {
+  if (!serviceHeaders) {
+    console.warn("auth: SUPABASE_SERVICE_ROLE_KEY is not set, so client passwords stay in the old plain-text form");
+    return;
+  }
+  try {
+    await migrateLegacyPasswords();
+    authReady = true;
+    console.log("auth: server-side password checks are on");
+  } catch (err) {
+    console.error("auth: not switched on:", err.message, "(has supabase/sql/app_accounts.sql been run?)");
+  }
+})();
+
+// Wrong logins are limited per IP and per email to slow down guessing.
+const loginFailures = new Map(); // key -> { count, since }
+const LOGIN_MAX_FAILURES = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+function loginBlocked(keys) {
+  const now = Date.now();
+  return keys.some((k) => {
+    const f = loginFailures.get(k);
+    if (f && now - f.since > LOGIN_WINDOW_MS) { loginFailures.delete(k); return false; }
+    return (f?.count || 0) >= LOGIN_MAX_FAILURES;
+  });
+}
+function noteLoginFailure(keys) {
+  const now = Date.now();
+  for (const k of keys) {
+    const f = loginFailures.get(k) || { count: 0, since: now };
+    loginFailures.set(k, { count: f.count + 1, since: f.since });
+  }
+}
+
+app.get("/api/auth/status", (_req, res) => res.set("cache-control", "no-store").json({ ready: authReady }));
+
+app.post("/api/auth/login", express.json({ limit: "4kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "Login isn't available right now — please try again in a minute." });
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  const limitKeys = [`ip:${clientIp(req)}`, `email:${email}`];
+  if (loginBlocked(limitKeys)) return res.status(429).json({ error: "Too many wrong attempts. Please try again in 15 minutes." });
+  try {
+    const user = email && password ? (await readDraftUsers()).find((u) => String(u?.email || "").toLowerCase() === email) : null;
+    let ok = false;
+    if (user) {
+      let hash = await getAccountHash(user.id);
+      if (!hash && isLegacyPassword(user.password)) {
+        await migrateLegacyPasswords();
+        hash = await getAccountHash(user.id);
+      }
+      ok = !!hash && (await verifyPassword(password, hash));
+    }
+    if (!ok) {
+      noteLoginFailure(limitKeys);
+      return res.status(401).json({ error: "Incorrect email or password." });
+    }
+    res.json({ userId: user.id });
+  } catch (err) {
+    console.error("auth login failed:", err.message);
+    res.status(500).json({ error: "Couldn't log in right now — please try again." });
+  }
+});
+
+app.post("/api/auth/signup", express.json({ limit: "4kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "Sign-up isn't available right now — please try again in a minute." });
+  const userId = String(req.body?.userId || "").trim();
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(userId) || !email.includes("@") || password.length < 6 || password.length > 200) {
+    return res.status(400).json({ error: "Please fill in a valid email and a password of at least 6 characters." });
+  }
+  try {
+    const users = await readDraftUsers();
+    if (users.some((u) => String(u?.email || "").toLowerCase() === email)) return res.status(409).json({ error: "An account with that email already exists." });
+    // Only a brand-new user id: an existing account (e.g. a Google sign-in
+    // with no password) must never have a password attached from outside.
+    if (users.some((u) => u?.id === userId) || (await getAccountHash(userId))) return res.status(409).json({ error: "That account already exists." });
+    await saveAccountHash(userId, await hashPassword(password));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("auth signup failed:", err.message);
+    res.status(500).json({ error: "Couldn't create the account right now — please try again." });
+  }
+});
+
+app.post("/api/auth/migrate", async (_req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  try {
+    res.json({ ids: [...(await migrateLegacyPasswords())] });
+  } catch (err) {
+    console.error("auth migrate failed:", err.message);
+    res.status(500).json({ error: "migrate failed" });
+  }
+});
+
+// Guest links (/e/<slug>) only need to know which client a slug belongs
+// to, not the whole users list with everyone's emails and phone numbers.
+let draftUsersCache = { at: 0, users: [] };
+app.get(/^\/api\/invitation-owner\/([^/]+)$/, async (req, res) => {
+  const slug = decodeURIComponent(req.params[0]);
+  try {
+    if (Date.now() - draftUsersCache.at > 15000) draftUsersCache = { at: Date.now(), users: await readDraftUsers() };
+    const user = draftUsersCache.users.find((u) => u?.invitationSlug === slug);
+    if (!user) return res.status(404).json({ error: "not found" });
+    res.set("cache-control", "no-store").json({ id: user.id, invitationSlug: user.invitationSlug, packageTier: user.packageTier || null });
+  } catch (err) {
+    console.error("invitation owner lookup failed:", err.message);
+    res.status(500).json({ error: "lookup failed" });
   }
 });
 

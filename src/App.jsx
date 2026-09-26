@@ -782,6 +782,54 @@ const REQUIRED_STEP_KEY = "cover"; // always shown — an invitation needs at le
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Client logins are checked by the app's own server (server.js
+// /api/auth/*), which keeps each password only as a hash. Until the server
+// reports it's set up (service key + app_accounts table + existing
+// passwords migrated), the old in-browser check keeps working.
+let serverAuthStatusPromise = null;
+function serverAuthReady() {
+  if (!serverAuthStatusPromise) {
+    serverAuthStatusPromise = fetch("/api/auth/status")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d) => !!d.ready)
+      .catch(() => false);
+  }
+  return serverAuthStatusPromise;
+}
+
+async function authRequest(path, body) {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Something went wrong — please try again.");
+  return data;
+}
+
+// A real plain-text password (Google sign-ins only ever had a random placeholder).
+const isPlainPassword = (pw) => typeof pw === "string" && pw.length > 0 && !pw.startsWith("google-oauth-");
+
+// Takes the passwords out of a users list before it's saved, once the
+// server has a hash for each of them. A plain-text password the server
+// hasn't hashed yet is kept, so nobody can be locked out by a save.
+async function usersWithoutPasswords(list) {
+  if (!Array.isArray(list) || !list.some((u) => u && "password" in u)) return list;
+  if (!(await serverAuthReady())) return list;
+  let hashed = new Set();
+  if (list.some((u) => isPlainPassword(u?.password))) {
+    try {
+      const res = await fetch("/api/auth/migrate", { method: "POST" });
+      if (res.ok) hashed = new Set((await res.json()).ids || []);
+    } catch {
+      // keep them this time; a later save will try again
+    }
+  }
+  return list.map((u) => {
+    if (!u || !("password" in u)) return u;
+    if (isPlainPassword(u.password) && !hashed.has(u.id)) return u;
+    const { password, ...rest } = u;
+    return rest;
+  });
+}
+
 /**
  * window.storage only exists inside Claude.ai's own artifact preview — it's
  * not a standard browser API, so on a real deployment (Vercel, Netlify,
@@ -11939,8 +11987,10 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
     })();
   }, []);
 
-  const submitSignUp = (e) => {
+  const [authBusy, setAuthBusy] = useState(false);
+  const submitSignUp = async (e) => {
     e.preventDefault();
+    if (authBusy) return;
     setError("");
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || form.password.length < 6) {
       setError("Please fill in your name, email, phone number, and a password of at least 6 characters.");
@@ -11954,7 +12004,24 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
       setError("An account with that email already exists.");
       return;
     }
-    const newUser = onSignUp({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password });
+    let newUser;
+    if (await serverAuthReady()) {
+      // The password goes only to the server, which keeps a hash of it;
+      // the account itself is saved without one.
+      const id = uid();
+      setAuthBusy(true);
+      try {
+        await authRequest("/api/auth/signup", { userId: id, email: form.email.trim(), password: form.password });
+      } catch (err) {
+        setError(err.message);
+        return;
+      } finally {
+        setAuthBusy(false);
+      }
+      newUser = onSignUp({ id, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() });
+    } else {
+      newUser = onSignUp({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password });
+    }
     if (skipApproval && newUser) {
       onEnterBuilderAs(newUser); // paid already — go straight into the Builder, no separate approval wait
     } else {
@@ -11962,8 +12029,9 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
     }
   };
 
-  const submitLogin = (e) => {
+  const submitLogin = async (e) => {
     e.preventDefault();
+    if (authBusy) return;
     setError("");
     // THE ACTUAL FIX: without this check, trying to log in before the real
     // account list has finished loading from Supabase (still just the
@@ -11974,10 +12042,28 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
       setError("Still loading account data — please wait a moment and try again.");
       return;
     }
-    const match = users.find((u) => u.email.toLowerCase() === form.email.toLowerCase());
-    if (!match || match.password !== form.password) {
-      setError("Incorrect email or password.");
-      return;
+    let match;
+    if (await serverAuthReady()) {
+      setAuthBusy(true);
+      try {
+        const { userId } = await authRequest("/api/auth/login", { email: form.email.trim(), password: form.password });
+        match = users.find((u) => u.id === userId);
+      } catch (err) {
+        setError(err.message);
+        return;
+      } finally {
+        setAuthBusy(false);
+      }
+      if (!match) {
+        setError("Still loading account data — please wait a moment and try again.");
+        return;
+      }
+    } else {
+      match = users.find((u) => u.email.toLowerCase() === form.email.toLowerCase());
+      if (!match || match.password !== form.password) {
+        setError("Incorrect email or password.");
+        return;
+      }
     }
     if (match.status === "pending") {
       setError("This account is still awaiting the owner's approval — check back once you get the approval email.");
@@ -14274,11 +14360,14 @@ export default function InvitationBuilder() {
       // Guest link: just the users list. Deliberately leaves
       // coreLoadCompletedRef false, so nothing on this page can ever save
       // the draft back.
+      // Asks the server which client the slug belongs to, instead of
+      // downloading the whole users list (everyone's emails and phones).
       (async () => {
         try {
-          const res = await persistentStorage.get(DRAFT_KEY, false);
-          const d = res?.value ? JSON.parse(res.value) : null;
-          if (!cancelled && Array.isArray(d?.users)) setUsers(d.users);
+          const m = window.location.pathname.match(/^\/e\/([^/]+)\/?$/);
+          const res = m ? await fetch(`/api/invitation-owner/${m[1]}`) : null;
+          const owner = res?.ok ? await res.json() : null;
+          if (!cancelled) setUsers(owner?.id ? [owner] : []);
         } catch {}
         finally { if (!cancelled) setCoreDataLoaded(true); }
       })();
@@ -14515,6 +14604,7 @@ export default function InvitationBuilder() {
       // Couldn't fetch the latest — fall back to this browser's own copy
       // rather than blocking the save entirely.
     }
+    usersToSave = await usersWithoutPasswords(usersToSave);
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
     const corePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
@@ -15088,7 +15178,7 @@ export default function InvitationBuilder() {
       const res = await persistentStorage.get(DRAFT_KEY, false);
       const latest = res?.value ? JSON.parse(res.value) : {};
       const baseUsers = latest.users || users;
-      const updated = { ...latest, users: updateFn(baseUsers) };
+      const updated = { ...latest, users: await usersWithoutPasswords(updateFn(baseUsers)) };
       const ok = await persistentStorage.set(DRAFT_KEY, JSON.stringify(updated), false);
       if (!ok) console.error("saveUsersDirectly: save returned falsy — change may revert on refresh.");
     } catch (err) {
@@ -15117,7 +15207,7 @@ export default function InvitationBuilder() {
     // Shop-purchase signups skip the normal pending-approval wait — the
     // client already paid, so making them wait for a separate manual
     // approval on top of that would be a confusing, redundant step.
-    const newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password, role: "normal", status: pendingShopTemplate ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
+    const newUser = { id: params.id || uid(), name: params.name, email: params.email, phone: params.phone, ...(params.password ? { password: params.password } : {}), role: "normal", status: pendingShopTemplate ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
     saveUsersDirectly((list) => [newUser, ...list]);
     if (newUser.status === "pending") {
       notifyAdminNewSignup({ userName: newUser.name, userEmail: newUser.email, userPhone: newUser.phone });
