@@ -10,6 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -1726,7 +1727,10 @@ async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, q
 // by the one-time migration below that moves existing base64 images (saved
 // before uploads went through Storage) out of the JSON payload.
 async function uploadDataUrlToStorage(dataUrl, bucket) {
-  const blob = await (await fetch(dataUrl)).blob();
+  return uploadBlobToStorage(await (await fetch(dataUrl)).blob(), bucket);
+}
+
+async function uploadBlobToStorage(blob, bucket) {
   const ext = blob.type === "image/gif" ? "gif" : blob.type === "image/png" ? "png" : "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
@@ -1739,6 +1743,44 @@ async function uploadDataUrlToStorage(dataUrl, bucket) {
     throw new Error("Upload failed");
   }
   return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+// Loads a photo so it can be drawn onto a canvas and read back (crop and
+// erase in the Builder). A photo stored on the site is fetched as a blob:
+// straight from Storage when it allows it, otherwise through the app's
+// own server, since a canvas that has drawn a cross-origin image without
+// permission can't be exported.
+async function loadEditableImage(url) {
+  let blob = null;
+  if (/^(data|blob):/.test(url)) {
+    blob = await (await fetch(url)).blob();
+  } else {
+    try {
+      const res = await fetch(url, { mode: "cors", cache: "no-cache" });
+      if (res.ok) blob = await res.blob();
+    } catch {
+      blob = null;
+    }
+    if (!blob) {
+      const res = await fetch(`/api/image-proxy?url=${encodeURIComponent(url)}`);
+      if (!res.ok) throw new Error("Couldn't open this image for editing — please try again.");
+      blob = await res.blob();
+    }
+  }
+  const objectUrl = URL.createObjectURL(blob);
+  const img = new Image();
+  img.src = objectUrl;
+  try {
+    await img.decode();
+  } catch {
+    URL.revokeObjectURL(objectUrl);
+    throw new Error("Couldn't open this image for editing — please try again.");
+  }
+  return { img, type: blob.type, objectUrl };
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't save the edited image."))), type, quality));
 }
 
 // Same idea for audio/video that was saved inline as base64 (older music
@@ -3217,6 +3259,8 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
           />
         </div>
       )}
+
+      {current.type === "image" && current.url && <ImageEditButtons block={current} onChange={onChangeStyle} />}
 
       {current.type === "image" && (
         <div className="mb-3">
@@ -4884,6 +4928,460 @@ function useCountdown(date, time) {
   return { days: Math.floor(s / 86400), hours: Math.floor((s % 86400) / 3600), mins: Math.floor((s % 3600) / 60), secs: s % 60, passed: diff <= 0 };
 }
 
+// ---- Custom image editing: flip, crop and erase ----------------------------
+// Flip is only a display setting on the block (flipX/flipY). Crop and erase
+// draw the photo onto a canvas and upload the result as a new image; the
+// very first upload is kept as originalUrl so "Restore original" can always
+// undo every edit.
+
+const isGifUrl = (url) => /^data:image\/gif|\.gif($|\?)/i.test(url || "");
+
+function imageFlipTransform(block) {
+  if (!block.flipX && !block.flipY) return undefined;
+  return `scale(${block.flipX ? -1 : 1}, ${block.flipY ? -1 : 1})`;
+}
+
+const CROP_RATIOS = [
+  { key: "free", label: "Free", ratio: null },
+  { key: "1:1", label: "1:1", ratio: 1 },
+  { key: "4:5", label: "4:5", ratio: 4 / 5 },
+  { key: "3:4", label: "3:4", ratio: 3 / 4 },
+  { key: "16:9", label: "16:9", ratio: 16 / 9 },
+];
+const CROP_MIN = 0.05;
+const ERASE_MAX_DIM = 1600;
+const ERASE_UNDO_STEPS = 6;
+
+// Fits an image of natural size (w, h) inside the space the editor has on
+// screen, and returns the size it's shown at.
+function fitImageOnScreen(w, h) {
+  const maxW = Math.min(window.innerWidth - 96, 720);
+  const maxH = Math.max(200, window.innerHeight - 260);
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  return { dw: Math.round(w * scale), dh: Math.round(h * scale) };
+}
+
+function ImageEditModal({ url, tool, onClose, onSave }) {
+  const [loaded, setLoaded] = useState(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = null;
+    loadEditableImage(url)
+      .then((res) => {
+        objectUrl = res.objectUrl;
+        if (cancelled) URL.revokeObjectURL(res.objectUrl);
+        else setLoaded(res);
+      })
+      .catch((err) => !cancelled && setError(err.message));
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url]);
+
+  const save = async (blob) => {
+    setSaving(true);
+    try {
+      onSave(await uploadBlobToStorage(blob, "invitation-photos"));
+    } catch {
+      setSaving(false);
+      alert("Couldn't save the edited image — check your connection and try again.");
+    }
+  };
+
+  // The editor is portaled to <body>, but React still bubbles its events
+  // through the Builder's canvas (dragging blocks, swiping pages), so every
+  // pointer event stops here.
+  const stop = (e) => e.stopPropagation();
+  return createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 10000, background: "rgba(8,12,10,0.82)" }}
+      onPointerDown={stop} onPointerMove={stop} onPointerUp={stop} onMouseDown={stop} onTouchStart={stop} onTouchMove={stop} onClick={stop} onWheel={stop}
+    >
+      <div className="flex max-h-full w-full max-w-[760px] flex-col rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.35)` }}>
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-[12px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
+            {tool === "crop" ? "Crop image" : "Erase"}
+          </span>
+          <button onClick={onClose} disabled={saving} style={{ color: MUTED }}><X size={16} /></button>
+        </div>
+        {error ? (
+          <p className="py-10 text-center text-[13px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>
+        ) : !loaded ? (
+          <p className="py-10 text-center text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Opening the image…</p>
+        ) : tool === "crop" ? (
+          <CropEditor loaded={loaded} saving={saving} onCancel={onClose} onApply={save} />
+        ) : (
+          <EraseEditor loaded={loaded} saving={saving} onCancel={onClose} onApply={save} />
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function EditorFooter({ saving, onCancel, onApply, applyLabel, children }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+      <div className="flex items-center gap-2">
+        <button onClick={onCancel} disabled={saving} className="rounded-full px-4 py-1.5 text-[12px]" style={{ color: IVORY, border: "1px solid rgba(147,166,155,0.4)", fontFamily: FONT_BODY }}>Cancel</button>
+        <button onClick={onApply} disabled={saving} className="rounded-full px-4 py-1.5 text-[12px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, opacity: saving ? 0.6 : 1 }}>
+          {saving ? "Saving…" : applyLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditorChip({ active, onClick, children, title }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+      style={{ border: `1px solid ${active ? GOLD : "rgba(147,166,155,0.35)"}`, color: active ? GOLD : IVORY, fontFamily: FONT_BODY }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// The largest crop box of the given width/height ratio, centred on the image.
+function centeredCrop(ratio, dw, dh) {
+  if (!ratio) return { x: 0, y: 0, w: 1, h: 1 };
+  let w = 1;
+  let h = (dw / ratio) / dh;
+  if (h > 1) { h = 1; w = (dh * ratio) / dw; }
+  return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+}
+
+function CropEditor({ loaded, saving, onCancel, onApply }) {
+  const { img, type } = loaded;
+  const { dw, dh } = fitImageOnScreen(img.naturalWidth, img.naturalHeight);
+  const [ratioKey, setRatioKey] = useState("free");
+  const [crop, setCrop] = useState({ x: 0, y: 0, w: 1, h: 1 });
+  const dragRef = useRef(null);
+  const ratio = CROP_RATIOS.find((r) => r.key === ratioKey).ratio;
+
+  const pickRatio = (key) => {
+    setRatioKey(key);
+    setCrop(centeredCrop(CROP_RATIOS.find((r) => r.key === key).ratio, dw, dh));
+  };
+
+  const startDrag = (e, handle) => {
+    e.stopPropagation();
+    e.preventDefault();
+    dragRef.current = { handle, startX: e.clientX, startY: e.clientY, start: crop };
+    const move = (ev) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const dx = (ev.clientX - d.startX) / dw;
+      const dy = (ev.clientY - d.startY) / dh;
+      const c = d.start;
+      if (d.handle === "move") {
+        setCrop({ ...c, x: Math.min(1 - c.w, Math.max(0, c.x + dx)), y: Math.min(1 - c.h, Math.max(0, c.y + dy)) });
+        return;
+      }
+      // Corner handles: the opposite corner stays put.
+      const left = d.handle.includes("w");
+      const top = d.handle.includes("n");
+      const ax = left ? c.x + c.w : c.x;
+      const ay = top ? c.y + c.h : c.y;
+      const maxW = left ? ax : 1 - ax;
+      const maxH = top ? ay : 1 - ay;
+      let w = Math.min(maxW, Math.max(CROP_MIN, left ? c.w - dx : c.w + dx));
+      let h = Math.min(maxH, Math.max(CROP_MIN, top ? c.h - dy : c.h + dy));
+      if (ratio) {
+        h = (w * dw) / ratio / dh;
+        if (h > maxH) { h = maxH; w = (h * dh * ratio) / dw; }
+        if (h < CROP_MIN) { h = CROP_MIN; w = Math.min(maxW, (h * dh * ratio) / dw); }
+      }
+      setCrop({ x: left ? ax - w : ax, y: top ? ay - h : ay, w, h });
+    };
+    // Capture phase: the modal stops pointer events from bubbling (see
+    // ImageEditModal), which would otherwise keep them from ever reaching
+    // a normal window listener.
+    const end = () => {
+      dragRef.current = null;
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", end, true);
+      window.removeEventListener("pointercancel", end, true);
+    };
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
+  };
+
+  const apply = async () => {
+    const sx = Math.round(crop.x * img.naturalWidth);
+    const sy = Math.round(crop.y * img.naturalHeight);
+    const sw = Math.max(1, Math.round(crop.w * img.naturalWidth));
+    const sh = Math.max(1, Math.round(crop.h * img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    // PNG/WebP can have see-through parts (an erased background), so those
+    // stay PNG; a regular photo stays a JPEG.
+    const keepsTransparency = /png|webp/.test(type);
+    onApply(await canvasToBlob(canvas, keepsTransparency ? "image/png" : "image/jpeg", 0.92));
+  };
+
+  const handles = ["nw", "ne", "sw", "se"];
+  return (
+    <>
+      <div className="flex justify-center p-3">
+        <div className="relative select-none" style={{ width: dw, height: dh, touchAction: "none" }}>
+          <img src={img.src} alt="" draggable={false} style={{ width: dw, height: dh, display: "block" }} />
+          {[
+            { left: 0, top: 0, width: dw, height: crop.y * dh },
+            { left: 0, top: (crop.y + crop.h) * dh, width: dw, height: (1 - crop.y - crop.h) * dh },
+            { left: 0, top: crop.y * dh, width: crop.x * dw, height: crop.h * dh },
+            { left: (crop.x + crop.w) * dw, top: crop.y * dh, width: (1 - crop.x - crop.w) * dw, height: crop.h * dh },
+          ].map((r, i) => <div key={i} className="pointer-events-none absolute" style={{ ...r, background: "rgba(0,0,0,0.55)" }} />)}
+          <div
+            onPointerDown={(e) => startDrag(e, "move")}
+            className="absolute"
+            style={{
+              left: crop.x * dw, top: crop.y * dh, width: crop.w * dw, height: crop.h * dh,
+              border: `2px solid ${GOLD}`, cursor: "move", touchAction: "none",
+              backgroundImage: "linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px)",
+              backgroundSize: "33.333% 33.333%", backgroundPosition: "-1px -1px",
+            }}
+          >
+            {handles.map((h) => (
+              <div
+                key={h}
+                onPointerDown={(e) => startDrag(e, h)}
+                className="absolute flex items-center justify-center"
+                style={{
+                  width: 28, height: 28, touchAction: "none",
+                  left: h.includes("w") ? -14 : undefined, right: h.includes("e") ? -14 : undefined,
+                  top: h.includes("n") ? -14 : undefined, bottom: h.includes("s") ? -14 : undefined,
+                  cursor: h === "nw" || h === "se" ? "nwse-resize" : "nesw-resize",
+                }}
+              >
+                <div style={{ width: 14, height: 14, background: GOLD, borderRadius: 3, border: `2px solid ${INK}` }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <EditorFooter saving={saving} onCancel={onCancel} onApply={apply} applyLabel="Apply crop">
+        {CROP_RATIOS.map((r) => (
+          <EditorChip key={r.key} active={ratioKey === r.key} onClick={() => pickRatio(r.key)}>{r.label}</EditorChip>
+        ))}
+      </EditorFooter>
+    </>
+  );
+}
+
+function EraseEditor({ loaded, saving, onCancel, onApply }) {
+  const { img } = loaded;
+  const scale = Math.min(1, ERASE_MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+  const cw = Math.max(1, Math.round(img.naturalWidth * scale));
+  const ch = Math.max(1, Math.round(img.naturalHeight * scale));
+  const { dw, dh } = fitImageOnScreen(cw, ch);
+  const canvasRef = useRef(null);
+  const undoRef = useRef([]);
+  const lastRef = useRef(null);
+  const [mode, setMode] = useState("erase");
+  const [brush, setBrush] = useState(30);
+  const [cursor, setCursor] = useState(null);
+  const [undoCount, setUndoCount] = useState(0);
+
+  const reset = () => {
+    const ctx = canvasRef.current.getContext("2d");
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, 0, 0, cw, ch);
+  };
+  useEffect(reset, [img]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toCanvas = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return { x: ((e.clientX - rect.left) / rect.width) * cw, y: ((e.clientY - rect.top) / rect.height) * ch };
+  };
+
+  // Paints the brush along a stroke segment as a chain of circles.
+  const stamp = (from, to) => {
+    const ctx = canvasRef.current.getContext("2d");
+    const r = (brush / 2) * (cw / dw);
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const steps = Math.max(1, Math.ceil(dist / Math.max(1, r / 3)));
+    const path = new Path2D();
+    for (let i = 0; i <= steps; i++) {
+      const px = from.x + ((to.x - from.x) * i) / steps;
+      const py = from.y + ((to.y - from.y) * i) / steps;
+      path.moveTo(px + r, py);
+      path.arc(px, py, r, 0, Math.PI * 2);
+    }
+    ctx.save();
+    if (mode === "erase") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.fill(path);
+    } else {
+      ctx.clip(path);
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+    }
+    ctx.restore();
+  };
+
+  const pushUndo = () => {
+    const ctx = canvasRef.current.getContext("2d");
+    undoRef.current = [...undoRef.current.slice(-(ERASE_UNDO_STEPS - 1)), ctx.getImageData(0, 0, cw, ch)];
+    setUndoCount(undoRef.current.length);
+  };
+  const undo = () => {
+    const last = undoRef.current.pop();
+    if (last) canvasRef.current.getContext("2d").putImageData(last, 0, 0);
+    setUndoCount(undoRef.current.length);
+  };
+
+  const onDown = (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pushUndo();
+    const p = toCanvas(e);
+    lastRef.current = p;
+    stamp(p, p);
+  };
+  const onMove = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    setCursor({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    if (!lastRef.current) return;
+    const p = toCanvas(e);
+    stamp(lastRef.current, p);
+    lastRef.current = p;
+  };
+  const onUp = () => { lastRef.current = null; };
+
+  const apply = async () => onApply(await canvasToBlob(canvasRef.current, "image/png"));
+
+  return (
+    <>
+      <p className="mb-2 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        {mode === "erase" ? "Paint over the parts you want to remove." : "Paint over erased parts to bring them back."}
+      </p>
+      <div className="flex justify-center">
+        <div
+          className="relative select-none"
+          style={{
+            width: dw, height: dh, touchAction: "none", cursor: "none",
+            backgroundColor: "#fff",
+            backgroundImage: "linear-gradient(45deg, #d9d9d9 25%, transparent 25%), linear-gradient(-45deg, #d9d9d9 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d9d9d9 75%), linear-gradient(-45deg, transparent 75%, #d9d9d9 75%)",
+            backgroundSize: "16px 16px", backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+          }}
+          onPointerLeave={() => setCursor(null)}
+        >
+          <canvas
+            ref={canvasRef}
+            width={cw}
+            height={ch}
+            style={{ width: dw, height: dh, display: "block", touchAction: "none" }}
+            onPointerDown={onDown}
+            onPointerMove={onMove}
+            onPointerUp={onUp}
+            onPointerCancel={onUp}
+          />
+          {cursor && (
+            <div
+              className="pointer-events-none absolute rounded-full"
+              style={{ left: cursor.x - brush / 2, top: cursor.y - brush / 2, width: brush, height: brush, border: "2px solid #fff", boxShadow: "0 0 0 1px rgba(0,0,0,0.6)" }}
+            />
+          )}
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Brush</span>
+        <input type="range" min={6} max={100} value={brush} onChange={(e) => setBrush(Number(e.target.value))} className="flex-1" style={{ accentColor: GOLD }} />
+        <span className="w-9 text-right text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{brush}px</span>
+      </div>
+      <EditorFooter saving={saving} onCancel={onCancel} onApply={apply} applyLabel="Apply">
+        <EditorChip active={mode === "erase"} onClick={() => setMode("erase")}><Eraser size={12} /> Erase</EditorChip>
+        <EditorChip active={mode === "restore"} onClick={() => setMode("restore")}><Sparkles size={12} /> Restore</EditorChip>
+        <EditorChip onClick={undo} title="Undo the last stroke"><Undo2 size={12} /> Undo{undoCount ? ` (${undoCount})` : ""}</EditorChip>
+        <EditorChip onClick={() => { pushUndo(); reset(); }} title="Start again from the image as it was">Reset</EditorChip>
+      </EditorFooter>
+    </>
+  );
+}
+
+// The Flip / Crop / Erase buttons for a custom image, used both in the
+// block's floating toolbar (compact) and in its side panel.
+function ImageEditButtons({ block, onChange, compact }) {
+  const [tool, setTool] = useState(null);
+  const gif = isGifUrl(block.url);
+  const open = (t) => {
+    if (gif) { alert("Crop and erase work on photos (JPG/PNG) — not on animated GIFs."); return; }
+    setTool(t);
+  };
+  const buttons = [
+    { key: "flipX", icon: FlipHorizontal2, label: "Flip horizontal", active: !!block.flipX, onClick: () => onChange({ flipX: !block.flipX }) },
+    { key: "flipY", icon: FlipVertical2, label: "Flip vertical", active: !!block.flipY, onClick: () => onChange({ flipY: !block.flipY }) },
+    { key: "crop", icon: Crop, label: "Crop", onClick: () => open("crop") },
+    { key: "erase", icon: Eraser, label: "Erase", onClick: () => open("erase") },
+  ];
+  const modal = tool && (
+    <ImageEditModal
+      url={block.url}
+      tool={tool}
+      onClose={() => setTool(null)}
+      onSave={(url) => {
+        onChange({ url, originalUrl: block.originalUrl || block.url });
+        setTool(null);
+      }}
+    />
+  );
+  if (compact) {
+    return (
+      <>
+        {buttons.map(({ key, icon: Icon, label, active, onClick }) => (
+          <button key={key} onClick={onClick} title={label} className="px-0.5" style={{ color: active ? GOLD : GOLD_SOFT }}>
+            <Icon size={12} />
+          </button>
+        ))}
+        {modal}
+      </>
+    );
+  }
+  return (
+    <div className="mb-3">
+      <FieldLabel>Edit image</FieldLabel>
+      <div className="grid grid-cols-4 gap-1.5">
+        {buttons.map(({ key, icon: Icon, label, active, onClick }) => (
+          <button
+            key={key}
+            onClick={onClick}
+            title={label}
+            className="flex flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-medium"
+            style={{ background: INK_2, border: `1px solid ${active ? GOLD : "rgba(147,166,155,0.25)"}`, color: active ? GOLD : IVORY, fontFamily: FONT_BODY }}
+          >
+            <Icon size={15} />
+            {label === "Flip horizontal" ? "Flip ↔" : label === "Flip vertical" ? "Flip ↕" : label}
+          </button>
+        ))}
+      </div>
+      {block.originalUrl && block.originalUrl !== block.url && (
+        <button
+          onClick={() => onChange({ url: block.originalUrl, originalUrl: null })}
+          className="mt-2 flex items-center gap-1 text-[11px]"
+          style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}
+        >
+          <Undo2 size={11} /> Restore original image
+        </button>
+      )}
+      {modal}
+    </div>
+  );
+}
+
 function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, onDelete, onDuplicate, layerIndex }) {
   const [editingText, setEditingText] = useState(false);
   const [draft, setDraft] = useState(block.text || "");
@@ -4946,6 +5444,8 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
           <button onClick={() => bump("width", 5, 10, 100, 40)} className="px-1 text-[13px] font-bold" style={{ color: IVORY }}>+</button>
           <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
           <button onClick={() => onMove({ width: 100, x: 50 })} title="Fill the full screen width" className="px-1 text-[9.5px] font-bold uppercase" style={{ color: GOLD_SOFT }}>Fill</button>
+          <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
+          <ImageEditButtons block={block} onChange={onMove} compact />
         </>
       ) : block.type === "icon" ? (
         <>
@@ -5010,7 +5510,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         src={block.url}
         alt=""
         draggable={false}
-        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8, opacity: imgOpacity }}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8, opacity: imgOpacity, transform: imageFlipTransform(block) }}
       />
     );
     // Without this, a link typed as "instagram.com/xxx" (no protocol) gets
@@ -5032,7 +5532,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
               src={block.url}
               alt=""
               draggable={false}
-              style={{ width: "100%", height: "100%", display: "block", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none", opacity: imgOpacity }}
+              style={{ width: "100%", height: "100%", display: "block", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none", opacity: imgOpacity, transform: imageFlipTransform(block) }}
             />
           </div>
           {editMode && (
