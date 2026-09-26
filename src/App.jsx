@@ -1914,6 +1914,18 @@ async function optimizeStoredVideo(url, { audio = false } = {}) {
   return res.json();
 }
 
+// AI translation of an invitation's texts (server.js /api/translate).
+async function aiTranslateTexts(from, to, texts) {
+  const res = await fetch("/api/translate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to, texts }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Couldn't translate right now — please try again.");
+  return data.texts || {};
+}
+
 // Optimized uploads end in "-opt.mp4" (see server.js); anything else on our
 // own Storage is an original that can still be shrunk.
 const isOptimizedVideoUrl = (url) => /-opt\.mp4$/.test(url || "");
@@ -2431,7 +2443,7 @@ function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
 /* Language switcher                                                       */
 /* ---------------------------------------------------------------------- */
 
-function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, enabledLanguages, onToggleLanguage }) {
+function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, enabledLanguages, onToggleLanguage, onTranslate, translating }) {
   const [showAdd, setShowAdd] = useState(false);
   const disabledLangs = LANGS.filter((l) => !enabledLanguages.includes(l));
 
@@ -2494,6 +2506,17 @@ function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, 
             </div>
           )}
         </div>
+      )}
+      {onTranslate && activeLang !== defaultLang && (
+        <button
+          onClick={() => onTranslate(defaultLang, activeLang)}
+          disabled={!!translating}
+          title={`Replace the ${LANG_META[activeLang].label} texts with an AI translation of your ${LANG_META[defaultLang].label} invitation`}
+          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+          style={{ border: `1px solid ${GOLD}`, color: GOLD_SOFT, fontFamily: FONT_BODY, opacity: translating ? 0.6 : 1 }}
+        >
+          <Sparkles size={12} /> {translating ? "Translating…" : `Translate from ${LANG_META[defaultLang].short}`}
+        </button>
       )}
       <span className="ml-auto text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Tap <Star size={9} style={{ display: "inline", verticalAlign: "middle" }} /> for default, <X size={9} style={{ display: "inline", verticalAlign: "middle" }} /> to remove a language
@@ -13062,7 +13085,68 @@ export default function InvitationBuilder() {
 
   const [defaultLang, setDefaultLang] = useState("en");
   const [enabledLanguages, setEnabledLanguages] = useState(LANGS);
-  const toggleLanguage = (lang, on) => setEnabledLanguages((list) => (on ? [...list, lang] : list.filter((l) => l !== lang)));
+  // Adding a language offers to fill it with an AI translation of the main
+  // (default) language: every text field, custom text block, timeline and
+  // location title, plus the same layout, custom blocks and intro media —
+  // so the new language starts as the same invitation, just translated.
+  const [translatingLang, setTranslatingLang] = useState(null);
+  const translateInvitation = async (from, to) => {
+    if (!from || !to || from === to || translatingLang) return;
+    const skipField = (key) => /icon|font|color|colour|ampersand|url|image|size/i.test(key);
+    const texts = {};
+    for (const [section, fields] of Object.entries(content[from] || {})) {
+      for (const [field, value] of Object.entries(fields || {})) {
+        if (typeof value === "string" && value.trim() && !skipField(field)) texts[`c.${section}.${field}`] = value;
+      }
+    }
+    for (const [step, blocks] of Object.entries(customBlocks[from] || {})) {
+      (blocks || []).forEach((b) => { if (b.type === "text" && typeof b.text === "string" && b.text.trim()) texts[`b.${step}.${b.id}`] = b.text; });
+    }
+    timeline.forEach((item) => { const v = item.label?.[from]; if (v?.trim()) texts[`t.${item.id}`] = v; });
+    locations.forEach((loc) => { const v = loc.title?.[from]; if (v?.trim()) texts[`l.${loc.id}`] = v; });
+    setTranslatingLang(to);
+    try {
+      const out = Object.keys(texts).length ? await aiTranslateTexts(from, to, texts) : {};
+      const tr = (key) => out[key] ?? texts[key];
+      setContent((c) => {
+        const next = { ...c, [to]: { ...(c[to] || {}) } };
+        for (const [section, fields] of Object.entries(c[from] || {})) {
+          next[to][section] = { ...(c[to]?.[section] || {}), ...fields };
+          for (const field of Object.keys(fields || {})) {
+            const key = `c.${section}.${field}`;
+            if (key in texts) next[to][section][field] = tr(key);
+          }
+        }
+        return next;
+      });
+      setCustomBlocks((cb) => ({
+        ...cb,
+        [to]: Object.fromEntries(Object.entries(cb[from] || {}).map(([step, blocks]) => [
+          step,
+          (blocks || []).map((b) => (b.type === "text" && `b.${step}.${b.id}` in texts ? { ...b, text: tr(`b.${step}.${b.id}`) } : { ...b })),
+        ])),
+      }));
+      setLayouts((l) => ({ ...l, [to]: JSON.parse(JSON.stringify(l[from] || DEFAULT_LAYOUTS)) }));
+      setTimeline((list) => list.map((item) => (`t.${item.id}` in texts ? { ...item, label: { ...item.label, [to]: tr(`t.${item.id}`) } } : item)));
+      setLocations((list) => list.map((loc) => (`l.${loc.id}` in texts ? { ...loc, title: { ...loc.title, [to]: tr(`l.${loc.id}`) } } : loc)));
+      setIntro((i) => (i.media?.[from] && !i.media?.[to] ? { ...i, media: { ...i.media, [to]: i.media[from] } } : i));
+      setActiveLang(to);
+    } catch (err) {
+      alert(err.message || "Couldn't translate right now — please try again.");
+    } finally {
+      setTranslatingLang(null);
+    }
+  };
+  const confirmAndTranslate = (from, to) => {
+    const name = { en: "English", ar: "Arabic", fr: "French", es: "Spanish", hy: "Armenian" };
+    if (window.confirm(`Translate your ${name[from]} invitation into ${name[to]} with AI?\n\nThis fills in every ${name[to]} text (and copies your layout) — anything already written in ${name[to]} is replaced. Check the result afterwards and click Save.`)) {
+      translateInvitation(from, to);
+    }
+  };
+  const toggleLanguage = (lang, on) => {
+    setEnabledLanguages((list) => (on ? [...list, lang] : list.filter((l) => l !== lang)));
+    if (on && defaultLang && defaultLang !== lang) confirmAndTranslate(defaultLang, lang);
+  };
   const [activeLang, setActiveLang] = useState("en");
   const [layouts, setLayouts] = useState(() => Object.fromEntries(LANGS.map((l) => [l, DEFAULT_LAYOUTS])));
   const [customBlocks, setCustomBlocks] = useState(() => Object.fromEntries(LANGS.map((l) => [l, emptyCustomBlocks()])));
@@ -15349,7 +15433,7 @@ export default function InvitationBuilder() {
                   </div>
                 </div>
               )}
-              <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} />
+              <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} onTranslate={confirmAndTranslate} translating={translatingLang} />
               <div className="mb-4 flex items-center justify-end gap-2">
                 {isAdminPath && !actingAsUser && (
                   <button

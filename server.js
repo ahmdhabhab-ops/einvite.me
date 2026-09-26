@@ -250,6 +250,63 @@ async function handleVideoJob(res, getSource, audio) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// AI translation for the Builder: when the owner adds a language, the texts
+// they wrote in their main language are translated in one go. Needs
+// OPENAI_API_KEY set on this app's container (the same key the AI chat's
+// edge function uses). Takes { from, to, texts: { key: text } } and returns
+// { texts: { key: translated } } with the same keys.
+// ---------------------------------------------------------------------------
+
+const TRANSLATE_LANG_NAMES = { en: "English", ar: "Arabic", fr: "French", es: "Spanish", hy: "Armenian" };
+const TRANSLATE_CHUNK = 60;
+
+async function translateChunk(from, to, texts) {
+  const res = await fetch(`${process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You translate the text of elegant digital invitations (weddings, birthdays, quinceañeras, baptisms, baby showers and other celebrations) from ${TRANSLATE_LANG_NAMES[from]} to ${TRANSLATE_LANG_NAMES[to]}. Keep the warm, graceful tone of a printed invitation and keep each text about the same length. Rules: translate every value; keep exactly the same keys; keep line breaks and emojis; do not translate URLs, email addresses, phone numbers, or times and dates written with digits; write people's first names and family names in the script of ${TRANSLATE_LANG_NAMES[to]} (transliterate them if that script differs), otherwise keep them unchanged; if a value is already in ${TRANSLATE_LANG_NAMES[to]}, return it unchanged. Reply with only a JSON object of the form {"translations": {"<key>": "<translated text>"}}.`,
+        },
+        { role: "user", content: JSON.stringify(texts) },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI request failed (${res.status}): ${(await res.text().catch(() => "")).slice(0, 200)}`);
+  const data = await res.json();
+  const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+  return parsed.translations || parsed;
+}
+
+app.post("/api/translate", express.json({ limit: "400kb" }), async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "AI translation isn't switched on yet: OPENAI_API_KEY needs to be set on the app in Dokploy." });
+  const { from, to, texts } = req.body || {};
+  if (!TRANSLATE_LANG_NAMES[from] || !TRANSLATE_LANG_NAMES[to] || from === to) return res.status(400).json({ error: "Unknown languages." });
+  const entries = Object.entries(texts && typeof texts === "object" ? texts : {}).filter(([, v]) => typeof v === "string" && v.trim());
+  if (entries.length > 600 || entries.reduce((n, [, v]) => n + v.length, 0) > 60000) return res.status(413).json({ error: "Too much text to translate at once." });
+  try {
+    const out = {};
+    for (let i = 0; i < entries.length; i += TRANSLATE_CHUNK) {
+      const chunk = Object.fromEntries(entries.slice(i, i + TRANSLATE_CHUNK));
+      const translated = await translateChunk(from, to, chunk);
+      for (const key of Object.keys(chunk)) {
+        const value = translated?.[key];
+        if (typeof value === "string" && value.trim()) out[key] = value;
+      }
+    }
+    res.json({ texts: out });
+  } catch (err) {
+    console.error("translate failed:", err.message);
+    res.status(502).json({ error: "The translation service didn't respond — please try again." });
+  }
+});
+
 // Upload a new video: the raw file is the request body.
 app.post("/api/video/optimize", express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "No video received." });
