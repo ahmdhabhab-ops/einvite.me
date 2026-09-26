@@ -1914,6 +1914,13 @@ async function optimizeStoredVideo(url, { audio = false } = {}) {
   return res.json();
 }
 
+// The DJ / Guest Networking / Live Stream headings, subtitles and button
+// labels live on `integrations`, one copy for the main language. Other
+// languages keep their own versions in integrations.texts[lang] and fall
+// back to the main one until they have one.
+const INTEGRATION_TEXT_FIELDS = ["djHeading", "djSubtitle", "djButtonLabel", "networkingHeading", "networkingSubtitle", "networkingButtonLabel", "livestreamHeading", "livestreamSubtitle", "livestreamButtonLabel"];
+const integrationText = (integrations, lang, field) => integrations?.texts?.[lang]?.[field] ?? integrations?.[field];
+
 // AI translation of an invitation's texts (server.js /api/translate).
 async function aiTranslateTexts(from, to, texts) {
   const res = await fetch("/api/translate", {
@@ -7141,8 +7148,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "djRequests":
         return (
           <DjRequestSlide
-            heading={data.integrations.djHeading}
-            subtitle={data.integrations.djSubtitle}
+            heading={integrationText(data.integrations, lang, "djHeading")}
+            subtitle={integrationText(data.integrations, lang, "djSubtitle")}
             slug={slug}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
@@ -7151,9 +7158,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         return (
           <IntegrationSlide
             icon={Handshake}
-            heading={data.integrations.networkingHeading}
-            subtitle={data.integrations.networkingSubtitle}
-            buttonLabel={data.integrations.networkingButtonLabel}
+            heading={integrationText(data.integrations, lang, "networkingHeading")}
+            subtitle={integrationText(data.integrations, lang, "networkingSubtitle")}
+            buttonLabel={integrationText(data.integrations, lang, "networkingButtonLabel")}
             url={slug ? `https://${siteDomain}/network/${slug}` : ""}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
@@ -7161,9 +7168,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "livestream":
         return (
           <LivestreamSlide
-            heading={data.integrations.livestreamHeading}
-            subtitle={data.integrations.livestreamSubtitle}
-            buttonLabel={data.integrations.livestreamButtonLabel}
+            heading={integrationText(data.integrations, lang, "livestreamHeading")}
+            subtitle={integrationText(data.integrations, lang, "livestreamSubtitle")}
+            buttonLabel={integrationText(data.integrations, lang, "livestreamButtonLabel")}
             url={data.integrations.livestreamUrl}
             paid={data.integrations.livestreamPaid}
             price={data.integrations.livestreamPrice}
@@ -7657,13 +7664,13 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       case "registry":
         return <RegistrySlide items={data.registry} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
       case "djRequests":
-        return <DjRequestSlide heading={data.integrations.djHeading} subtitle={data.integrations.djSubtitle} slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
+        return <DjRequestSlide heading={integrationText(data.integrations, lang, "djHeading")} subtitle={integrationText(data.integrations, lang, "djSubtitle")} slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
       case "networking":
-        return <IntegrationSlide icon={Handshake} heading={data.integrations.networkingHeading} subtitle={data.integrations.networkingSubtitle} buttonLabel={data.integrations.networkingButtonLabel} url={slug ? `https://${siteDomain}/network/${slug}` : ""} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
+        return <IntegrationSlide icon={Handshake} heading={integrationText(data.integrations, lang, "networkingHeading")} subtitle={integrationText(data.integrations, lang, "networkingSubtitle")} buttonLabel={integrationText(data.integrations, lang, "networkingButtonLabel")} url={slug ? `https://${siteDomain}/network/${slug}` : ""} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common} />;
       case "livestream":
         return (
           <LivestreamSlide
-            heading={data.integrations.livestreamHeading} subtitle={data.integrations.livestreamSubtitle} buttonLabel={data.integrations.livestreamButtonLabel}
+            heading={integrationText(data.integrations, lang, "livestreamHeading")} subtitle={integrationText(data.integrations, lang, "livestreamSubtitle")} buttonLabel={integrationText(data.integrations, lang, "livestreamButtonLabel")}
             url={data.integrations.livestreamUrl} paid={data.integrations.livestreamPaid} price={data.integrations.livestreamPrice} paymentUrl={data.integrations.livestreamPaymentUrl}
             slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common}
           />
@@ -13104,6 +13111,7 @@ export default function InvitationBuilder() {
     }
     timeline.forEach((item) => { const v = item.label?.[from]; if (v?.trim()) texts[`t.${item.id}`] = v; });
     locations.forEach((loc) => { const v = loc.title?.[from]; if (v?.trim()) texts[`l.${loc.id}`] = v; });
+    INTEGRATION_TEXT_FIELDS.forEach((field) => { const v = integrationText(integrations, from, field); if (typeof v === "string" && v.trim()) texts[`i.${field}`] = v; });
     setTranslatingLang(to);
     try {
       const out = Object.keys(texts).length ? await aiTranslateTexts(from, to, texts) : {};
@@ -13130,6 +13138,10 @@ export default function InvitationBuilder() {
       setTimeline((list) => list.map((item) => (`t.${item.id}` in texts ? { ...item, label: { ...item.label, [to]: tr(`t.${item.id}`) } } : item)));
       setLocations((list) => list.map((loc) => (`l.${loc.id}` in texts ? { ...loc, title: { ...loc.title, [to]: tr(`l.${loc.id}`) } } : loc)));
       setIntro((i) => (i.media?.[from] && !i.media?.[to] ? { ...i, media: { ...i.media, [to]: i.media[from] } } : i));
+      const integrationTexts = Object.fromEntries(INTEGRATION_TEXT_FIELDS.filter((field) => `i.${field}` in texts).map((field) => [field, tr(`i.${field}`)]));
+      if (Object.keys(integrationTexts).length) {
+        setIntegrations((i) => (to === defaultLang ? { ...i, ...integrationTexts } : { ...i, texts: { ...(i.texts || {}), [to]: { ...(i.texts?.[to] || {}), ...integrationTexts } } }));
+      }
       setActiveLang(to);
     } catch (err) {
       alert(err.message || "Couldn't translate right now — please try again.");
@@ -13296,6 +13308,10 @@ export default function InvitationBuilder() {
     reminderFeatureUnlocked: false, reminderPaymentUrl: "",
   });
   const updateIntegrations = (patch) => setIntegrations((i) => ({ ...i, ...patch }));
+  // Main language edits the shared text; any other language edits its own copy.
+  const setIntegrationText = (lang, field, value) => setIntegrations((i) => (lang === defaultLang
+    ? { ...i, [field]: value }
+    : { ...i, texts: { ...(i.texts || {}), [lang]: { ...(i.texts?.[lang] || {}), [field]: value } } }));
   const [users, setUsers] = useState(seedUsers);
   const [siteDomain, setSiteDomain] = useState("core.einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
@@ -15664,10 +15680,10 @@ export default function InvitationBuilder() {
               {stepKey === "registry" && <RegistryStep items={registry} update={setRegistry} activeLang={activeLang} bg={pageBackgrounds.registry} setBg={setBgFor("registry")} />}
               {stepKey === "djRequests" && (
                 <DjRequestsPanel
-                  heading={integrations.djHeading}
-                  setHeading={(v) => updateIntegrations({ djHeading: v })}
-                  subtitle={integrations.djSubtitle}
-                  setSubtitle={(v) => updateIntegrations({ djSubtitle: v })}
+                  heading={integrationText(integrations, activeLang, "djHeading")}
+                  setHeading={(v) => setIntegrationText(activeLang, "djHeading", v)}
+                  subtitle={integrationText(integrations, activeLang, "djSubtitle")}
+                  setSubtitle={(v) => setIntegrationText(activeLang, "djSubtitle", v)}
                   bg={pageBackgrounds.djRequests}
                   setBg={setBgFor("djRequests")}
                   dashboardUrl={`https://${siteDomain}/dj/${slug}`}
@@ -15676,12 +15692,12 @@ export default function InvitationBuilder() {
               )}
               {stepKey === "networking" && (
                 <NetworkingPanel
-                  heading={integrations.networkingHeading}
-                  setHeading={(v) => updateIntegrations({ networkingHeading: v })}
-                  subtitle={integrations.networkingSubtitle}
-                  setSubtitle={(v) => updateIntegrations({ networkingSubtitle: v })}
-                  buttonLabel={integrations.networkingButtonLabel}
-                  setButtonLabel={(v) => updateIntegrations({ networkingButtonLabel: v })}
+                  heading={integrationText(integrations, activeLang, "networkingHeading")}
+                  setHeading={(v) => setIntegrationText(activeLang, "networkingHeading", v)}
+                  subtitle={integrationText(integrations, activeLang, "networkingSubtitle")}
+                  setSubtitle={(v) => setIntegrationText(activeLang, "networkingSubtitle", v)}
+                  buttonLabel={integrationText(integrations, activeLang, "networkingButtonLabel")}
+                  setButtonLabel={(v) => setIntegrationText(activeLang, "networkingButtonLabel", v)}
                   bg={pageBackgrounds.networking}
                   setBg={setBgFor("networking")}
                 />
@@ -15694,12 +15710,12 @@ export default function InvitationBuilder() {
                   setUrl={(v) => updateIntegrations({ livestreamUrl: v })}
                   placeholderUrl="https://youtube.com/live/…  or  https://zoom.us/j/…"
                   urlHelpText="Paste the stream link once your photographer/videographer has it set up. Until then, the button on this page stays disabled for guests."
-                  buttonLabel={integrations.livestreamButtonLabel}
-                  setButtonLabel={(v) => updateIntegrations({ livestreamButtonLabel: v })}
-                  heading={integrations.livestreamHeading}
-                  setHeading={(v) => updateIntegrations({ livestreamHeading: v })}
-                  subtitle={integrations.livestreamSubtitle}
-                  setSubtitle={(v) => updateIntegrations({ livestreamSubtitle: v })}
+                  buttonLabel={integrationText(integrations, activeLang, "livestreamButtonLabel")}
+                  setButtonLabel={(v) => setIntegrationText(activeLang, "livestreamButtonLabel", v)}
+                  heading={integrationText(integrations, activeLang, "livestreamHeading")}
+                  setHeading={(v) => setIntegrationText(activeLang, "livestreamHeading", v)}
+                  subtitle={integrationText(integrations, activeLang, "livestreamSubtitle")}
+                  setSubtitle={(v) => setIntegrationText(activeLang, "livestreamSubtitle", v)}
                   bg={pageBackgrounds.livestream}
                   setBg={setBgFor("livestream")}
                 />
