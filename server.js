@@ -16,6 +16,8 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
 import { spawn } from "node:child_process";
+import dns from "node:dns/promises";
+import net from "node:net";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -249,6 +251,107 @@ async function handleVideoJob(res, getSource, audio) {
     queuedVideos--;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Music from a link: the Builder can paste a link to a song (YouTube,
+// SoundCloud, a direct MP3/WAV link, ...) and get back an MP3 in Storage,
+// used exactly like an uploaded track. yt-dlp downloads the audio and ffmpeg
+// converts it to a 128 kbps MP3. Runs in the same one-at-a-time queue as
+// video optimization. Songs are limited to 15 minutes.
+// ---------------------------------------------------------------------------
+
+const MUSIC_MAX_SECONDS = 15 * 60;
+const MUSIC_TIMEOUT_MS = 4 * 60 * 1000;
+
+// yt-dlp would fetch whatever the link points to, from this server, so links
+// to this machine or the private network are refused.
+function isPrivateAddress(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  const v6 = ip.toLowerCase();
+  if (v6.startsWith("::ffff:")) return isPrivateAddress(v6.slice(7));
+  return v6 === "::" || v6 === "::1" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe8") || v6.startsWith("fe9") || v6.startsWith("fea") || v6.startsWith("feb") || v6.startsWith("ff");
+}
+
+async function checkPublicUrl(raw) {
+  let url;
+  try { url = new URL(raw); } catch { return null; }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal")) return null;
+  try {
+    const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true });
+    if (!addrs.length || addrs.some((a) => isPrivateAddress(a.address))) return null;
+  } catch {
+    return null;
+  }
+  return url.toString();
+}
+
+// Turns yt-dlp's error output into something the couple can act on.
+function musicLinkError(message) {
+  const m = message || "";
+  if (/does not pass filter|is_live|duration/i.test(m)) return "That song is too long (over 15 minutes) or is a live stream. Pick a shorter track.";
+  if (/sign in to confirm|not a bot|429|too many requests/i.test(m)) return "That site blocked the download from our server. Download the song to your device and use Upload track instead.";
+  if (/drm/i.test(m)) return "That site protects its music (DRM), so it can't be converted. Try a YouTube or SoundCloud link, or upload the file.";
+  if (/unsupported url|no video formats|no suitable formats|unable to extract|http error 40[04]|not found/i.test(m)) return "Couldn't find a song at that link. Check the link, or upload the file instead.";
+  if (/\bprivate\b|\blog ?in\b|members[- ]only|premium|age[- ]restricted|confirm your age/i.test(m)) return "That song is private or needs a login, so it can't be converted. Try another link, or upload the file.";
+  if (/timed out/i.test(m)) return "That took too long. Try again, or upload the file instead.";
+  return "Couldn't convert that link. Try another link, or upload the file instead.";
+}
+
+async function processMusicLink(url) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "einvite-music-"));
+  try {
+    const out = await runProcess("yt-dlp", [
+      "--no-playlist", "--no-warnings", "--no-progress", "--no-cache-dir",
+      "--js-runtimes", "node",
+      "-f", "bestaudio/best",
+      "--match-filter", `!is_live & duration <=? ${MUSIC_MAX_SECONDS}`,
+      "--max-filesize", "200M",
+      "-x", "--audio-format", "mp3", "--audio-quality", "128K",
+      "--postprocessor-args", "ExtractAudio:-ac 2 -ar 44100",
+      "-o", path.join(dir, "audio.%(ext)s"),
+      "--print", "after_move:title", "--no-simulate",
+      "--", url,
+    ], MUSIC_TIMEOUT_MS);
+    const file = path.join(dir, "audio.mp3");
+    const bytes = await fs.readFile(file).catch(() => null);
+    if (!bytes) throw new Error("does not pass filter"); // yt-dlp skips a filtered song without failing
+    if ((await probeDuration(file) || 0) > MUSIC_MAX_SECONDS + 5) throw new Error("duration");
+    const title = out.trim().split("\n").pop().trim().replace(/[\\/:*?"<>|]+/g, " ").slice(0, 120) || "Song";
+    const musicUrl = await uploadToStorage("custom-videos", `${randomUUID()}.mp3`, "audio/mpeg", bytes);
+    return { url: musicUrl, name: `${title}.mp3`, bytes: bytes.length };
+  } finally {
+    fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+app.post("/api/music/from-link", express.json({ limit: "10kb" }), async (req, res) => {
+  const raw = String(req.body?.url || "").trim();
+  if (!raw || raw.length > 2000) return res.status(400).json({ error: "Paste a link to a song first." });
+  const url = await checkPublicUrl(raw);
+  if (!url) return res.status(400).json({ error: "That doesn't look like a link to a song. Paste the full link (starting with https://)." });
+  if (queuedVideos >= MAX_QUEUED_VIDEOS) return res.status(503).json({ error: "Busy converting other files — try again in a minute." });
+  queuedVideos++;
+  try {
+    res.json(await enqueueVideo(() => processMusicLink(url)));
+  } catch (err) {
+    console.error("music from link failed:", err.message);
+    res.status(422).json({ error: musicLinkError(err.message) });
+  } finally {
+    queuedVideos--;
+  }
+});
+
+// Sites change often and an old yt-dlp stops working with them, so it
+// updates itself in the background whenever the server starts.
+runProcess("yt-dlp", ["-U"], 120000).then(
+  (out) => console.log("yt-dlp:", out.trim().split("\n").pop()),
+  (err) => console.warn("yt-dlp update skipped:", err.message),
+);
 
 // ---------------------------------------------------------------------------
 // AI translation for the Builder: when the owner adds a language, the texts

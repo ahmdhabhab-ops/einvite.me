@@ -17,7 +17,12 @@ FROM node:20-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 # ffmpeg shrinks uploaded videos (see /api/video/optimize in server.js).
-RUN apk add --no-cache ffmpeg
+# yt-dlp (plus python3 to run it) turns a music link into an MP3 (see
+# /api/music/from-link). It's the latest release rather than Alpine's
+# package, since sites like YouTube change often and old versions break.
+RUN apk add --no-cache ffmpeg python3 ca-certificates \
+  && wget -q -O /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+  && chmod a+rx /usr/local/bin/yt-dlp
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist

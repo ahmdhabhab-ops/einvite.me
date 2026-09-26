@@ -3609,7 +3609,51 @@ function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
 /* Editor: step panels                                                     */
 /* ---------------------------------------------------------------------- */
 
-function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAudio, onRemoveAudio, intro, updateIntro, activeLang, onUploadIntroMedia, onRemoveIntroMedia, introMediaLibrary, isAdmin, onAddLibraryItem, onRemoveLibraryItem, onPickLibraryItem }) {
+// "Or paste a link": the server downloads the song from the link and
+// converts it to an MP3 (server.js /api/music/from-link), which then
+// becomes the invitation's track just like an uploaded file.
+function MusicLinkImport({ onImport }) {
+  const [link, setLink] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const convert = async () => {
+    if (!link.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onImport(link.trim());
+      setLink("");
+    } catch (err) {
+      setError(err.message || "Couldn't convert that link — please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3">
+      <FieldLabel>Or paste a music link</FieldLabel>
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <TextInput value={link} onChange={setLink} placeholder="YouTube, SoundCloud, or a link to an MP3…" />
+        </div>
+        <GhostButton onClick={convert} active={!!link.trim() && !busy}>
+          {busy ? "Converting…" : <><Music2 size={12} /> Convert to MP3</>}
+        </GhostButton>
+      </div>
+      {busy && (
+        <p className="mt-1.5 text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
+          Getting the song and converting it to MP3 — this can take up to a minute.
+        </p>
+      )}
+      {error && <p className="mt-1.5 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+      <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        Works with most music and video sites. Spotify, Anghami and Apple Music protect their songs, so they can't be converted. Only use music you're allowed to use.
+      </p>
+    </div>
+  );
+}
+
+function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAudio, onImportAudioLink, onRemoveAudio, intro, updateIntro, activeLang, onUploadIntroMedia, onRemoveIntroMedia, introMediaLibrary, isAdmin, onAddLibraryItem, onRemoveLibraryItem, onPickLibraryItem }) {
   const introMedia = intro.media[activeLang];
   return (
     <div>
@@ -3681,6 +3725,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
           )}
         </div>
       )}
+      {music.enabled && onImportAudioLink && <MusicLinkImport onImport={onImportAudioLink} />}
       {music.enabled && !music.name && (
         <p className="mt-1.5 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
           No track yet — the play button will appear at the bottom of the cover once you add one.
@@ -14873,6 +14918,17 @@ export default function InvitationBuilder() {
     }
   };
 
+  const handleAudioLink = async (link) => {
+    const res = await fetch("/api/music/from-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: link }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.url) throw new Error(data.error || "Couldn't convert that link — please try again.");
+    setMusic((m) => ({ ...m, url: data.url, name: data.name || "Song.mp3", enabled: true }));
+  };
+
   const guestGroupsSaveTimeout = useRef(null);
   /** Debounced save for guestGroups — waits for a short pause in edits before actually writing to Supabase, so typing in a field doesn't trigger a write per keystroke. */
   const saveGuestGroupsDebounced = (newList) => {
@@ -16255,6 +16311,7 @@ export default function InvitationBuilder() {
                   music={music}
                   updateMusic={(p) => setMusic((m) => ({ ...m, ...p }))}
                   onUploadAudio={handleAudioUpload}
+                  onImportAudioLink={handleAudioLink}
                   onRemoveAudio={() => setMusic((m) => ({ ...m, url: null, name: "" }))}
                   intro={intro}
                   updateIntro={updateIntro}
