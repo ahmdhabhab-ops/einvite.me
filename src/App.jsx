@@ -6387,6 +6387,10 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
 function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const cd = useCountdown(schedule.date, schedule.time);
   const hs = layout.heading, cs = layout.countdown;
+  // Arabic shows the numbers in Arabic digits (٢٥٧) and drops the letter
+  // spacing, which pulls Arabic letters apart.
+  const isArabic = String(locale || "").startsWith("ar");
+  const digits = (text) => (isArabic ? String(text).replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]) : String(text));
   const formattedDate = useMemo(() => {
     if (!schedule.date) return "";
     const d = new Date(`${schedule.date}T${schedule.time || "00:00"}`);
@@ -6401,9 +6405,9 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
           {(!hs.hidden || editMode) && (
           <DraggableBlock id="heading" pos={hs} editMode={editMode} onMove={(p) => onMoveBlock("heading", p)} label="Heading" light={light} selected={selectedBlock === "heading"} onSelect={() => onSelectBlock("heading")} isEmpty={!!hs.hidden}>
             <div className="text-center" style={{ opacity: hs.hidden ? 0 : 1 }}>
-              <div className="text-[10px] font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: "0.15em", fontFamily: FONT_BODY }}>{t.countingDownTo}</div>
+              <div className="text-[10px] font-semibold uppercase" style={{ color: light ? GOLD_SOFT : ROSE, letterSpacing: isArabic ? "normal" : "0.15em", fontFamily: FONT_BODY }}>{t.countingDownTo}</div>
               <div style={{ fontFamily: hs.fontFamily || fontScript, fontSize: hs.fontSize ? `${hs.fontSize}px` : 26, color: hs.color || (light ? PAPER : EMERALD), margin: "4px 0 4px" }}>{t.celebrationWord}</div>
-              {formattedDate && <div className="text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : ROSE, fontFamily: FONT_BODY }}>{formattedDate}</div>}
+              {formattedDate && <div className="text-[10.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : ROSE, fontFamily: FONT_BODY }}>{digits(formattedDate)}</div>}
             </div>
           </DraggableBlock>
           )}
@@ -6411,8 +6415,8 @@ function CountdownSlide({ schedule, bg, fontDisplay, fontScript, t, locale, layo
             {cd && !cd.passed ? (
               <div className={cs.style === "minimal" || cs.style === "circle" ? "flex gap-4" : "flex gap-2.5"}>
                 {[[t.days, cd.days], [t.hrs, cd.hours], [t.min, cd.mins], [t.sec, cd.secs]].map(([label, val], i) => {
-                  const number = <div style={{ fontFamily: cs.fontFamily || fontDisplay, fontSize: cs.fontSize ? `${cs.fontSize}px` : 18, color: cs.color || PAPER }}>{String(val).padStart(2, "0")}</div>;
-                  const labelEl = <div className="text-[8.5px] uppercase" style={{ color: cs.labelColor || GOLD_SOFT, fontFamily: FONT_BODY, letterSpacing: "0.08em" }}>{label}</div>;
+                  const number = <div style={{ fontFamily: cs.fontFamily || fontDisplay, fontSize: cs.fontSize ? `${cs.fontSize}px` : 18, color: cs.color || PAPER }}>{digits(String(val).padStart(2, "0"))}</div>;
+                  const labelEl = <div className="text-[8.5px] uppercase" style={{ color: cs.labelColor || GOLD_SOFT, fontFamily: FONT_BODY, letterSpacing: isArabic ? "normal" : "0.08em" }}>{label}</div>;
                   if (cs.style === "circle") {
                     return (
                       <div key={i} className="text-center">
