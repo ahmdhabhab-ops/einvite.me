@@ -1125,9 +1125,9 @@ async function canUseSlug(req, slug, kind) {
 }
 
 const SLUG_RE = /^[a-z0-9-]{1,100}$/;
-const eventHits = new Map(); // ip -> { count, since }
-function eventRateLimited(req, max = 30) {
-  const ip = clientIp(req);
+const eventHits = new Map(); // "bucket:ip" -> { count, since }
+function eventRateLimited(req, max = 30, bucket = "event") {
+  const ip = `${bucket}:${clientIp(req)}`;
   const now = Date.now();
   const h = eventHits.get(ip);
   const cur = h && now - h.since < 60000 ? h : { count: 0, since: now };
@@ -1186,6 +1186,68 @@ app.patch("/api/song-requests/:id", express.json({ limit: "2kb" }), eventRoute(a
   const rows = await restSend("PATCH", `song_requests?id=eq.${enc(req.params.id)}&invitation_slug=eq.${enc(slug)}`, { status });
   if (!rows.length) return res.status(404).json({ error: "not found" });
   res.json(rows[0]);
+}));
+
+// ---- Live stream viewers ----
+// A guest's phone pings every 20s while the live page is on screen.
+// "Watching now" = pinged in the last 45s (kept in memory only); "in total"
+// = every different phone that ever opened it, saved in kv_store so it
+// survives a redeploy.
+const LIVE_KV = "einvite:live-viewers";
+const LIVE_WINDOW_MS = 45000;
+const liveNow = new Map(); // slug -> Map(viewerId -> lastSeen)
+let liveTotals = null; // slug -> Set(viewerId), stored as arrays
+let liveTotalsDirty = false;
+async function loadLiveTotals() {
+  if (!liveTotals) {
+    const raw = await kvRead(LIVE_KV);
+    const saved = raw ? JSON.parse(raw) : {};
+    liveTotals = liveTotals || Object.fromEntries(Object.entries(saved).map(([slug, ids]) => [slug, new Set(ids)]));
+  }
+  return liveTotals;
+}
+setInterval(async () => {
+  const now = Date.now();
+  for (const [slug, viewers] of liveNow) {
+    for (const [id, seen] of viewers) if (now - seen > LIVE_WINDOW_MS) viewers.delete(id);
+    if (!viewers.size) liveNow.delete(slug);
+  }
+  if (!liveTotalsDirty || !liveTotals) return;
+  liveTotalsDirty = false;
+  try {
+    await kvWrite(LIVE_KV, JSON.stringify(Object.fromEntries(Object.entries(liveTotals).map(([slug, ids]) => [slug, [...ids]]))));
+  } catch (err) {
+    liveTotalsDirty = true;
+    console.error("live viewers save failed:", err.message);
+  }
+}, 30000).unref();
+
+app.post("/api/live/ping", express.json({ limit: "2kb" }), eventRoute(async (req, res) => {
+  const slug = String(req.body?.slug || "");
+  const viewerId = String(req.body?.viewerId || "");
+  if (eventRateLimited(req, 120, "live")) return res.status(429).json({ error: "slow down" });
+  if (!SLUG_RE.test(slug) || !/^[a-z0-9-]{6,64}$/i.test(viewerId)) return res.status(400).json({ error: "bad request" });
+  if (!(await slugOwnerId(slug))) return res.status(404).json({ error: "not found" });
+  const viewers = liveNow.get(slug) || new Map();
+  if (viewers.size < 5000 || viewers.has(viewerId)) viewers.set(viewerId, Date.now());
+  liveNow.set(slug, viewers);
+  const totals = await loadLiveTotals();
+  const seen = totals[slug] || (totals[slug] = new Set());
+  if (seen.size < 20000 && !seen.has(viewerId)) {
+    seen.add(viewerId);
+    liveTotalsDirty = true;
+  }
+  res.status(204).end();
+}));
+
+app.get("/api/live/viewers", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  if (!SLUG_RE.test(slug) || !(await ownsSlug(req, slug))) return deny(res);
+  const now = Date.now();
+  let watching = 0;
+  for (const seen of (liveNow.get(slug) || new Map()).values()) if (now - seen <= LIVE_WINDOW_MS) watching++;
+  const total = (await loadLiveTotals())[slug]?.size || 0;
+  res.set("cache-control", "no-store").json({ watching, total });
 }));
 
 // ---- Voice messages ----

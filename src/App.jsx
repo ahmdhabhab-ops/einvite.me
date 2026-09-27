@@ -3306,7 +3306,7 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               </div>
             </div>
             <div>
-              <FieldLabel>Thank-you "coming so far" line</FieldLabel>
+              <FieldLabel>Thank-you "confirmed for" line</FieldLabel>
               <div className="flex items-center gap-2">
                 <input type="color" value={current.thankYouSub || "#C9A44C"} onChange={(e) => onChangeStyle({ thankYouSub: e.target.value })} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
                 {current.thankYouSub && (
@@ -6627,6 +6627,17 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
+  // How many people THIS guest said are coming (their own party, not the
+  // whole event's total). Remembered on the guest's phone so reopening the
+  // invitation still shows it.
+  const partySizeKey = `einvite:rsvp-party:${slug || ""}:${guestGroupId || ""}`;
+  const [partySize, setPartySize] = useState(() => {
+    try { return Number(window.localStorage.getItem(partySizeKey)) || null; } catch { return null; }
+  });
+  const rememberPartySize = (n) => {
+    setPartySize(n);
+    try { window.localStorage.setItem(partySizeKey, String(n)); } catch {}
+  };
   // Starts at "done" when the guest already responded on a previous visit —
   // otherwise reopening their link would re-prompt them to record a voice
   // message every single time instead of just the once, right after they
@@ -6667,6 +6678,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       return;
     }
     setError("");
+    if (choice === "yes") rememberPartySize(Math.max(1, guestCount));
     setSubmitted(true); // show the confirmation immediately — the QR code appears a moment later once the token comes back, rather than making the guest wait on a network call before seeing anything
     const token = await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
     if (token) setCheckinToken(token);
@@ -6702,6 +6714,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       return;
     }
     setShowModal(false);
+    rememberPartySize(Math.max(1, modalGuestCount, confirmedNames.length));
     setSubmitted(true);
     const token = await onSubmitRsvp({ status: "yes", names: confirmedNames, additionalGuests: Math.max(0, modalGuestCount - confirmedNames.length) });
     if (token) setCheckinToken(token);
@@ -6745,13 +6758,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // and styled too, without needing a real check-in token.
   const effectiveCheckinToken = editMode && editPreviewState > 0 ? (checkinToken || "preview") : checkinToken;
 
+  const shownPartySize = editMode ? (editPreviewState === 1 ? partySize || 2 : 0) : choice === "yes" ? partySize : 0;
   const thankYou = (light) => (
     <div className="text-center">
       <CheckCircle2 size={22} color={bs.thankYouText || (light ? PAPER : EMERALD)} style={{ margin: "0 auto 6px" }} />
       <p style={{ color: bs.thankYouText || (light ? PAPER : EMERALD), fontFamily: fontDisplay, fontStyle: "italic", fontSize: 14 }}>Thank you for your response!</p>
-      {rsvpSettings.showTotalAttending && (
+      {rsvpSettings.showTotalAttending && shownPartySize > 0 && (
         <p className="mt-2 text-[11.5px]" style={{ color: bs.thankYouSub || (light ? GOLD_SOFT : ROSE), fontFamily: FONT_BODY }}>
-          {totalAttending} {totalAttending === 1 ? "person is" : "people are"} coming so far
+          Confirmed for {shownPartySize} {shownPartySize === 1 ? "person" : "people"}
         </p>
       )}
       {effectiveCheckinToken && (
@@ -7208,7 +7222,81 @@ function DjRequestSlide({ heading, subtitle, formText, slug, bg, fontDisplay, la
   );
 }
 
-function LivestreamSlide({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+// Live stream viewer counts. Each phone gets a random id, and while the
+// live page is actually on screen (not just scrolled past) it pings the
+// server every 20s; the couple sees who pinged recently ("watching now")
+// and how many different phones ever opened it ("opened in total").
+const liveViewerId = () => {
+  try {
+    let id = window.localStorage.getItem("einvite:viewer-id");
+    if (!id) { id = `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; window.localStorage.setItem("einvite:viewer-id", id); }
+    return id;
+  } catch { return `v-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`; }
+};
+function LiveViewerPing({ slug }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!slug || !ref.current || typeof IntersectionObserver === "undefined") return;
+    const viewerId = liveViewerId();
+    let visible = false;
+    let firstPing = null;
+    const ping = () => {
+      if (!visible || document.visibilityState !== "visible") return;
+      fetch("/api/live/ping", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, viewerId }), keepalive: true }).catch(() => {});
+    };
+    const io = new IntersectionObserver(([entry]) => {
+      const onScreen = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+      // Wait a few seconds before the first ping so swiping past the page
+      // on the way to another one doesn't count as a view.
+      if (onScreen && !visible) { visible = true; clearTimeout(firstPing); firstPing = setTimeout(ping, 3000); }
+      if (!onScreen) { visible = false; clearTimeout(firstPing); }
+    }, { threshold: [0, 0.6] });
+    io.observe(ref.current);
+    const interval = setInterval(ping, 20000);
+    return () => { io.disconnect(); clearInterval(interval); clearTimeout(firstPing); };
+  }, [slug]);
+  return <div ref={ref} aria-hidden="true" className="pointer-events-none absolute inset-0" />;
+}
+// For the couple: "12 watching now · 45 opened in total", refreshed every 15s.
+function LiveViewerCount({ slug }) {
+  const [counts, setCounts] = useState(null);
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    const load = async () => {
+      if (!(await serverAuthReady())) return;
+      try {
+        const d = await apiJson(`/api/live/viewers?slug=${encodeURIComponent(slug)}`);
+        if (!cancelled) setCounts(d);
+      } catch {}
+    };
+    load();
+    const interval = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [slug]);
+  if (!counts) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[11.5px]" style={{ fontFamily: FONT_BODY }}>
+      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold" style={{ background: counts.watching > 0 ? "rgba(226,95,95,0.15)" : INK_3, color: counts.watching > 0 ? "#F08A8A" : MUTED }}>
+        <span style={{ width: 7, height: 7, borderRadius: 99, background: counts.watching > 0 ? "#F05A5A" : MUTED, display: "inline-block" }} />
+        {counts.watching} watching now
+      </span>
+      <span className="rounded-full px-2.5 py-1" style={{ background: INK_3, color: IVORY }}>{counts.total} opened the live page in total</span>
+    </div>
+  );
+}
+
+function LivestreamSlide(props) {
+  // Wrapped so the viewer ping can see whether this page is on screen.
+  return (
+    <div className="relative h-full w-full">
+      <LivestreamSlideContent {...props} />
+      {!props.editMode && <LiveViewerPing slug={props.slug} />}
+    </div>
+  );
+}
+
+function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const hs = layout.heading;
   // For a "hidden" (paid) stream, the real video is never part of this
   // invitation's normal saved data — it's fetched separately here, once the
@@ -8899,8 +8987,8 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Show Total Attending</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Displays the live confirmed-guest count on the RSVP page itself</div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Show guest's party size</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>After replying, each guest sees how many people they confirmed (e.g. "Confirmed for 4 people") — never the event's total</div>
         </div>
         <button onClick={() => updateRsvpSettings({ showTotalAttending: !rsvpSettings.showTotalAttending })} className="relative h-6 w-11 flex-shrink-0 rounded-full transition-colors" style={{ background: rsvpSettings.showTotalAttending ? GOLD : INK_3 }}>
           <span className="absolute top-0.5 h-5 w-5 rounded-full transition-transform" style={{ background: IVORY, transform: rsvpSettings.showTotalAttending ? "translateX(22px)" : "translateX(2px)" }} />
@@ -10321,6 +10409,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               </a>
             </div>
           )}
+          {integrations.livestreamUrl && slug && <div className="w-full"><LiveViewerCount slug={slug} /></div>}
         </div>
       )}
 
@@ -16747,6 +16836,12 @@ export default function InvitationBuilder() {
                   bg={pageBackgrounds.livestream}
                   setBg={setBgFor("livestream")}
                 />
+              )}
+              {stepKey === "livestream" && slug && (
+                <div className="mt-4">
+                  <FieldLabel>Viewers</FieldLabel>
+                  <LiveViewerCount slug={slug} />
+                </div>
               )}
 
               {stepKey === "livestream" && (
