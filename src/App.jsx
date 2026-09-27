@@ -6605,7 +6605,15 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
   );
 }
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateContent }) {
+// "Peter Kfoury & Martine Kfoury", "A, B & C"
+const joinNames = (names) => (names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`);
+
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, onUpdateContent }) {
+  // A family's personal link already knows who's invited (the Members the
+  // couple entered in the dashboard): their names are shown, and replying
+  // answers for all of them instead of asking the guest to type names.
+  const invited = editMode ? [] : (invitedNames || []).map((n) => String(n || "").trim()).filter(Boolean);
+  const personal = invited.length > 0;
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   // Lets the couple fade a customized button background toward the photo
@@ -6630,6 +6638,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [choice, setChoice] = useState(prefilledRsvpStatus || null);
   const [name, setName] = useState(prefilledGuestName || "");
   const [guestCount, setGuestCount] = useState(1);
+  const [notComing, setNotComing] = useState(() => new Set()); // invited names the guest un-ticked
+  const comingNames = invited.filter((n) => !notComing.has(n));
   const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
@@ -6668,7 +6678,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [nameInput, setNameInput] = useState("");
   const [modalError, setModalError] = useState("");
 
-  const nameNeeded = choice === "yes" ? rsvpSettings.namesRequired : choice === "no";
+  const nameNeeded = personal ? false : choice === "yes" ? rsvpSettings.namesRequired : choice === "no";
   const isFull = rsvpSettings.maxTotalRsvps > 0 && totalAttending >= rsvpSettings.maxTotalRsvps;
   // editMode is exempt so the couple can keep previewing/styling the RSVP
   // block on the phone canvas even after their own deadline has passed.
@@ -6684,9 +6694,17 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       return;
     }
     setError("");
-    if (choice === "yes") rememberPartySize(Math.max(1, guestCount));
+    if (personal && choice === "yes" && comingNames.length === 0) {
+      setError("Tick who's coming, or choose that you can't make it.");
+      return;
+    }
+    if (choice === "yes") rememberPartySize(personal ? comingNames.length : Math.max(1, guestCount));
     setSubmitted(true); // show the confirmation immediately — the QR code appears a moment later once the token comes back, rather than making the guest wait on a network call before seeing anything
-    const token = await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
+    const token = personal
+      ? await onSubmitRsvp(choice === "yes"
+        ? { status: "yes", names: comingNames, declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: 0 }
+        : { status: "no", names: invited, additionalGuests: 0 })
+      : await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
     if (token) setCheckinToken(token);
   };
 
@@ -6715,6 +6733,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   };
 
   const confirmModal = async () => {
+    if (personal) {
+      if (comingNames.length === 0) { setModalError("Tick who's coming."); return; }
+      setShowModal(false);
+      rememberPartySize(comingNames.length);
+      setSubmitted(true);
+      const token = await onSubmitRsvp({ status: "yes", names: comingNames, declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: 0 });
+      if (token) setCheckinToken(token);
+      return;
+    }
     if (rsvpSettings.namesRequired && confirmedNames.length < modalGuestCount) {
       setModalError("Please name every guest before saving.");
       return;
@@ -6725,6 +6752,28 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     const token = await onSubmitRsvp({ status: "yes", names: confirmedNames, additionalGuests: Math.max(0, modalGuestCount - confirmedNames.length) });
     if (token) setCheckinToken(token);
   };
+
+  // Personal link: tick who's coming.
+  const personalPicker = (textColor, boxColor) => (
+    <div className="flex flex-col gap-1.5">
+      {invited.map((n) => {
+        const on = !notComing.has(n);
+        return (
+          <button
+            key={n}
+            onClick={() => setNotComing((s) => { const next = new Set(s); if (next.has(n)) next.delete(n); else next.add(n); return next; })}
+            className="flex items-center gap-2 text-left text-[12px]"
+            style={{ color: textColor, fontFamily: FONT_BODY }}
+          >
+            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded" style={{ border: `1.5px solid ${boxColor}`, background: on ? boxColor : "transparent" }}>
+              {on && <Check size={11} color="#fff" />}
+            </span>
+            {n}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const guestStepper = (light) => (
     <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
@@ -6737,7 +6786,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     </div>
   );
 
-  const nameField = (light) => (
+  const nameField = (light) => personal ? null : (
     <input
       value={name}
       onChange={(e) => setName(e.target.value)}
@@ -6843,11 +6892,16 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               </div>
             )}
             <div style={{ width: 230 }}>
+              {personal && (
+                <p className="mb-3 text-center" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: bs.thankYouText || (light ? PAPER : EMERALD) }}>
+                  {joinNames(invited)}
+                </p>
+              )}
               {effectiveSubmitted ? (
                 (editMode ? editPreviewState === 3 : voiceMessageStage === "recording" && choice === "no" && rsvpSettings.enableGuestVoiceRecorder) ? (
                   <VoiceMessageRecorder
                     rsvpStatus={choice}
-                    guestName={name.trim() || "Guest"}
+                    guestName={personal ? joinNames(invited) : name.trim() || "Guest"}
                     slug={slug}
                     guestGroupId={null}
                     light={light}
@@ -6944,7 +6998,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                   {choice && (
                     <div className="mt-3 flex flex-col gap-2">
                       {nameField(light)}
-                      {choice === "yes" && rsvpSettings.maxGuestsOpenInvite > 0 && guestStepper(light)}
+                      {choice === "yes" && personal && personalPicker(bs.fieldText || (light ? PAPER : EMERALD), light ? GOLD : EMERALD)}
+                      {choice === "yes" && !personal && rsvpSettings.maxGuestsOpenInvite > 0 && guestStepper(light)}
                       {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
                     </div>
                   )}
@@ -6967,6 +7022,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               <div className="w-full rounded-2xl p-4" style={{ maxWidth: 250, background: "#FFFFFF" }}>
                 <h3 style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, color: "#1A1A1A" }}>Who's joining us?</h3>
 
+                {personal ? (
+                  <>
+                    <div className="mt-3">{personalPicker("#1A1A1A", "#111")}</div>
+                    <div className="my-2.5 border-t" style={{ borderColor: "#E5E5E5" }} />
+                    <p className="text-center text-[11.5px] font-semibold underline" style={{ color: "#1A1A1A", fontFamily: FONT_BODY }}>
+                      You're confirming {comingNames.length} guest{comingNames.length !== 1 ? "s" : ""}
+                    </p>
+                  </>
+                ) : (<>
                 <div className="mt-3 flex items-center justify-between rounded-lg p-2.5" style={{ background: "#F2F2F0" }}>
                   <span style={{ fontSize: 10.5, color: "#333", fontFamily: FONT_BODY, lineHeight: 1.3 }}>How many of<br />you are coming?</span>
                   <div className="flex items-center gap-2">
@@ -7008,6 +7072,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 <p className="text-center text-[11.5px] font-semibold underline" style={{ color: "#1A1A1A", fontFamily: FONT_BODY }}>
                   You're confirming {modalGuestCount} guest{modalGuestCount !== 1 ? "s" : ""}
                 </p>
+                </>)}
                 {modalError && <p className="mt-1 text-center text-[10px]" style={{ color: "#C0392B", fontFamily: FONT_BODY }}>{modalError}</p>}
 
                 <div className="mt-3 flex items-center justify-between">
@@ -7576,7 +7641,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -8113,7 +8178,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
@@ -8599,7 +8664,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 // Timeline, Registry, Rsvp, ...) and the same already-saved content/layout
 // data — this is a different way of PRESENTING that data, not a separate
 // copy of it.
-function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, onUpdateRsvpContent }) {
+function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, onUpdateRsvpContent }) {
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
   const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
@@ -8628,7 +8693,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
       case "djRequests":
@@ -9017,15 +9082,45 @@ function StatCard({ label, value, accent }) {
   );
 }
 
-function MemberBadge({ member }) {
-  const declined = member.status === "no";
+// The dashboard's Members cell: one editable name per invited person (e.g.
+// "Peter Kfoury", "Martine Kfoury") plus "+ Add member". The dot shows each
+// person's RSVP (green yes, red no, grey pending). Everyone listed here is
+// named on that family's personal invitation link.
+function MembersEditor({ group, onChange, onNameAdditional }) {
+  const setMembers = (members) => onChange({ members });
+  const statusColor = (st) => (st === "yes" ? CHART_COLORS.yes : st === "no" ? CHART_COLORS.no : "#9AA8A0");
   return (
-    <span
-      className="inline-flex flex-shrink-0 items-center whitespace-nowrap rounded-full px-1.5 py-px text-[9.5px] font-medium leading-tight"
-      style={{ background: declined ? "rgba(217,142,142,0.18)" : "rgba(143,191,163,0.18)", color: declined ? "#E8A9A9" : "#A8D4BB", fontFamily: FONT_BODY }}
-    >
-      {member.name}
-    </span>
+    <div className="flex flex-col gap-1 py-1">
+      {group.members.map((m) => (
+        <div key={m.id} className="flex items-center gap-1.5">
+          <span title={m.status === "yes" ? "Attending" : m.status === "no" ? "Not attending" : "No reply yet"} style={{ width: 7, height: 7, borderRadius: 99, background: statusColor(m.status), flexShrink: 0 }} />
+          <input
+            value={m.name}
+            onChange={(e) => setMembers(group.members.map((x) => (x.id === m.id ? { ...x, name: e.target.value } : x)))}
+            placeholder="Full name"
+            className="min-w-0 flex-1 rounded-md px-2 py-1 text-[11.5px] outline-none"
+            style={{ background: INK_3, color: IVORY, border: "1px solid rgba(147,166,155,0.18)", fontFamily: FONT_BODY }}
+          />
+          <button onClick={() => setMembers(group.members.filter((x) => x.id !== m.id))} title="Remove" style={{ color: MUTED, flexShrink: 0 }}>
+            <X size={12} />
+          </button>
+        </div>
+      ))}
+      {(group.additionalGuests || 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {Array.from({ length: group.additionalGuests }).map((_, i) => (
+            <UnnamedBadge key={i} onNamed={onNameAdditional} />
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => setMembers([...group.members, { id: uid(), name: "", status: "pending" }])}
+        className="flex items-center gap-1 self-start text-[10px] font-semibold uppercase"
+        style={{ color: "#7FB2E5", fontFamily: FONT_BODY, letterSpacing: "0.06em" }}
+      >
+        <Plus size={11} /> Add member
+      </button>
+    </div>
   );
 }
 
@@ -10696,15 +10791,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                       />
                     </td>
                     <td className="px-2 py-0.5">
-                      <div className="guest-scroll flex flex-nowrap items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
-                        {g.members.map((m) => <MemberBadge key={m.id} member={m} />)}
-                        {Array.from({ length: g.additionalGuests || 0 }).map((_, i) => (
-                          <UnnamedBadge key={i} onNamed={(name) => nameAdditionalGuest(g, name)} />
-                        ))}
-                        {g.members.length === 0 && !g.additionalGuests && (
-                          <span className="whitespace-nowrap text-[11px] italic" style={{ color: "rgba(147,166,155,0.5)", fontFamily: FONT_BODY }}>No members yet</span>
-                        )}
-                      </div>
+                      <MembersEditor group={g} onChange={(patch) => updateGuestGroup(g.id, patch)} onNameAdditional={(name) => nameAdditionalGuest(g, name)} />
                     </td>
                     <td className="px-2 py-0.5">
                       <input
@@ -15485,9 +15572,13 @@ export default function InvitationBuilder() {
   // though both land in the same guest list. `names` may contain zero, one, or
   // several people (from the "Who's joining us?" modal); anyone not named counts
   // toward additionalGuests as an unnamed slot, same as guests added manually.
-  const submitGuestRsvp = async ({ names, status, additionalGuests, existingGroupId, batchId }) => {
+  const submitGuestRsvp = async ({ names, declinedNames, status, additionalGuests, existingGroupId, batchId }) => {
     const cleanNames = (names || []).filter((n) => n && n.trim());
-    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : [{ id: uid(), name: "Guest", status }];
+    const cleanDeclined = (declinedNames || []).filter((n) => n && n.trim());
+    const newMembers = [
+      ...(cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : cleanDeclined.length ? [] : [{ id: uid(), name: "Guest", status }]),
+      ...cleanDeclined.map((n) => ({ id: uid(), name: n, status: "no" })),
+    ];
     const existing = existingGroupId ? guestGroups.find((g) => g.id === existingGroupId) : null;
 
     if (existing) {
@@ -15512,7 +15603,7 @@ export default function InvitationBuilder() {
       }
       if (status !== "yes") return null;
       const extra = additionalGuests || 0;
-      const displayNames = (updatedGroup.members.map((m) => m.name).join(", ") || "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
+      const displayNames = (updatedGroup.members.filter((m) => m.status !== "no").map((m) => m.name).join(", ") || "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
       return await createCheckinToken(slug, existing.id, displayNames);
     }
 
@@ -16221,6 +16312,7 @@ export default function InvitationBuilder() {
     ? guestLangOverride
     : (guestView && guestView.found ? (guestView.ownSlug ? activeLang : (guestView.snapshot.defaultLang || "en")) : "en");
   const matchedGroup = guestView && guestView.found ? guestView.snapshotGuestGroups.find((g) => g.id === guestView.groupId) : null;
+  const resolvedInvitedNames = (matchedGroup?.members || []).map((m) => m.name).filter((n) => n && n.trim() && n !== "Guest");
   const resolvedGuestName = matchedGroup?.members?.find((m) => m.status === "yes")?.name || matchedGroup?.members?.[0]?.name || guestView?.guestNameParam || null;
   // Lets a guest reopening their own personal link see that they already
   // responded (and their QR code, if they said yes) instead of the RSVP
@@ -16231,13 +16323,17 @@ export default function InvitationBuilder() {
   // place — the live state if it's this device's own invitation, or the
   // correct client's slot in invitationsStore otherwise (without touching
   // whatever invitation is currently loaded for editing).
-  const submitGuestViewRsvp = async ({ names, status, additionalGuests }) => {
+  const submitGuestViewRsvp = async ({ names, declinedNames, status, additionalGuests }) => {
     if (!guestView?.found) return null;
     if (guestView.ownSlug) {
-      return await submitGuestRsvp({ names, status, additionalGuests, existingGroupId: guestView.groupId, batchId: guestView.batchId });
+      return await submitGuestRsvp({ names, declinedNames, status, additionalGuests, existingGroupId: guestView.groupId, batchId: guestView.batchId });
     }
     const cleanNames = (names || []).filter((n) => n && n.trim());
-    const newMembers = cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : [{ id: uid(), name: "Guest", status }];
+    const cleanDeclined = (declinedNames || []).filter((n) => n && n.trim());
+    const newMembers = [
+      ...(cleanNames.length ? cleanNames.map((n) => ({ id: uid(), name: n, status })) : cleanDeclined.length ? [] : [{ id: uid(), name: "Guest", status }]),
+      ...cleanDeclined.map((n) => ({ id: uid(), name: n, status: "no" })),
+    ];
 
     // THE ACTUAL FIX: write straight to Supabase, not just to local
     // invitationsStore state. A guest submitting this is on their OWN
@@ -16252,7 +16348,7 @@ export default function InvitationBuilder() {
     try {
       if (await serverAuthReady()) {
         // The server adds or updates just this guest's entry in the list.
-        const { group } = await authRequest("/api/guest/rsvp", { ownerId: guestView.userId, groupId: guestView.groupId || null, batchId: guestView.batchId || null, names: cleanNames, status, additionalGuests: additionalGuests || 0 });
+        const { group } = await authRequest("/api/guest/rsvp", { ownerId: guestView.userId, groupId: guestView.groupId || null, batchId: guestView.batchId || null, names: cleanNames, declinedNames: cleanDeclined, status, additionalGuests: additionalGuests || 0 });
         resultGroup = group;
         savedOk = true;
       } else {
@@ -16297,7 +16393,7 @@ export default function InvitationBuilder() {
     }
     if (status !== "yes") return null;
     const extra = additionalGuests || 0;
-    const displayNames = (resultGroup.members.map((m) => m.name).join(", ") || "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
+    const displayNames = (resultGroup.members.filter((m) => m.status !== "no").map((m) => m.name).join(", ") || "Guest") + (extra > 0 ? ` + ${extra} guest${extra === 1 ? "" : "s"}` : "");
     return await createCheckinToken(guestView.slug, resultGroup.id, displayNames);
   };
 
@@ -16397,6 +16493,7 @@ export default function InvitationBuilder() {
               prefilledGuestName={resolvedGuestName}
               prefilledRsvpStatus={resolvedRsvpStatus}
               guestGroupId={guestView.groupId}
+              invitedNames={resolvedInvitedNames}
               onUpdateRsvpContent={() => {}}
             />
           ) : (
@@ -16423,6 +16520,7 @@ export default function InvitationBuilder() {
               prefilledGuestName={resolvedGuestName}
               prefilledRsvpStatus={resolvedRsvpStatus}
               guestGroupId={guestView.groupId}
+              invitedNames={resolvedInvitedNames}
               onUpdateRsvpContent={() => {}}
               swipeDirection={guestSettings.swipeDirection}
             />

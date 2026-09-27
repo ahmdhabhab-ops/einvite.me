@@ -1073,6 +1073,8 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
   const ownerId = String(b.ownerId || "");
   const status = String(b.status || "");
   const names = (Array.isArray(b.names) ? b.names : []).map((n) => String(n || "").trim().slice(0, 80)).filter(Boolean).slice(0, 20);
+  // A family's personal link can say who of them isn't coming.
+  const declinedNames = (Array.isArray(b.declinedNames) ? b.declinedNames : []).map((n) => String(n || "").trim().slice(0, 80)).filter(Boolean).slice(0, 20);
   const additionalGuests = Math.max(0, Math.min(50, Number(b.additionalGuests) || 0));
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(ownerId) || !RSVP_STATUSES.includes(status)) return res.status(400).json({ error: "bad request" });
   const key = `einvite:invitation-${ownerId}`;
@@ -1082,7 +1084,10 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
     if (!raw) return res.status(404).json({ error: "Invitation not found." });
     const latest = JSON.parse(raw);
     const groups = Array.isArray(latest.guestGroups) ? latest.guestGroups : [];
-    const members = names.length ? names.map((name) => ({ id: genId(), name, status })) : [{ id: genId(), name: "Guest", status }];
+    const members = [
+      ...(names.length ? names.map((name) => ({ id: genId(), name, status })) : declinedNames.length ? [] : [{ id: genId(), name: "Guest", status }]),
+      ...declinedNames.map((name) => ({ id: genId(), name, status: "no" })),
+    ];
     let group;
     if (b.quick) {
       group = { id: genId(), lastName: "", members, additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: now };
@@ -1090,7 +1095,7 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
     } else {
       const existing = b.groupId ? groups.find((g) => g.id === String(b.groupId)) : null;
       if (existing) {
-        group = { ...existing, members: names.length ? members : existing.members, additionalGuests: status === "yes" ? additionalGuests : 0, invitationViewed: true, updatedAt: now };
+        group = { ...existing, members: names.length || declinedNames.length ? members : existing.members, additionalGuests: status === "yes" ? additionalGuests : 0, invitationViewed: true, updatedAt: now };
         latest.guestGroups = groups.map((g) => (g.id === existing.id ? group : g));
       } else {
         group = { id: genId(), lastName: "", members, additionalGuests: status === "yes" ? additionalGuests : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: b.batchId ? String(b.batchId).slice(0, 64) : null, updatedAt: now };
