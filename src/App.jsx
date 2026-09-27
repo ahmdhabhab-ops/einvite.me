@@ -979,11 +979,20 @@ async function apiJson(path, { method = "GET", body, headers = {} } = {}) {
   }
   return data;
 }
-// An old DJ / check-in staff link (from before the links had keys) opens
-// an empty page; this tells whoever holds it to ask for the new link.
-function MissingAccessKeyNotice({ who }) {
+// Shown only when the server turns this page away: an old DJ / check-in
+// staff link (from before the links had keys) or a wrong key. The couple
+// opening the page while logged in never sees it.
+function MissingAccessKeyNotice({ who, probe }) {
   const [missing, setMissing] = useState(false);
-  useEffect(() => { serverAuthReady().then((ready) => setMissing(ready && !pageAccessKey())); }, []);
+  useEffect(() => {
+    (async () => {
+      if (!(await serverAuthReady())) return;
+      try {
+        const res = await fetch(probe, { headers: accessKeyHeaders() });
+        setMissing(res.status === 403);
+      } catch {}
+    })();
+  }, [probe]);
   if (!missing) return null;
   return (
     <div className="mb-5 rounded-xl p-4 text-[12.5px]" style={{ background: "rgba(226,155,155,0.12)", border: "1px solid rgba(226,155,155,0.4)", color: "#E8B4B4", fontFamily: FONT_BODY }}>
@@ -992,22 +1001,30 @@ function MissingAccessKeyNotice({ who }) {
   );
 }
 
-// The owner's secret keys for their DJ and check-in staff links.
+// The owner's secret keys for their DJ and check-in staff links:
+// undefined while loading, null when the server isn't set up (links need
+// no key then), false if the server refused, else { djKey, staffKey }.
 function useAccessKeys(slug) {
-  const [keys, setKeys] = useState(null);
+  const [keys, setKeys] = useState(undefined);
   useEffect(() => {
     let cancelled = false;
+    setKeys(undefined);
     (async () => {
-      if (!slug || !(await serverAuthReady())) return;
+      if (!slug) return;
+      if (!(await serverAuthReady())) { if (!cancelled) setKeys(null); return; }
       try {
         const d = await apiJson(`/api/access-links?slug=${encodeURIComponent(slug)}`);
         if (!cancelled) setKeys(d);
-      } catch {}
+      } catch {
+        if (!cancelled) setKeys(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [slug]);
   return keys;
 }
+// The link to hand out, or "" while it isn't ready or couldn't be made.
+const keyedLink = (url, keys, key) => (keys === null ? url : keys && keys[key] ? withAccessKey(url, keys[key]) : "");
 const withAccessKey = (url, key) => (key ? `${url}${url.includes("?") ? "&" : "?"}k=${key}` : url);
 
 // ---------------------------------------------------------------------- //
@@ -4538,12 +4555,13 @@ function NetworkingPanel({ heading, setHeading, subtitle, setSubtitle, buttonLab
 function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, formText, formDefaults, setFormText, formStyle, setFormStyle, bg, setBg, dashboardUrl: baseDashboardUrl, slug }) {
   // The DJ's link carries this invitation's secret DJ key once the server is set up.
   const accessKeys = useAccessKeys(slug);
-  const dashboardUrl = withAccessKey(baseDashboardUrl, accessKeys?.djKey);
+  const dashboardUrl = keyedLink(baseDashboardUrl, accessKeys, "djKey");
   const [copied, setCopied] = useState(false);
   const [pendingCount, setPendingCount] = useState(null);
   const [checking, setChecking] = useState(false);
 
   const copyLink = async () => {
+    if (!dashboardUrl) return;
     const ok = await copyToClipboard(dashboardUrl);
     setCopied(ok);
     setTimeout(() => setCopied(false), 2000);
@@ -4566,7 +4584,9 @@ function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, formText,
 
       <FieldLabel>DJ Dashboard link (private — for the DJ only)</FieldLabel>
       <div className="flex items-center gap-2">
-        <div className="flex-1 truncate rounded-lg px-3 py-2 text-[12px]" style={{ background: INK_3, color: GOLD_SOFT, fontFamily: FONT_BODY }}>{dashboardUrl}</div>
+        <div className="flex-1 truncate rounded-lg px-3 py-2 text-[12px]" style={{ background: INK_3, color: accessKeys === false ? "#E8B4B4" : GOLD_SOFT, fontFamily: FONT_BODY }}>
+          {dashboardUrl || (accessKeys === false ? "Couldn't prepare the private link — log out, log back in and try again." : "Preparing your private link…")}
+        </div>
         <GhostButton onClick={copyLink}>{copied ? "Copied ✓" : <><Copy size={12} /> Copy</>}</GhostButton>
       </div>
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
@@ -10320,7 +10340,14 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               </div>
             </div>
             <button
-              onClick={async () => { const ok = await copyToClipboard(withAccessKey(`https://${siteDomain}/checkin-staff/${slug}`, staffAccessKeys?.staffKey)); setCopiedCheckinStaffLink(ok); setTimeout(() => setCopiedCheckinStaffLink(false), 2000); }}
+              onClick={async () => {
+                const link = keyedLink(`https://${siteDomain}/checkin-staff/${slug}`, staffAccessKeys, "staffKey");
+                if (!link) {
+                  alert(staffAccessKeys === false ? "Couldn't prepare the private staff link — log out, log back in and try again." : "The link is still being prepared — try again in a second.");
+                  return;
+                }
+                const ok = await copyToClipboard(link); setCopiedCheckinStaffLink(ok); setTimeout(() => setCopiedCheckinStaffLink(false), 2000);
+              }}
               className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold"
               style={{ background: copiedCheckinStaffLink ? "rgba(143,191,163,0.18)" : GOLD, color: copiedCheckinStaffLink ? "#8FBFA3" : INK, fontFamily: FONT_BODY }}
             >
@@ -12478,7 +12505,7 @@ function DjDashboard({ slug }) {
           <Music2 size={20} color={GOLD} />
           <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic" }}>DJ Dashboard</h1>
         </div>
-        <MissingAccessKeyNotice who="DJ" />
+        <MissingAccessKeyNotice who="DJ" probe={`/api/song-requests?slug=${encodeURIComponent(slug)}`} />
         <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>
           Live song requests for this event — refreshes automatically every few seconds. {pendingCount} pending right now.
         </p>
@@ -12541,7 +12568,7 @@ function CheckinStaffPage({ slug }) {
         <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>
           Scan each guest's QR code as they arrive.
         </p>
-        <MissingAccessKeyNotice who="check-in staff" />
+        <MissingAccessKeyNotice who="check-in staff" probe={`/api/checkins?slug=${encodeURIComponent(slug)}`} />
         <CheckinPanel slug={slug} siteDomain={window.location.host} />
       </div>
     </div>
