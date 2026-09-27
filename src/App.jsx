@@ -10135,7 +10135,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     .filter((g) => (filter === "all" ? true : g.members.some((m) => m.status === filter)))
     .filter((g) => {
       const q = search.toLowerCase();
-      return !q || g.lastName.toLowerCase().includes(q) || g.members.some((m) => m.name.toLowerCase().includes(q));
+      return !q || groupFullName(g).toLowerCase().includes(q) || g.members.some((m) => m.name.toLowerCase().includes(q));
     });
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -10321,6 +10321,11 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     setTimeout(() => setSendNote(""), 7000);
   };
 
+  // The guest family's contact first name — its own field now; older rows
+  // only had it as the first member's name.
+  const groupFirstName = (g) => (g.firstName ?? g.members[0]?.name ?? "");
+  const groupFullName = (g) => [groupFirstName(g), g.lastName].filter((x) => x && x.trim()).join(" ");
+
   const nameAdditionalGuest = (group, name) => {
     updateGuestGroup(group.id, {
       members: [...group.members, { id: uid(), name, status: "pending" }],
@@ -10336,25 +10341,25 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     }
     setAddGuestError("");
     addGuestGroup({
-      id: uid(), lastName: lastName.trim(),
+      id: uid(), firstName: firstName.trim(), lastName: lastName.trim(),
       members: [{ id: uid(), name: firstName.trim(), status: "pending" }],
       additionalGuests: addGuestsCount, table: "", phone: phone.trim(), invitationSent: false, invitationViewed: false, updatedAt: Date.now(),
     });
     setLastName(""); setFirstName(""); setAddGuestsCount(0); setPhone("");
   };
 
-  const addBlankRow = () => addGuestGroup({ id: uid(), lastName: "", members: [], additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: false, updatedAt: Date.now() });
+  const addBlankRow = () => addGuestGroup({ id: uid(), firstName: "", lastName: "", members: [], additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: false, updatedAt: Date.now() });
 
   // One row per invited person (not per family group), since that's what's
   // actually useful for a headcount or a mail-merge — a group's shared
   // fields (last name, phone, table) repeat on every member's row.
   const exportGuestsToCsv = () => {
-    const header = ["Last Name", "Guest Name", "RSVP Status", "Phone", "Additional Guests", "Table", "Invitation Sent", "Invitation Viewed"];
+    const header = ["First Name", "Last Name", "Guest Name", "RSVP Status", "Phone", "Additional Guests", "Table", "Invitation Sent", "Invitation Viewed"];
     const rows = guestGroups.flatMap((g) => {
       const tableName = tables.find((t) => t.id === g.tableId)?.name || "";
       const members = g.members.length > 0 ? g.members : [{ name: "", status: "" }];
       return members.map((m) => [
-        g.lastName || "", m.name || "", m.status || "", g.phone || "",
+        groupFirstName(g), g.lastName || "", m.name || "", m.status || "", g.phone || "",
         g.additionalGuests || 0, tableName, g.invitationSent ? "Yes" : "No", g.invitationViewed ? "Yes" : "No",
       ]);
     });
@@ -10606,9 +10611,10 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
             <colgroup>
               <col style={{ width: 26 }} />
               <col style={{ width: 64 }} />
-              <col style={{ width: "27%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "9%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "19%" }} />
+              <col style={{ width: "12%" }} />
               <col style={{ width: "14%" }} />
               <col style={{ width: "8%" }} />
               <col style={{ width: "8%" }} />
@@ -10620,8 +10626,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                   <input type="checkbox" checked={paged.length > 0 && paged.every((g) => selectedIds.has(g.id))} onChange={toggleSelectAllVisible} />
                 </th>
                 <th></th>
-                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Members</th>
+                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>First Name</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Last Name</th>
+                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Members</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Phone</th>
                 <th className="px-2 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>+ Guests</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>
@@ -10641,9 +10648,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                 if (confirming) {
                   return (
                     <tr key={g.id} className="border-b" style={{ borderColor: "rgba(147,166,155,0.08)" }}>
-                      <td colSpan={9} className="px-2 py-2.5">
+                      <td colSpan={11} className="px-2 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Delete {g.lastName || "this guest"}?</span>
+                          <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Delete {groupFullName(g) || "this guest"}?</span>
                           <GhostButton danger onClick={() => { deleteGuestGroup(g.id); setConfirmDeleteId(null); }}>Yes, delete</GhostButton>
                           <GhostButton onClick={() => setConfirmDeleteId(null)}>Cancel</GhostButton>
                         </div>
@@ -10671,15 +10678,13 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                       </div>
                     </td>
                     <td className="px-2 py-0.5">
-                      <div className="guest-scroll flex flex-nowrap items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
-                        {g.members.map((m) => <MemberBadge key={m.id} member={m} />)}
-                        {Array.from({ length: g.additionalGuests || 0 }).map((_, i) => (
-                          <UnnamedBadge key={i} onNamed={(name) => nameAdditionalGuest(g, name)} />
-                        ))}
-                        {g.members.length === 0 && !g.additionalGuests && (
-                          <span className="whitespace-nowrap text-[11px] italic" style={{ color: "rgba(147,166,155,0.5)", fontFamily: FONT_BODY }}>No members yet</span>
-                        )}
-                      </div>
+                      <input
+                        value={groupFirstName(g)}
+                        onChange={(e) => updateGuestGroup(g.id, { firstName: e.target.value })}
+                        placeholder="First name"
+                        className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
+                        style={{ color: IVORY, fontFamily: FONT_BODY }}
+                      />
                     </td>
                     <td className="px-2 py-0.5">
                       <input
@@ -10689,6 +10694,17 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                         className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
                         style={{ color: IVORY, fontFamily: FONT_BODY }}
                       />
+                    </td>
+                    <td className="px-2 py-0.5">
+                      <div className="guest-scroll flex flex-nowrap items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
+                        {g.members.map((m) => <MemberBadge key={m.id} member={m} />)}
+                        {Array.from({ length: g.additionalGuests || 0 }).map((_, i) => (
+                          <UnnamedBadge key={i} onNamed={(name) => nameAdditionalGuest(g, name)} />
+                        ))}
+                        {g.members.length === 0 && !g.additionalGuests && (
+                          <span className="whitespace-nowrap text-[11px] italic" style={{ color: "rgba(147,166,155,0.5)", fontFamily: FONT_BODY }}>No members yet</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-0.5">
                       <input
