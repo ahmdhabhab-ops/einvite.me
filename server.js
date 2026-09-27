@@ -396,7 +396,7 @@ async function processMusicLink(url) {
   }
 }
 
-app.post("/api/music/from-link", express.json({ limit: "10kb" }), async (req, res) => {
+app.post("/api/music/from-link", requireMember, express.json({ limit: "10kb" }), async (req, res) => {
   const raw = String(req.body?.url || "").trim();
   if (!raw || raw.length > 2000) return res.status(400).json({ error: "Paste a link to a song first." });
   const url = await checkPublicUrl(raw);
@@ -458,7 +458,7 @@ async function translateChunk(from, to, texts) {
   return parsed.translations || parsed;
 }
 
-app.post("/api/translate", express.json({ limit: "400kb" }), async (req, res) => {
+app.post("/api/translate", requireMember, limitClientTranslations, express.json({ limit: "400kb" }), async (req, res) => {
   if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "AI translation isn't switched on yet: OPENAI_API_KEY needs to be set on the app in Dokploy." });
   const { from, to, texts } = req.body || {};
   if (!TRANSLATE_LANG_NAMES[from] || !TRANSLATE_LANG_NAMES[to] || from === to) return res.status(400).json({ error: "Unknown languages." });
@@ -482,14 +482,14 @@ app.post("/api/translate", express.json({ limit: "400kb" }), async (req, res) =>
 });
 
 // Upload a new video: the raw file is the request body.
-app.post("/api/video/optimize", express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
+app.post("/api/video/optimize", requireMember, express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "No video received." });
   return handleVideoJob(res, async () => req.body, req.query.audio === "1");
 });
 
 // Optimize a video that's already in our own Storage (e.g. an older, full-
 // size intro video). Only URLs on this project's public Storage are accepted.
-app.post("/api/video/optimize-url", express.json({ limit: "10kb" }), (req, res) => {
+app.post("/api/video/optimize-url", requireMember, express.json({ limit: "10kb" }), (req, res) => {
   const url = String(req.body?.url || "");
   if (!url.startsWith(`${SUPABASE_URL}/storage/v1/object/public/`)) return res.status(400).json({ error: "Only videos stored on this site can be optimized." });
   return handleVideoJob(res, async () => {
@@ -755,7 +755,7 @@ app.post("/api/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/auth/migrate", async (_req, res) => {
+app.post("/api/auth/migrate", requireMember, async (_req, res) => {
   if (!authReady) return res.status(503).json({ error: "not ready" });
   try {
     res.json({ ids: [...(await migrateLegacyPasswords())] });
@@ -818,6 +818,29 @@ function clientSessionUser(req) {
 }
 
 const gatewayEnforced = () => !!ADMIN_PASSWORD;
+
+// Features that cost money or a lot of CPU (AI translation through
+// OpenAI, video and music conversion) are for the admin and logged-in
+// clients only, not for anyone on the internet. Before the server auth is
+// set up there are no sessions yet, so they stay open as before.
+function requireMember(req, res, next) {
+  if (!authReady || requestRole(req).role !== "anon") return next();
+  res.status(401).json({ error: "Please log in to use this." });
+}
+
+// And a client can't run up the OpenAI bill: at most 60 translations an
+// hour each (a whole invitation is one translation). The admin isn't limited.
+const translateHits = new Map(); // userId -> { count, since }
+function limitClientTranslations(req, res, next) {
+  const who = authReady ? requestRole(req) : { role: "admin" };
+  if (who.role !== "client") return next();
+  const now = Date.now();
+  const h = translateHits.get(who.userId);
+  const cur = h && now - h.since < 3600000 ? h : { count: 0, since: now };
+  if (cur.count >= 60) return res.status(429).json({ error: "You've translated a lot in the last hour — please try again a bit later." });
+  translateHits.set(who.userId, { count: cur.count + 1, since: cur.since });
+  next();
+}
 function requestRole(req) {
   if (!gatewayEnforced() || hasAdminSession(req)) return { role: "admin" };
   const userId = clientSessionUser(req);
