@@ -545,7 +545,8 @@ app.get(/^\/e\/([^/]+)\/?$/, async (req, res, next) => {
 // supabase/sql/app_accounts.sql), which only this server can read, and the
 // server checks passwords at login:
 //   POST /api/auth/login   { email, password } -> { userId }
-//   POST /api/auth/signup  { userId, email, password } for a brand-new user
+//   POST /api/auth/signup  { name, email, phone, password } creates the account
+//   POST /api/auth/google  { accessToken } Google sign-in (and sign-up)
 //   POST /api/auth/migrate  hashes any plain-text passwords still in the
 //                           users list, so the app can drop them on save
 //   GET  /api/auth/status  { ready } - the app only switches to server
@@ -684,33 +685,74 @@ app.post("/api/auth/login", express.json({ limit: "4kb" }), async (req, res) => 
       noteLoginFailure(limitKeys);
       return res.status(401).json({ error: "Incorrect email or password." });
     }
-    res.json({ userId: user.id });
+    setClientSession(req, res, user.id);
+    res.json({ userId: user.id, user: publicUser(user) });
   } catch (err) {
     console.error("auth login failed:", err.message);
     res.status(500).json({ error: "Couldn't log in right now — please try again." });
   }
 });
 
+// Creates the account itself (the users-list record and the password hash)
+// and logs the new client in. `active` is for sign-ups that already paid
+// for a design, which skip the approval wait (as before).
 app.post("/api/auth/signup", express.json({ limit: "4kb" }), async (req, res) => {
   if (!authReady) return res.status(503).json({ error: "Sign-up isn't available right now — please try again in a minute." });
-  const userId = String(req.body?.userId || "").trim();
-  const email = String(req.body?.email || "").trim().toLowerCase();
+  const email = String(req.body?.email || "").trim();
   const password = String(req.body?.password || "");
-  if (!/^[A-Za-z0-9_-]{6,64}$/.test(userId) || !email.includes("@") || password.length < 6 || password.length > 200) {
-    return res.status(400).json({ error: "Please fill in a valid email and a password of at least 6 characters." });
+  const name = String(req.body?.name || "").trim().slice(0, 100);
+  const phone = String(req.body?.phone || "").trim().slice(0, 40);
+  if (!name || !email.includes("@") || email.length > 200 || password.length < 6 || password.length > 200) {
+    return res.status(400).json({ error: "Please fill in your name, a valid email and a password of at least 6 characters." });
   }
+  const limitKeys = [`signup:${clientIp(req)}`];
+  if (loginBlocked(limitKeys)) return res.status(429).json({ error: "Too many sign-ups from here — please try again later." });
   try {
     const users = await readDraftUsers();
-    if (users.some((u) => String(u?.email || "").toLowerCase() === email)) return res.status(409).json({ error: "An account with that email already exists." });
-    // Only a brand-new user id: an existing account (e.g. a Google sign-in
-    // with no password) must never have a password attached from outside.
-    if (users.some((u) => u?.id === userId) || (await getAccountHash(userId))) return res.status(409).json({ error: "That account already exists." });
-    await saveAccountHash(userId, await hashPassword(password));
-    res.json({ ok: true });
+    if (users.some((u) => String(u?.email || "").toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: "An account with that email already exists." });
+    const user = { id: randomUUID().replace(/-/g, "").slice(0, 10), name, email, phone, role: "normal", status: req.body?.active ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
+    await saveAccountHash(user.id, await hashPassword(password));
+    await updateDraftUsers((list) => [user, ...list]);
+    noteLoginFailure(limitKeys); // counts sign-ups too, so one IP can't create hundreds
+    setClientSession(req, res, user.id);
+    res.json({ user });
   } catch (err) {
     console.error("auth signup failed:", err.message);
     res.status(500).json({ error: "Couldn't create the account right now — please try again." });
   }
+});
+
+// Google sign-in: the browser gets a Supabase access token from Google's
+// sign-in; the server checks it with Supabase, then logs in the matching
+// account, or creates one when `create` is set.
+app.post("/api/auth/google", express.json({ limit: "8kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "Sign-in isn't available right now — please try again in a minute." });
+  const token = String(req.body?.accessToken || "");
+  if (!token || token.length > 5000) return res.status(400).json({ error: "bad request" });
+  try {
+    const check = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
+    if (!check.ok) return res.status(401).json({ error: "Couldn't verify the Google account." });
+    const g = await check.json();
+    const email = String(g.email || "").trim();
+    if (!email) return res.status(400).json({ error: "Google didn't share an email address." });
+    let user = (await readDraftUsers()).find((u) => String(u?.email || "").toLowerCase() === email.toLowerCase());
+    if (!user) {
+      if (!req.body?.create) return res.status(404).json({ notFound: true });
+      const name = String(g.user_metadata?.full_name || g.user_metadata?.name || email.split("@")[0]).slice(0, 100);
+      user = { id: randomUUID().replace(/-/g, "").slice(0, 10), name, email, phone: "", role: "normal", status: req.body?.active ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
+      await updateDraftUsers((list) => (list.some((u) => String(u?.email || "").toLowerCase() === email.toLowerCase()) ? list : [user, ...list]));
+    }
+    setClientSession(req, res, user.id);
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error("auth google failed:", err.message);
+    res.status(500).json({ error: "Couldn't sign in with Google right now — please try again." });
+  }
+});
+
+app.post("/api/auth/logout", (req, res) => {
+  res.clearCookie(CLIENT_COOKIE, { path: "/" });
+  res.json({ ok: true });
 });
 
 app.post("/api/auth/migrate", async (_req, res) => {
@@ -736,6 +778,225 @@ app.get(/^\/api\/invitation-owner\/([^/]+)$/, async (req, res) => {
   } catch (err) {
     console.error("invitation owner lookup failed:", err.message);
     res.status(500).json({ error: "lookup failed" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Data gateway. The app used to read and write the kv_store table straight
+// from the browser with the public anon key, so anyone could read every
+// client's details or overwrite any invitation. Once auth is ready, the app
+// goes through this server instead, which uses the service key and decides
+// who may do what:
+//   - admin (logged in with ADMIN_PASSWORD): everything
+//   - a logged-in client (client_session cookie): read everything public,
+//     their own record in the users list, write their own invitation, the
+//     shared builder keys, and a limited set of fields on their own record
+//   - anyone else: read public data only; guests reply through
+//     /api/guest/rsvp, which changes only the guest list
+// Rules are enforced only when ADMIN_PASSWORD is set (otherwise there is
+// no way to tell the admin apart, and the admin must keep working).
+// ---------------------------------------------------------------------------
+
+const CLIENT_COOKIE = "client_session";
+const CLIENT_SESSION_MS = 30 * 24 * 3600 * 1000;
+const sessionKey = createHmac("sha256", SUPABASE_SERVICE_KEY || randomBytes(32)).update("einvite-client-session").digest();
+const clientSig = (payload) => createHmac("sha256", sessionKey).update(payload).digest("hex");
+
+function setClientSession(req, res, userId) {
+  const payload = `${userId}.${Date.now() + CLIENT_SESSION_MS}`;
+  res.cookie(CLIENT_COOKIE, `${payload}.${clientSig(payload)}`, { httpOnly: true, sameSite: "lax", secure: isHttps(req), maxAge: CLIENT_SESSION_MS, path: "/" });
+}
+
+function clientSessionUser(req) {
+  const raw = readCookie(req, CLIENT_COOKIE);
+  const i = raw.lastIndexOf(".");
+  if (i < 0) return null;
+  const payload = raw.slice(0, i);
+  const [userId, expires] = [payload.slice(0, payload.lastIndexOf(".")), payload.slice(payload.lastIndexOf(".") + 1)];
+  if (!userId || !(Number(expires) > Date.now()) || !sameSecret(raw.slice(i + 1), clientSig(payload))) return null;
+  return userId;
+}
+
+const gatewayEnforced = () => !!ADMIN_PASSWORD;
+function requestRole(req) {
+  if (!gatewayEnforced() || hasAdminSession(req)) return { role: "admin" };
+  const userId = clientSessionUser(req);
+  return userId ? { role: "client", userId } : { role: "anon" };
+}
+
+async function kvRead(key) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: serviceHeaders });
+  if (!res.ok) throw new Error(`kv read failed (${res.status})`);
+  const rows = await res.json();
+  return rows[0] ? rows[0].value : null;
+}
+
+async function kvWrite(key, value) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store`, {
+    method: "POST",
+    headers: { ...serviceHeaders, Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`kv write failed (${res.status}): ${(await res.text().catch(() => "")).slice(0, 200)}`);
+}
+
+// Read-modify-write of the users list in einvite:draft-core.
+async function updateDraftUsers(fn) {
+  const raw = await kvRead(DRAFT_KEY);
+  const draft = raw ? JSON.parse(raw) : {};
+  const users = Array.isArray(draft.users) ? draft.users : [];
+  const next = fn(users);
+  await kvWrite(DRAFT_KEY, JSON.stringify({ ...draft, users: next }));
+  draftUsersCache = { at: 0, users: [] };
+  return next;
+}
+
+const publicUser = (u) => {
+  if (!u) return u;
+  const { password, ...rest } = u;
+  return rest;
+};
+
+// What a client may change on their own record; the rest (role, status,
+// access flags, email, id) stays as the server has it.
+const CLIENT_LOCKED_FIELDS = ["id", "email", "role", "status", "dashboardAccess", "canDesign", "password", "createdAt"];
+function mergeClientUsers(serverUsers, incomingUsers, userId) {
+  const mine = Array.isArray(incomingUsers) ? incomingUsers.find((u) => u?.id === userId) : null;
+  if (!mine) return serverUsers;
+  return serverUsers.map((u) => {
+    if (u?.id !== userId) return u;
+    const patch = Object.fromEntries(Object.entries(mine).filter(([k]) => !CLIENT_LOCKED_FIELDS.includes(k)));
+    // A client can't take a link another client already has.
+    if (patch.invitationSlug && patch.invitationSlug !== u.invitationSlug) patch.invitationSlug = uniqueSlug(serverUsers, patch.invitationSlug, userId);
+    return { ...u, ...patch };
+  });
+}
+
+// Same rules as generateUniqueSlug in the app.
+function uniqueSlug(users, base, excludeUserId) {
+  const clean = String(base || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 80) || "invitation";
+  const taken = new Set(users.filter((u) => u?.id !== excludeUserId).map((u) => u?.invitationSlug).filter(Boolean));
+  taken.add(ADMIN_PREVIEW_SLUG);
+  let candidate = clean;
+  for (let n = 2; taken.has(candidate); n++) candidate = `${clean}-${n}`;
+  return candidate;
+}
+
+// Clients only see their own record, so the app asks here for a free link.
+app.get("/api/unique-slug", async (req, res) => {
+  try {
+    res.set("cache-control", "no-store").json({ slug: uniqueSlug(await readDraftUsers(), String(req.query.base || "").slice(0, 200), String(req.query.exclude || "")) });
+  } catch (err) {
+    console.error("unique slug failed:", err.message);
+    res.status(502).json({ error: "failed" });
+  }
+});
+
+const KV_KEY_RE = /^einvite:[A-Za-z0-9:_\-.]{1,120}$/;
+// Keys a logged-in client's Builder saves besides their own invitation.
+const CLIENT_WRITABLE = (key) => /^einvite:(bg-|introbg-)/.test(key) || key === "einvite:og-image" || key === "einvite:music-audio";
+
+app.get("/api/kv", async (req, res) => {
+  const key = String(req.query.key || "");
+  if (!KV_KEY_RE.test(key)) return res.status(400).json({ error: "bad key" });
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  const who = requestRole(req);
+  try {
+    let value = await kvRead(key);
+    if (value !== null && key === DRAFT_KEY && who.role !== "admin") {
+      const draft = JSON.parse(value);
+      const users = Array.isArray(draft.users) ? draft.users : [];
+      draft.users = who.role === "client" ? users.filter((u) => u?.id === who.userId).map(publicUser) : [];
+      value = JSON.stringify(draft);
+    }
+    res.set("cache-control", "no-store").json({ value });
+  } catch (err) {
+    console.error("kv get failed:", key, err.message);
+    res.status(502).json({ error: "read failed" });
+  }
+});
+
+app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
+  const key = String(req.body?.key || "");
+  const value = req.body?.value;
+  if (!KV_KEY_RE.test(key) || typeof value !== "string") return res.status(400).json({ error: "bad request" });
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  const who = requestRole(req);
+  try {
+    if (who.role === "admin") {
+      await kvWrite(key, value);
+    } else if (who.role === "client" && key === `einvite:invitation-${who.userId}`) {
+      await kvWrite(key, value);
+    } else if (who.role === "client" && key === DRAFT_KEY) {
+      const incoming = JSON.parse(value);
+      const raw = await kvRead(DRAFT_KEY);
+      const current = raw ? JSON.parse(raw) : {};
+      const users = mergeClientUsers(Array.isArray(current.users) ? current.users : [], incoming.users, who.userId);
+      // The admin's own lists stay as they are: a client's save can add to
+      // the invitation list but never drop anyone from it, and can't touch
+      // the intro media library or the site domain.
+      const invitationIds = [...new Set([...(current.invitationIds || []), ...(Array.isArray(incoming.invitationIds) ? incoming.invitationIds : [])])];
+      const kept = Object.fromEntries(["introMediaLibrary", "siteDomain"].filter((k) => k in current).map((k) => [k, current[k]]));
+      await kvWrite(DRAFT_KEY, JSON.stringify({ ...incoming, ...kept, users, invitationIds }));
+      draftUsersCache = { at: 0, users: [] };
+    } else if (who.role === "client" && CLIENT_WRITABLE(key)) {
+      await kvWrite(key, value);
+    } else {
+      return res.status(who.role === "anon" ? 401 : 403).json({ error: "not allowed" });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("kv put failed:", key, err.message);
+    res.status(502).json({ error: "save failed" });
+  }
+});
+
+// Guests replying to an invitation: only the guest list of that one
+// invitation changes. Mirrors what the invitation page used to write
+// itself (a personal link updates its own entry, anything else adds one).
+const rsvpHits = new Map(); // ip -> { count, since }
+const RSVP_STATUSES = ["yes", "no", "maybe", "pending"];
+app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  const ip = clientIp(req);
+  const now = Date.now();
+  const hit = rsvpHits.get(ip);
+  if (hit && now - hit.since < 60000 && hit.count >= 20) return res.status(429).json({ error: "Too many replies — please try again in a minute." });
+  rsvpHits.set(ip, hit && now - hit.since < 60000 ? { count: hit.count + 1, since: hit.since } : { count: 1, since: now });
+
+  const b = req.body || {};
+  const ownerId = String(b.ownerId || "");
+  const status = String(b.status || "");
+  const names = (Array.isArray(b.names) ? b.names : []).map((n) => String(n || "").trim().slice(0, 80)).filter(Boolean).slice(0, 20);
+  const additionalGuests = Math.max(0, Math.min(50, Number(b.additionalGuests) || 0));
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(ownerId) || !RSVP_STATUSES.includes(status)) return res.status(400).json({ error: "bad request" });
+  const key = `einvite:invitation-${ownerId}`;
+  const genId = () => randomUUID().replace(/-/g, "").slice(0, 8);
+  try {
+    const raw = await kvRead(key);
+    if (!raw) return res.status(404).json({ error: "Invitation not found." });
+    const latest = JSON.parse(raw);
+    const groups = Array.isArray(latest.guestGroups) ? latest.guestGroups : [];
+    const members = names.length ? names.map((name) => ({ id: genId(), name, status })) : [{ id: genId(), name: "Guest", status }];
+    let group;
+    if (b.quick) {
+      group = { id: genId(), lastName: "", members, additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: now };
+      latest.guestGroups = [group, ...groups];
+    } else {
+      const existing = b.groupId ? groups.find((g) => g.id === String(b.groupId)) : null;
+      if (existing) {
+        group = { ...existing, members: names.length ? members : existing.members, additionalGuests: status === "yes" ? additionalGuests : 0, invitationViewed: true, updatedAt: now };
+        latest.guestGroups = groups.map((g) => (g.id === existing.id ? group : g));
+      } else {
+        group = { id: genId(), lastName: "", members, additionalGuests: status === "yes" ? additionalGuests : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: b.batchId ? String(b.batchId).slice(0, 64) : null, updatedAt: now };
+        latest.guestGroups = [group, ...groups];
+      }
+    }
+    await kvWrite(key, JSON.stringify(latest));
+    res.json({ group });
+  } catch (err) {
+    console.error("guest rsvp failed:", err.message);
+    res.status(502).json({ error: "Couldn't save your response — please try again." });
   }
 });
 

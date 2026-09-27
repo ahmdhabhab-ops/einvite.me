@@ -850,8 +850,26 @@ async function usersWithoutPasswords(list) {
 // everywhere, so nothing else in the app needs to change to benefit from
 // this — every existing call site (saveDraft, the load effect, per-client
 // invitation keys) keeps working completely unchanged.
+//
+// Once the app's own server is set up (see serverAuthReady), every read and
+// write goes through it (/api/kv) instead of straight to Supabase, so the
+// server can decide what each visitor may see and change.
 const persistentStorage = {
   async get(key) {
+    if (supabaseConfigured && (await serverAuthReady())) {
+      try {
+        const res = await fetch(`/api/kv?key=${encodeURIComponent(key)}`);
+        if (!res.ok) {
+          console.error(`GET /api/kv failed for key "${key}": ${res.status}`);
+          return null;
+        }
+        const data = await res.json();
+        return typeof data.value === "string" ? { key, value: data.value, shared: false } : null;
+      } catch (err) {
+        console.error(`GET /api/kv threw for key "${key}":`, err);
+        return null;
+      }
+    }
     if (supabaseConfigured) {
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(key)}&select=value`, { headers: supabaseHeaders });
@@ -878,6 +896,19 @@ const persistentStorage = {
     }
   },
   async set(key, value) {
+    if (supabaseConfigured && (await serverAuthReady())) {
+      try {
+        const res = await fetch("/api/kv", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, value }) });
+        if (!res.ok) {
+          console.error(`PUT /api/kv failed for key "${key}": ${res.status}`);
+          return null;
+        }
+        return { key, value, shared: false };
+      } catch (err) {
+        console.error(`PUT /api/kv threw for key "${key}":`, err);
+        return null;
+      }
+    }
     if (supabaseConfigured) {
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store`, {
@@ -11966,13 +11997,23 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
         const name = googleUser.user_metadata?.full_name || googleUser.user_metadata?.name || email.split("@")[0];
         if (!email) throw new Error("Google didn't share an email address.");
 
-        const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+        let existing;
+        const viaServer = await serverAuthReady();
+        if (viaServer) {
+          // The server checks the Google token itself and logs the account in.
+          const check = await fetch("/api/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken }) });
+          const data = await check.json().catch(() => ({}));
+          if (check.ok) existing = data.user;
+          else if (check.status !== 404 || !data.notFound) throw new Error(data.error || "Couldn't sign in with Google — please try again.");
+        } else {
+          existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+        }
         if (existing) {
-          if (!dataLoaded) throw new Error("Still loading accounts — please try again in a moment.");
+          if (!viaServer && !dataLoaded) throw new Error("Still loading accounts — please try again in a moment.");
           if (existing.status !== "active") { setError("Your account is still waiting on approval."); setGoogleLoading(false); return; }
           onEnterBuilderAs(existing);
         } else {
-          const newUser = onSignUp({ name, email, phone: "", password: `google-oauth-${uid()}` }); // no real password — this account can only ever sign in via Google
+          const newUser = await onSignUp(viaServer ? { name, email, googleAccessToken: accessToken } : { name, email, phone: "" }); // no real password — this account can only ever sign in via Google
           if (skipApproval && newUser) {
             onEnterBuilderAs(newUser);
           } else {
@@ -12005,22 +12046,14 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
       return;
     }
     let newUser;
-    if (await serverAuthReady()) {
-      // The password goes only to the server, which keeps a hash of it;
-      // the account itself is saved without one.
-      const id = uid();
-      setAuthBusy(true);
-      try {
-        await authRequest("/api/auth/signup", { userId: id, email: form.email.trim(), password: form.password });
-      } catch (err) {
-        setError(err.message);
-        return;
-      } finally {
-        setAuthBusy(false);
-      }
-      newUser = onSignUp({ id, name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() });
-    } else {
-      newUser = onSignUp({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password });
+    setAuthBusy(true);
+    try {
+      newUser = await onSignUp({ name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim(), password: form.password });
+    } catch (err) {
+      setError(err.message || "Couldn't create the account — please try again.");
+      return;
+    } finally {
+      setAuthBusy(false);
     }
     if (skipApproval && newUser) {
       onEnterBuilderAs(newUser); // paid already — go straight into the Builder, no separate approval wait
@@ -12046,8 +12079,8 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
     if (await serverAuthReady()) {
       setAuthBusy(true);
       try {
-        const { userId } = await authRequest("/api/auth/login", { email: form.email.trim(), password: form.password });
-        match = users.find((u) => u.id === userId);
+        const { userId, user } = await authRequest("/api/auth/login", { email: form.email.trim(), password: form.password });
+        match = users.find((u) => u.id === userId) || user;
       } catch (err) {
         setError(err.message);
         return;
@@ -12537,7 +12570,7 @@ function SiteContactEditor() {
     (async () => {
       const res = await persistentStorage.get(SITE_CONTACT_KEY, false);
       try { setForm(res?.value ? JSON.parse(res.value) : {}); } catch { setForm({}); }
-      if (res === null && supabaseConfigured) {
+      if (res === null && supabaseConfigured && !(await serverAuthReady())) {
         // null is also what a missing row returns, so double-check the
         // connection before letting the owner save over what might exist.
         try {
@@ -13156,9 +13189,15 @@ function QuickRsvpPage({ slug }) {
   useEffect(() => {
     (async () => {
       try {
-        const draftRes = await persistentStorage.get("einvite:draft-core", false);
-        const draft = draftRes?.value ? JSON.parse(draftRes.value) : { users: [] };
-        const matchedUser = (draft.users || []).find((u) => u.invitationSlug === slug);
+        let matchedUser = null;
+        if (await serverAuthReady()) {
+          const ownerRes = await fetch(`/api/invitation-owner/${encodeURIComponent(slug)}`);
+          matchedUser = ownerRes.ok ? await ownerRes.json() : null;
+        } else {
+          const draftRes = await persistentStorage.get("einvite:draft-core", false);
+          const draft = draftRes?.value ? JSON.parse(draftRes.value) : { users: [] };
+          matchedUser = (draft.users || []).find((u) => u.invitationSlug === slug);
+        }
         if (!matchedUser) { setState(false); return; }
 
         const snapRes = await persistentStorage.get(`einvite:invitation-${matchedUser.id}`, false);
@@ -13181,16 +13220,21 @@ function QuickRsvpPage({ slug }) {
     setError("");
     try {
       const cleanName = name.trim() || "Guest";
-      const key = `einvite:invitation-${state.matchedUserId}`;
-      const res = await persistentStorage.get(key, false);
-      const latest = res?.value ? JSON.parse(res.value) : state.snapshot;
-      const newGroup = {
-        id: uid(), lastName: "", members: [{ id: uid(), name: cleanName, status }],
-        additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
-      };
-      const updated = { ...latest, guestGroups: [newGroup, ...(latest.guestGroups || [])] };
-      const saveResult = await persistentStorage.set(key, JSON.stringify(updated), false);
-      if (!saveResult) throw new Error("Couldn't save your response — please try again.");
+      let newGroup;
+      if (await serverAuthReady()) {
+        ({ group: newGroup } = await authRequest("/api/guest/rsvp", { ownerId: state.matchedUserId, quick: true, names: [cleanName], status }));
+      } else {
+        const key = `einvite:invitation-${state.matchedUserId}`;
+        const res = await persistentStorage.get(key, false);
+        const latest = res?.value ? JSON.parse(res.value) : state.snapshot;
+        newGroup = {
+          id: uid(), lastName: "", members: [{ id: uid(), name: cleanName, status }],
+          additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
+        };
+        const updated = { ...latest, guestGroups: [newGroup, ...(latest.guestGroups || [])] };
+        const saveResult = await persistentStorage.set(key, JSON.stringify(updated), false);
+        if (!saveResult) throw new Error("Couldn't save your response — please try again.");
+      }
 
       setChoice(status);
       if (status === "yes") {
@@ -15203,12 +15247,25 @@ export default function InvitationBuilder() {
   const toggleDashboardAccess = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, dashboardAccess: !u.dashboardAccess } : u)));
   const toggleCanDesign = (id) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, canDesign: !u.canDesign } : u)));
   const updateUserEmail = (id, email) => saveUsersDirectly((list) => list.map((u) => (u.id === id ? { ...u, email } : u)));
-  const signUpUser = (params) => {
+  // Async, and throws with a message the sign-up form shows.
+  const signUpUser = async (params) => {
     // Shop-purchase signups skip the normal pending-approval wait — the
     // client already paid, so making them wait for a separate manual
     // approval on top of that would be a confusing, redundant step.
-    const newUser = { id: params.id || uid(), name: params.name, email: params.email, phone: params.phone, ...(params.password ? { password: params.password } : {}), role: "normal", status: pendingShopTemplate ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
-    saveUsersDirectly((list) => [newUser, ...list]);
+    const active = !!pendingShopTemplate;
+    let newUser;
+    if (await serverAuthReady()) {
+      // The server creates the account and keeps only a hash of the
+      // password (or checks the Google sign-in), then logs the client in.
+      const { user } = params.googleAccessToken
+        ? await authRequest("/api/auth/google", { accessToken: params.googleAccessToken, create: true, active })
+        : await authRequest("/api/auth/signup", { name: params.name, email: params.email, phone: params.phone, password: params.password, active });
+      newUser = user;
+      setUsers((list) => [newUser, ...list.filter((u) => u.id !== newUser.id)]);
+    } else {
+      newUser = { id: uid(), name: params.name, email: params.email, phone: params.phone, password: params.password || `google-oauth-${uid()}`, role: "normal", status: active ? "active" : "pending", dashboardAccess: false, canDesign: false, createdAt: Date.now(), invitationSlug: null, packageTier: null };
+      saveUsersDirectly((list) => [newUser, ...list]);
+    }
     if (newUser.status === "pending") {
       notifyAdminNewSignup({ userName: newUser.name, userEmail: newUser.email, userPhone: newUser.phone });
     }
@@ -15242,11 +15299,22 @@ export default function InvitationBuilder() {
     }
     return candidate;
   };
+  // A client only has their own record in `users`, so once the server is
+  // set up it picks the free link (it can see every client's).
+  const uniqueSlugFor = async (base, excludeUserId) => {
+    if (await serverAuthReady()) {
+      try {
+        const res = await fetch(`/api/unique-slug?base=${encodeURIComponent(base)}&exclude=${encodeURIComponent(excludeUserId || "")}`);
+        if (res.ok) return (await res.json()).slug;
+      } catch {}
+    }
+    return generateUniqueSlug(base, excludeUserId);
+  };
 
   const finalizeInvitationCreation = async (user, template, eventType, destinationView) => {
     let finalUser = user;
     if (!user.invitationSlug) {
-      const slug = generateUniqueSlug(user.name || `guest-${user.id.slice(0, 6)}`, user.id);
+      const slug = await uniqueSlugFor(user.name || `guest-${user.id.slice(0, 6)}`, user.id);
       setUsers((list) => list.map((u) => (u.id === user.id ? { ...u, invitationSlug: slug } : u)));
       finalUser = { ...user, invitationSlug: slug };
     }
@@ -15313,6 +15381,9 @@ export default function InvitationBuilder() {
   // "has this client already picked a design" — if they haven't, they see
   // the picker now; once chosen, they land straight in their own Builder.
   const enterBuilderAsLoggedInUser = (user) => {
+    // A client logged in through the server may not be in this page's
+    // users list yet (visitors only ever get their own record).
+    setUsers((list) => (list.some((u) => u.id === user.id) ? list : [user, ...list]));
     // The owner/admin logging in goes straight to the admin dashboard —
     // never treated as "acting as" a specific client's invitation, since
     // that mode is for actually working inside ONE client's data, not for
@@ -15336,6 +15407,7 @@ export default function InvitationBuilder() {
     switchActiveInvitation(OWNER_SLOT);
     setActingAsUser(null);
     window.localStorage.removeItem("einvite:acting-as-user-id");
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {}); // ends the client's server session too
   };
 
   const updateIntro = (patch) => setIntro((i) => ({ ...i, ...patch }));
@@ -15424,9 +15496,9 @@ export default function InvitationBuilder() {
   // regenerates the REAL invitationSlug record itself (so it's stable
   // and permanent from this point on, exactly like a freshly created
   // one), not the per-render display-only value above.
-  const regenerateSlugFromCoupleNames = () => {
+  const regenerateSlugFromCoupleNames = async () => {
     if (!activeUserRecord) return;
-    const newSlug = generateUniqueSlug(slugSourceText, activeUserRecord.id);
+    const newSlug = await uniqueSlugFor(slugSourceText, activeUserRecord.id);
     saveUsersDirectly((list) => list.map((u) => (u.id === activeUserRecord.id ? { ...u, invitationSlug: newSlug } : u)));
   };
 
@@ -15851,6 +15923,12 @@ export default function InvitationBuilder() {
     let resultGroup = null;
     let latest = null;
     try {
+      if (await serverAuthReady()) {
+        // The server adds or updates just this guest's entry in the list.
+        const { group } = await authRequest("/api/guest/rsvp", { ownerId: guestView.userId, groupId: guestView.groupId || null, batchId: guestView.batchId || null, names: cleanNames, status, additionalGuests: additionalGuests || 0 });
+        resultGroup = group;
+        savedOk = true;
+      } else {
       const res = await persistentStorage.get(invitationKey(guestView.userId), false);
       latest = res?.value ? JSON.parse(res.value) : (guestView.snapshot || freshInvitationSnapshot());
       const existingGroups = latest.guestGroups || [];
@@ -15872,6 +15950,7 @@ export default function InvitationBuilder() {
       const saveRes = await persistentStorage.set(invitationKey(guestView.userId), JSON.stringify(latest), false);
       savedOk = !!saveRes;
       if (!savedOk) console.error("submitGuestViewRsvp: save to Supabase returned falsy — RSVP may not have persisted.");
+      }
     } catch (err) {
       console.error("submitGuestViewRsvp: failed to save RSVP to Supabase:", err);
       resultGroup = resultGroup || { id: uid(), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, updatedAt: Date.now() };
