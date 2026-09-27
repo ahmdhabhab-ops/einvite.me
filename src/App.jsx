@@ -1316,7 +1316,7 @@ async function sendWhatsAppMessage({ to, templateName, languageCode, variables, 
     headers: supabaseHeaders,
     body: JSON.stringify({ action: "send-whatsapp", to, templateName, languageCode, variables, headerImageUrl }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({ error: `The WhatsApp service answered with status ${res.status}.` }));
   if (!res.ok) throw new Error(data.error || "Couldn't send the WhatsApp message.");
   return data; // { sent: true, messageId }
 }
@@ -10172,6 +10172,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   // right on that guest's row without a page-wide loading state.
   const [sendingWhatsAppIds, setSendingWhatsAppIds] = useState(() => new Set());
   const [whatsappResults, setWhatsappResults] = useState({}); // { [groupId]: "sent" | "error" }
+  const [whatsappErrors, setWhatsappErrors] = useState({}); // group id -> why the last send failed
   // Maps phone number -> latest delivery status Meta has reported via the
   // webhook ("sent" | "delivered" | "read" | "failed"). Refreshed
   // periodically so the checkmarks update without a manual page reload.
@@ -10230,7 +10231,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
       updateGuestGroup(group.id, { whatsappTemplateSentAt: Date.now() });
-    } catch {
+    } catch (err) {
+      console.error("WhatsApp send failed:", err.message);
+      setWhatsappErrors((e) => ({ ...e, [group.id]: err.message }));
       setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
     } finally {
       setSendingWhatsAppIds((s) => { const next = new Set(s); next.delete(group.id); return next; });
@@ -10264,7 +10267,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
       updateGuestGroup(group.id, { whatsappReminderSentAt: Date.now() });
-    } catch {
+    } catch (err) {
+      console.error("WhatsApp reminder failed:", err.message);
+      setWhatsappErrors((e) => ({ ...e, [group.id]: err.message }));
       setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
     } finally {
       setSendingWhatsAppIds((s) => { const next = new Set(s); next.delete(group.id); return next; });
@@ -10733,7 +10738,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                           <button
                             onClick={() => sendAutomatedWhatsApp(g)}
                             disabled={sendingWhatsAppIds.has(g.id)}
-                            title={(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "Sent!" : whatsappResults[g.id] === "error" ? "Failed — click to retry" : "Send approved WhatsApp template automatically"}
+                            title={(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "Sent!" : whatsappResults[g.id] === "error" ? `Failed${whatsappErrors[g.id] ? `: ${whatsappErrors[g.id]}` : ""} — click to retry` : "Send approved WhatsApp template automatically"}
                             className="flex h-5 w-5 items-center justify-center rounded"
                             style={{
                               background: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "rgba(143,191,163,0.2)" : whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
