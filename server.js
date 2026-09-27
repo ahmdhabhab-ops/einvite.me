@@ -974,6 +974,27 @@ app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
   }
 });
 
+// WhatsApp delivery ticks in the guest dashboard. The whatsapp_incoming
+// table holds every phone number the webhook has seen, so it's no longer
+// readable by the anon key; logged-in users ask here, and only get the
+// statuses for the numbers they send (the ones in their own guest list).
+app.post("/api/whatsapp-status", express.json({ limit: "64kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  if (requestRole(req).role === "anon") return res.status(401).json({ error: "Please log in." });
+  const phones = [...new Set((Array.isArray(req.body?.phones) ? req.body.phones : []).map((p) => String(p || "").replace(/[^0-9]/g, "")).filter((p) => p.length >= 6 && p.length <= 16))].slice(0, 500);
+  if (!phones.length) return res.json({ statuses: {} });
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_incoming?direction=eq.status&from_number=in.(${phones.join(",")})&select=from_number,message_type,received_at&order=received_at.asc`, { headers: serviceHeaders });
+    if (!r.ok) throw new Error(`whatsapp_incoming read failed (${r.status})`);
+    const statuses = {};
+    for (const row of await r.json()) statuses[row.from_number] = row.message_type; // latest wins
+    res.set("cache-control", "no-store").json({ statuses });
+  } catch (err) {
+    console.error("whatsapp status failed:", err.message);
+    res.status(502).json({ error: "failed" });
+  }
+});
+
 // Guests replying to an invitation: only the guest list of that one
 // invitation changes. Mirrors what the invitation page used to write
 // itself (a personal link updates its own entry, anything else adds one).

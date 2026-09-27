@@ -9904,11 +9904,22 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   // webhook ("sent" | "delivered" | "read" | "failed"). Refreshed
   // periodically so the checkmarks update without a manual page reload.
   const [whatsappDeliveryStatus, setWhatsappDeliveryStatus] = useState({});
+  const guestPhonesRef = useRef([]);
+  guestPhonesRef.current = guestGroups.map((g) => (g.phone || "").replace(/[^0-9]/g, "")).filter(Boolean);
 
   useEffect(() => {
     let cancelled = false;
     const fetchStatuses = async () => {
       try {
+        if (await serverAuthReady()) {
+          // Asked through the app's server, for this guest list's numbers only.
+          if (!guestPhonesRef.current.length) return;
+          const res = await fetch("/api/whatsapp-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phones: guestPhonesRef.current }) });
+          if (!res.ok) return;
+          const { statuses } = await res.json();
+          if (!cancelled) setWhatsappDeliveryStatus(statuses || {});
+          return;
+        }
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/whatsapp_incoming?direction=eq.status&select=from_number,message_type,received_at&order=received_at.asc`,
           { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
