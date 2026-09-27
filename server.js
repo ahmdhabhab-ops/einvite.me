@@ -981,6 +981,60 @@ app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
   }
 });
 
+// Sending the WhatsApp invitation / reminder templates. Used to go through
+// the clever-api edge function, which anyone holding the public anon key
+// could call (and send messages on the account's Meta bill); now only a
+// logged-in client or the admin can, and only the app's two approved
+// templates. Uses the same Meta credentials as the whatsapp-webhook
+// function (WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID), set on
+// this app in Dokploy.
+const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHATSAPP_TOKEN || "";
+const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID || "";
+const WHATSAPP_TEMPLATES = new Set(["wedding_invitation", "wedding_invitation_reminder"]);
+const whatsappHits = new Map(); // userId -> { count, since }
+app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  const who = requestRole(req);
+  if (who.role === "anon") return res.status(401).json({ error: "Please log in to send WhatsApp messages." });
+  if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
+    return res.status(503).json({ error: "WhatsApp sending isn't set up: WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID need to be set on the app in Dokploy." });
+  }
+  if (who.role === "client") {
+    const now = Date.now();
+    const h = whatsappHits.get(who.userId);
+    const cur = h && now - h.since < 3600000 ? h : { count: 0, since: now };
+    if (cur.count >= 500) return res.status(429).json({ error: "You've sent a lot of messages in the last hour — please try again a bit later." });
+    whatsappHits.set(who.userId, { count: cur.count + 1, since: cur.since });
+  }
+  const b = req.body || {};
+  const to = String(b.to || "").replace(/[^0-9]/g, "");
+  const templateName = String(b.templateName || "");
+  const languageCode = /^[a-z]{2}(_[A-Z]{2})?$/.test(String(b.languageCode || "")) ? b.languageCode : "en";
+  const variables = (Array.isArray(b.variables) ? b.variables : []).slice(0, 5).map((v) => String(v ?? "").slice(0, 500));
+  const headerImageUrl = /^https:\/\/[^\s]{1,1000}$/.test(String(b.headerImageUrl || "")) ? b.headerImageUrl : null;
+  if (to.length < 6 || to.length > 16) return res.status(400).json({ error: "That phone number doesn't look right." });
+  if (!WHATSAPP_TEMPLATES.has(templateName)) return res.status(400).json({ error: "Unknown message template." });
+  const components = [];
+  if (headerImageUrl) components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
+  if (variables.length) components.push({ type: "body", parameters: variables.map((text) => ({ type: "text", text })) });
+  try {
+    const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(WHATSAPP_PHONE_ID)}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to, type: "template", template: { name: templateName, language: { code: languageCode }, components } }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      console.error("WhatsApp send failed:", r.status, JSON.stringify(data?.error || data).slice(0, 500));
+      return res.status(502).json({ error: data?.error?.message || "Meta didn't accept the message." });
+    }
+    res.json({ sent: true, messageId: data?.messages?.[0]?.id || null });
+  } catch (err) {
+    console.error("WhatsApp send failed:", err.message);
+    res.status(502).json({ error: "Couldn't reach WhatsApp — please try again." });
+  }
+});
+
 // WhatsApp delivery ticks in the guest dashboard. The whatsapp_incoming
 // table holds every phone number the webhook has seen, so it's no longer
 // readable by the anon key; logged-in users ask here, and only get the
