@@ -957,9 +957,11 @@ app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
       const users = mergeClientUsers(Array.isArray(current.users) ? current.users : [], incoming.users, who.userId);
       // The admin's own lists stay as they are: a client's save can add to
       // the invitation list but never drop anyone from it, and can't touch
-      // the intro media library or the site domain.
+      // the intro media library, the site domain, or which invitation the
+      // admin's app opens on (activeInvitationId — a client's save used to
+      // switch the admin over to that client's invitation).
       const invitationIds = [...new Set([...(current.invitationIds || []), ...(Array.isArray(incoming.invitationIds) ? incoming.invitationIds : [])])];
-      const kept = Object.fromEntries(["introMediaLibrary", "siteDomain"].filter((k) => k in current).map((k) => [k, current[k]]));
+      const kept = Object.fromEntries(["introMediaLibrary", "siteDomain", "activeInvitationId"].filter((k) => k in current).map((k) => [k, current[k]]));
       await kvWrite(DRAFT_KEY, JSON.stringify({ ...incoming, ...kept, users, invitationIds }));
       draftUsersCache = { at: 0, users: [] };
     } else if (who.role === "client" && CLIENT_WRITABLE(key)) {
