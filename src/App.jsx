@@ -948,6 +948,69 @@ const persistentStorage = {
 };
 
 // ---------------------------------------------------------------------- //
+// Once the app's own server is set up (serverAuthReady), song requests,
+// voice messages, check-ins and guest networking all go through it
+// (server.js "Event features") instead of straight to Supabase tables, so
+// the server can check who may read or change what. The DJ and check-in
+// staff pages carry a secret key in their link (?k=...), and a networking
+// guest proves who they are with a secret they got when registering.
+// ---------------------------------------------------------------------- //
+const pageAccessKey = () => {
+  try { return new URLSearchParams(window.location.search).get("k") || ""; } catch { return ""; }
+};
+const accessKeyHeaders = () => (pageAccessKey() ? { "x-access-key": pageAccessKey() } : {});
+const netSecretStorageKey = (guestId) => `einvite:networking-secret:${guestId}`;
+const netHeaders = (guestId) => {
+  let secret = "";
+  try { secret = window.localStorage.getItem(netSecretStorageKey(guestId)) || ""; } catch {}
+  return secret ? { "x-guest-secret": secret } : {};
+};
+async function apiJson(path, { method = "GET", body, headers = {} } = {}) {
+  const res = await fetch(path, {
+    method,
+    headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), ...headers },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = new Error(data?.error || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+// An old DJ / check-in staff link (from before the links had keys) opens
+// an empty page; this tells whoever holds it to ask for the new link.
+function MissingAccessKeyNotice({ who }) {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => { serverAuthReady().then((ready) => setMissing(ready && !pageAccessKey())); }, []);
+  if (!missing) return null;
+  return (
+    <div className="mb-5 rounded-xl p-4 text-[12.5px]" style={{ background: "rgba(226,155,155,0.12)", border: "1px solid rgba(226,155,155,0.4)", color: "#E8B4B4", fontFamily: FONT_BODY }}>
+      This link is out of date. Ask the couple to copy the {who} link again from their dashboard — the new one keeps this page private.
+    </div>
+  );
+}
+
+// The owner's secret keys for their DJ and check-in staff links.
+function useAccessKeys(slug) {
+  const [keys, setKeys] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!slug || !(await serverAuthReady())) return;
+      try {
+        const d = await apiJson(`/api/access-links?slug=${encodeURIComponent(slug)}`);
+        if (!cancelled) setKeys(d);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
+  return keys;
+}
+const withAccessKey = (url, key) => (key ? `${url}${url.includes("?") ? "&" : "?"}k=${key}` : url);
+
+// ---------------------------------------------------------------------- //
 // DJ Song Requests — built directly into this app now, backed by the same
 // Supabase project, instead of a separate external backend project. Falls
 // back to safe no-ops if Supabase isn't configured, matching the same
@@ -955,6 +1018,13 @@ const persistentStorage = {
 // ---------------------------------------------------------------------- //
 
 async function submitSongRequest(slug, { songName, artist, requesterName }) {
+  if (await serverAuthReady()) {
+    try {
+      return await apiJson("/api/song-requests", { method: "POST", body: { slug, songName, artist, requesterName } });
+    } catch (err) {
+      throw new Error(err.message || "Couldn't send your request — please try again.");
+    }
+  }
   if (!supabaseConfigured) throw new Error("Song requests aren't set up yet — the site owner needs to finish configuring the database.");
   const res = await fetch(`${SUPABASE_URL}/rest/v1/song_requests`, {
     method: "POST",
@@ -975,6 +1045,9 @@ async function submitSongRequest(slug, { songName, artist, requesterName }) {
 }
 
 async function getSongRequests(slug) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/song-requests?slug=${encodeURIComponent(slug)}`, { headers: accessKeyHeaders() }); } catch { return []; }
+  }
   if (!supabaseConfigured) return [];
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/song_requests?invitation_slug=eq.${encodeURIComponent(slug)}&order=created_at.desc`, { headers: supabaseHeaders });
@@ -989,7 +1062,10 @@ async function getSongRequests(slug) {
   }
 }
 
-async function updateSongRequestStatus(id, status) {
+async function updateSongRequestStatus(id, status, slug) {
+  if (await serverAuthReady()) {
+    try { await apiJson(`/api/song-requests/${encodeURIComponent(id)}`, { method: "PATCH", body: { status, slug }, headers: accessKeyHeaders() }); return true; } catch { return false; }
+  }
   if (!supabaseConfigured) return false;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/song_requests?id=eq.${encodeURIComponent(id)}`, {
@@ -1271,6 +1347,18 @@ async function sendChatSupportMessage(messages, context = "shop") {
 // ---------------------------------------------------------------------- //
 
 async function registerNetworkingGuest(slug, { name, field, interests, linkedin, instagram, optedIn, photoUrl }) {
+  if (await serverAuthReady()) {
+    let guest;
+    try {
+      guest = await apiJson("/api/networking/guests", { method: "POST", body: { slug, name, field, interests, linkedin, instagram, optedIn, photoUrl } });
+    } catch (err) {
+      throw new Error(err.message || "Couldn't complete registration — please try again.");
+    }
+    // The secret is what proves to the server that this browser is this guest.
+    try { window.localStorage.setItem(netSecretStorageKey(guest.id), guest.secret); } catch {}
+    const { secret, ...publicGuest } = guest;
+    return publicGuest;
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests`, {
     method: "POST",
     headers: { ...supabaseHeaders, Prefer: "return=representation" },
@@ -1298,6 +1386,9 @@ async function registerNetworkingGuest(slug, { name, field, interests, linkedin,
 // guest actually appear in getNetworkingDirectory for others to see and
 // connect with.
 async function approveNetworkingGuest(guestId) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/networking/guests/${encodeURIComponent(guestId)}/approve`, { method: "POST" }); } catch { return null; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests?id=eq.${encodeURIComponent(guestId)}`, {
       method: "PATCH",
@@ -1317,6 +1408,9 @@ async function approveNetworkingGuest(guestId) {
 // approve them. Ordinary guests never see this list; getNetworkingDirectory
 // (below) is what they see, and it only ever returns approved guests.
 async function getAllNetworkingGuestsForCouple(slug) {
+  if (await serverAuthReady()) {
+    try { return (await apiJson(`/api/networking/owner?slug=${encodeURIComponent(slug)}`)).guests || []; } catch { return []; }
+  }
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/networking_guests?invitation_slug=eq.${encodeURIComponent(slug)}&order=created_at.desc`,
@@ -1334,6 +1428,9 @@ async function getAllNetworkingGuestsForCouple(slug) {
 // moderates these (accept/decline stays strictly between the two guests
 // involved); this is purely so they can see who's connecting at their event.
 async function getNetworkingConnectionsForCouple(slug) {
+  if (await serverAuthReady()) {
+    try { return (await apiJson(`/api/networking/owner?slug=${encodeURIComponent(slug)}`)).connections || []; } catch { return []; }
+  }
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/networking_connections?invitation_slug=eq.${encodeURIComponent(slug)}&select=*,from_guest:from_guest_id(name),to_guest:to_guest_id(name)&order=created_at.desc`,
@@ -1347,6 +1444,9 @@ async function getNetworkingConnectionsForCouple(slug) {
 }
 
 async function getNetworkingDirectory(slug, excludeGuestId) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/networking/directory?slug=${encodeURIComponent(slug)}&guestId=${encodeURIComponent(excludeGuestId)}`, { headers: netHeaders(excludeGuestId) }); } catch { return []; }
+  }
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/networking_guests?invitation_slug=eq.${encodeURIComponent(slug)}&opted_in=eq.true&approved=eq.true&id=neq.${encodeURIComponent(excludeGuestId)}&order=created_at.desc`,
@@ -1373,6 +1473,13 @@ function networkingMatchScore(me, other) {
 }
 
 async function sendConnectionRequest(slug, fromGuestId, toGuestId) {
+  if (await serverAuthReady()) {
+    try {
+      return await apiJson("/api/networking/connections", { method: "POST", body: { fromGuestId, toGuestId }, headers: netHeaders(fromGuestId) });
+    } catch (err) {
+      throw new Error(err.message || "Couldn't send that connection request — you may have already sent one to this guest.");
+    }
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_connections`, {
     method: "POST",
     headers: { ...supabaseHeaders, Prefer: "return=representation" },
@@ -1387,6 +1494,9 @@ async function sendConnectionRequest(slug, fromGuestId, toGuestId) {
 }
 
 async function getConnectionsForGuest(guestId) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/networking/connections?guestId=${encodeURIComponent(guestId)}`, { headers: netHeaders(guestId) }); } catch { return []; }
+  }
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/networking_connections?or=(from_guest_id.eq.${encodeURIComponent(guestId)},to_guest_id.eq.${encodeURIComponent(guestId)})&order=created_at.desc`,
@@ -1403,7 +1513,10 @@ async function getConnectionsForGuest(guestId) {
   }
 }
 
-async function respondToConnection(connectionId, status) {
+async function respondToConnection(connectionId, status, guestId) {
+  if (await serverAuthReady()) {
+    try { await apiJson(`/api/networking/connections/${encodeURIComponent(connectionId)}`, { method: "PATCH", body: { status, guestId }, headers: netHeaders(guestId) }); return true; } catch { return false; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_connections?id=eq.${encodeURIComponent(connectionId)}`, {
       method: "PATCH",
@@ -1417,6 +1530,13 @@ async function respondToConnection(connectionId, status) {
 }
 
 async function sendNetworkingMessage(connectionId, senderId, text) {
+  if (await serverAuthReady()) {
+    try {
+      return await apiJson("/api/networking/messages", { method: "POST", body: { connectionId, senderId, text }, headers: netHeaders(senderId) });
+    } catch (err) {
+      throw new Error(err.message || "Couldn't send that message — please try again.");
+    }
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_messages`, {
     method: "POST",
     headers: { ...supabaseHeaders, Prefer: "return=representation" },
@@ -1430,7 +1550,10 @@ async function sendNetworkingMessage(connectionId, senderId, text) {
   return rows[0];
 }
 
-async function getNetworkingMessages(connectionId) {
+async function getNetworkingMessages(connectionId, guestId) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/networking/messages?connectionId=${encodeURIComponent(connectionId)}&guestId=${encodeURIComponent(guestId)}`, { headers: netHeaders(guestId) }); } catch { return []; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_messages?connection_id=eq.${encodeURIComponent(connectionId)}&order=created_at.asc`, { headers: supabaseHeaders });
     if (!res.ok) return [];
@@ -1440,7 +1563,12 @@ async function getNetworkingMessages(connectionId) {
   }
 }
 
-async function getNetworkingGuestById(guestId) {
+// viewerId: the guest looking (when it's someone else's profile).
+async function getNetworkingGuestById(guestId, viewerId) {
+  if (await serverAuthReady()) {
+    const viewer = viewerId || guestId;
+    try { return await apiJson(`/api/networking/guests/${encodeURIComponent(guestId)}?viewer=${encodeURIComponent(viewer)}`, { headers: netHeaders(viewer) }); } catch { return null; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/networking_guests?id=eq.${encodeURIComponent(guestId)}`, { headers: supabaseHeaders });
     if (!res.ok) return null;
@@ -1452,6 +1580,13 @@ async function getNetworkingGuestById(guestId) {
 }
 
 async function submitVoiceMessage(slug, { guestGroupId, guestName, rsvpStatus, audioData, mimeType, durationSeconds }) {
+  if (await serverAuthReady()) {
+    try {
+      return await apiJson("/api/voice-messages", { method: "POST", body: { slug, guestGroupId, guestName, rsvpStatus, audioData, mimeType, durationSeconds } });
+    } catch (err) {
+      throw new Error(err.message || "Couldn't send your voice message — please try again.");
+    }
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/voice_messages`, {
     method: "POST",
     headers: { ...supabaseHeaders, Prefer: "return=representation" },
@@ -1474,6 +1609,9 @@ async function submitVoiceMessage(slug, { guestGroupId, guestName, rsvpStatus, a
 }
 
 async function getVoiceMessages(slug) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/voice-messages?slug=${encodeURIComponent(slug)}`); } catch { return []; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/voice_messages?invitation_slug=eq.${encodeURIComponent(slug)}&order=created_at.desc`, { headers: supabaseHeaders });
     if (!res.ok) {
@@ -1496,6 +1634,9 @@ async function getVoiceMessages(slug) {
 // ---------------------------------------------------------------------- //
 
 async function createCheckinToken(slug, guestGroupId, guestNames) {
+  if (await serverAuthReady()) {
+    try { return (await apiJson("/api/checkins", { method: "POST", body: { slug, guestGroupId, guestNames } })).token || null; } catch { return null; }
+  }
   const token = crypto.randomUUID();
   const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins`, {
     method: "POST",
@@ -1514,6 +1655,9 @@ async function createCheckinToken(slug, guestGroupId, guestNames) {
 // so callers can tell "no guests yet" apart from "couldn't load" instead
 // of both silently looking like an empty list.
 async function getCheckinsForSlug(slug) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/checkins?slug=${encodeURIComponent(slug)}`, { headers: accessKeyHeaders() }); } catch { return null; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?invitation_slug=eq.${encodeURIComponent(slug)}&order=checked_in_at.desc.nullslast`, { headers: supabaseHeaders });
     if (!res.ok) {
@@ -1528,6 +1672,9 @@ async function getCheckinsForSlug(slug) {
 }
 
 async function getCheckinByToken(token) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/checkins/token/${encodeURIComponent(token)}`); } catch { return null; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?token=eq.${encodeURIComponent(token)}`, { headers: supabaseHeaders });
     if (!res.ok) return null;
@@ -1543,6 +1690,9 @@ async function getCheckinByToken(token) {
 // code can be shown again instead of only ever appearing once, right after
 // the original submission.
 async function getCheckinByGroupId(groupId) {
+  if (await serverAuthReady()) {
+    try { return (await apiJson(`/api/checkins/group/${encodeURIComponent(groupId)}`)).token || null; } catch { return null; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?guest_group_id=eq.${encodeURIComponent(groupId)}`, { headers: supabaseHeaders });
     if (!res.ok) return null;
@@ -1554,6 +1704,9 @@ async function getCheckinByGroupId(groupId) {
 }
 
 async function markCheckedIn(token) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/checkins/token/${encodeURIComponent(token)}/check-in`, { method: "POST" }); } catch { return null; }
+  }
   try {
     // Only sets checked_in_at if it's currently null — this is what
     // preserves the ORIGINAL check-in time if the same QR code somehow
@@ -1576,6 +1729,9 @@ async function markCheckedIn(token) {
 // prematurely; whoever's actually at the door needs a way to clear that
 // false mark so the real, on-arrival scan isn't blocked by it.
 async function resetCheckin(token) {
+  if (await serverAuthReady()) {
+    try { return await apiJson(`/api/checkins/token/${encodeURIComponent(token)}/reset`, { method: "POST" }); } catch { return null; }
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/guest_checkins?token=eq.${encodeURIComponent(token)}`, {
       method: "PATCH",
@@ -4379,7 +4535,10 @@ function NetworkingPanel({ heading, setHeading, subtitle, setSubtitle, buttonLab
   );
 }
 
-function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, formText, formDefaults, setFormText, formStyle, setFormStyle, bg, setBg, dashboardUrl, slug }) {
+function DjRequestsPanel({ heading, setHeading, subtitle, setSubtitle, formText, formDefaults, setFormText, formStyle, setFormStyle, bg, setBg, dashboardUrl: baseDashboardUrl, slug }) {
+  // The DJ's link carries this invitation's secret DJ key once the server is set up.
+  const accessKeys = useAccessKeys(slug);
+  const dashboardUrl = withAccessKey(baseDashboardUrl, accessKeys?.djKey);
   const [copied, setCopied] = useState(false);
   const [pendingCount, setPendingCount] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -9821,6 +9980,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
 }
 
 function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
+  const staffAccessKeys = useAccessKeys(slug); // the check-in staff link's secret key
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -10160,7 +10320,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               </div>
             </div>
             <button
-              onClick={async () => { const ok = await copyToClipboard(`https://${siteDomain}/checkin-staff/${slug}`); setCopiedCheckinStaffLink(ok); setTimeout(() => setCopiedCheckinStaffLink(false), 2000); }}
+              onClick={async () => { const ok = await copyToClipboard(withAccessKey(`https://${siteDomain}/checkin-staff/${slug}`, staffAccessKeys?.staffKey)); setCopiedCheckinStaffLink(ok); setTimeout(() => setCopiedCheckinStaffLink(false), 2000); }}
               className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold"
               style={{ background: copiedCheckinStaffLink ? "rgba(143,191,163,0.18)" : GOLD, color: copiedCheckinStaffLink ? "#8FBFA3" : INK, fontFamily: FONT_BODY }}
             >
@@ -12305,7 +12465,7 @@ function DjDashboard({ slug }) {
 
   const setStatus = async (id, status) => {
     setRequests((list) => list.map((r) => (r.id === id ? { ...r, status } : r))); // optimistic, corrected by the next poll if it fails
-    await updateSongRequestStatus(id, status);
+    await updateSongRequestStatus(id, status, slug);
   };
 
   const filtered = filter === "all" ? requests : requests.filter((r) => r.status === filter);
@@ -12318,6 +12478,7 @@ function DjDashboard({ slug }) {
           <Music2 size={20} color={GOLD} />
           <h1 className="text-xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic" }}>DJ Dashboard</h1>
         </div>
+        <MissingAccessKeyNotice who="DJ" />
         <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>
           Live song requests for this event — refreshes automatically every few seconds. {pendingCount} pending right now.
         </p>
@@ -12380,6 +12541,7 @@ function CheckinStaffPage({ slug }) {
         <p className="mb-6 text-[12.5px]" style={{ color: MUTED }}>
           Scan each guest's QR code as they arrive.
         </p>
+        <MissingAccessKeyNotice who="check-in staff" />
         <CheckinPanel slug={slug} siteDomain={window.location.host} />
       </div>
     </div>
@@ -13633,14 +13795,14 @@ function NetworkingConnectionsList({ slug, me, onOpenConnection }) {
     const conns = await getConnectionsForGuest(me.id);
     setConnections(conns);
     const otherIds = [...new Set(conns.map((c) => (c.from_guest_id === me.id ? c.to_guest_id : c.from_guest_id)))];
-    const guests = await Promise.all(otherIds.map((id) => getNetworkingGuestById(id)));
+    const guests = await Promise.all(otherIds.map((id) => getNetworkingGuestById(id, me.id)));
     setGuestsById(Object.fromEntries(guests.filter(Boolean).map((g) => [g.id, g])));
   };
 
   useEffect(() => { load(); }, [slug, me.id]);
 
   const respond = async (connectionId, status) => {
-    await respondToConnection(connectionId, status);
+    await respondToConnection(connectionId, status, me.id);
     load();
   };
 
@@ -13685,7 +13847,7 @@ function NetworkingMessageThread({ slug, me, connection, onBack }) {
   const bottomRef = useRef(null);
 
   const load = async () => {
-    const msgs = await getNetworkingMessages(connection.id);
+    const msgs = await getNetworkingMessages(connection.id, me.id);
     setMessages(msgs);
   };
 
