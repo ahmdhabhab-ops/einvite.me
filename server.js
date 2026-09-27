@@ -1047,6 +1047,360 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
 });
 
 // ---------------------------------------------------------------------------
+// Event features: song requests, voice messages, QR check-ins and guest
+// networking. Their tables used to be read and written straight from the
+// browser with the anon key, so anyone could read every guest's details or
+// change them. Now they go through here (service key), with these rules:
+//   - guests can add a song request, a voice message, a check-in code, and
+//     their own networking profile / connections / messages (proved with a
+//     per-guest secret the server hands out when they register)
+//   - the invitation's owner (that client, or the admin) sees and manages
+//     everything for their invitation
+//   - the DJ link and the check-in staff link carry a secret key
+//     (/dj/<slug>?k=... and /checkin-staff/<slug>?k=...) instead of being
+//     open to anyone who knows the invitation's link
+//   - a QR check-in code (a random token) is its own proof, as before
+// ---------------------------------------------------------------------------
+
+const ACCESS_KEYS_KV = "einvite:access-keys";
+
+async function restGet(pathAndQuery) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`, { headers: serviceHeaders });
+  if (!r.ok) throw new Error(`${pathAndQuery.split("?")[0]} read failed (${r.status}): ${(await r.text().catch(() => "")).slice(0, 200)}`);
+  return r.json();
+}
+async function restSend(method, pathAndQuery, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${pathAndQuery}`, {
+    method,
+    headers: { ...serviceHeaders, Prefer: "return=representation" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const err = new Error(`${pathAndQuery.split("?")[0]} ${method} failed (${r.status}): ${(await r.text().catch(() => "")).slice(0, 200)}`);
+    err.status = r.status;
+    throw err;
+  }
+  return r.json();
+}
+const enc = encodeURIComponent;
+
+// The client who owns a slug ("admin-preview" is the admin's own).
+async function slugOwnerId(slug) {
+  if (slug === ADMIN_PREVIEW_SLUG) return "__owner__";
+  if (Date.now() - draftUsersCache.at > 15000) draftUsersCache = { at: Date.now(), users: await readDraftUsers() };
+  return draftUsersCache.users.find((u) => u?.invitationSlug === slug)?.id || null;
+}
+
+async function ownsSlug(req, slug) {
+  const who = requestRole(req);
+  if (who.role === "admin") return true;
+  if (who.role !== "client") return false;
+  return (await slugOwnerId(slug)) === who.userId;
+}
+
+async function accessKeys() {
+  const raw = await kvRead(ACCESS_KEYS_KV);
+  return raw ? JSON.parse(raw) : {};
+}
+async function accessKeysFor(slug) {
+  const all = await accessKeys();
+  if (all[slug]?.dj && all[slug]?.staff) return all[slug];
+  const keys = { dj: randomBytes(12).toString("hex"), staff: randomBytes(12).toString("hex") };
+  await kvWrite(ACCESS_KEYS_KV, JSON.stringify({ ...(await accessKeys()), [slug]: keys }));
+  return keys;
+}
+// The owner, or someone holding that slug's DJ / staff key.
+async function canUseSlug(req, slug, kind) {
+  if (await ownsSlug(req, slug)) return true;
+  const key = String(req.get("x-access-key") || "");
+  if (!key) return false;
+  const keys = (await accessKeys())[slug];
+  return !!keys?.[kind] && sameSecret(key, keys[kind]);
+}
+
+const SLUG_RE = /^[a-z0-9-]{1,100}$/;
+const eventHits = new Map(); // ip -> { count, since }
+function eventRateLimited(req, max = 30) {
+  const ip = clientIp(req);
+  const now = Date.now();
+  const h = eventHits.get(ip);
+  const cur = h && now - h.since < 60000 ? h : { count: 0, since: now };
+  cur.count++;
+  eventHits.set(ip, cur);
+  return cur.count > max;
+}
+
+// Wraps a handler: auth must be set up, errors become a plain 502.
+const eventRoute = (fn) => async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  try {
+    await fn(req, res);
+  } catch (err) {
+    console.error(`${req.method} ${req.path} failed:`, err.message);
+    if (!res.headersSent) res.status(502).json({ error: "Something went wrong — please try again." });
+  }
+};
+const deny = (res) => res.status(403).json({ error: "not allowed" });
+
+// The owner's DJ and check-in staff links carry these keys.
+app.get("/api/access-links", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  if (!SLUG_RE.test(slug) || !(await ownsSlug(req, slug))) return deny(res);
+  const keys = await accessKeysFor(slug);
+  res.set("cache-control", "no-store").json({ djKey: keys.dj, staffKey: keys.staff });
+}));
+
+// ---- Song requests ----
+app.post("/api/song-requests", express.json({ limit: "8kb" }), eventRoute(async (req, res) => {
+  const b = req.body || {};
+  const slug = String(b.slug || "");
+  if (eventRateLimited(req)) return res.status(429).json({ error: "Too many requests — please try again in a minute." });
+  if (!SLUG_RE.test(slug) || !(await slugOwnerId(slug))) return res.status(404).json({ error: "Invitation not found." });
+  const songName = String(b.songName || "").trim().slice(0, 200);
+  if (!songName) return res.status(400).json({ error: "Please enter a song name." });
+  const rows = await restSend("POST", "song_requests", {
+    invitation_slug: slug,
+    song_name: songName,
+    artist: String(b.artist || "").trim().slice(0, 200) || null,
+    requester_name: String(b.requesterName || "").trim().slice(0, 100) || null,
+  });
+  res.json(rows[0] || {});
+}));
+
+app.get("/api/song-requests", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  if (!SLUG_RE.test(slug) || !(await canUseSlug(req, slug, "dj"))) return deny(res);
+  res.set("cache-control", "no-store").json(await restGet(`song_requests?invitation_slug=eq.${enc(slug)}&order=created_at.desc`));
+}));
+
+app.patch("/api/song-requests/:id", express.json({ limit: "2kb" }), eventRoute(async (req, res) => {
+  const slug = String(req.body?.slug || "");
+  const status = String(req.body?.status || "").slice(0, 30);
+  if (!SLUG_RE.test(slug) || !status || !(await canUseSlug(req, slug, "dj"))) return deny(res);
+  const rows = await restSend("PATCH", `song_requests?id=eq.${enc(req.params.id)}&invitation_slug=eq.${enc(slug)}`, { status });
+  if (!rows.length) return res.status(404).json({ error: "not found" });
+  res.json(rows[0]);
+}));
+
+// ---- Voice messages ----
+app.post("/api/voice-messages", express.json({ limit: "12mb" }), eventRoute(async (req, res) => {
+  const b = req.body || {};
+  const slug = String(b.slug || "");
+  if (eventRateLimited(req, 10)) return res.status(429).json({ error: "Too many messages — please try again in a minute." });
+  if (!SLUG_RE.test(slug) || !(await slugOwnerId(slug))) return res.status(404).json({ error: "Invitation not found." });
+  const audioData = String(b.audioData || "");
+  if (!audioData.startsWith("data:audio/") || audioData.length > 11 * 1024 * 1024) return res.status(400).json({ error: "That recording couldn't be sent." });
+  const rows = await restSend("POST", "voice_messages", {
+    invitation_slug: slug,
+    guest_group_id: b.guestGroupId ? String(b.guestGroupId).slice(0, 64) : null,
+    guest_name: String(b.guestName || "Guest").trim().slice(0, 100),
+    rsvp_status: String(b.rsvpStatus || "").slice(0, 20) || null,
+    audio_data: audioData,
+    mime_type: String(b.mimeType || "audio/webm").slice(0, 60),
+    duration_seconds: Number.isFinite(Number(b.durationSeconds)) ? Math.round(Number(b.durationSeconds)) : null,
+  });
+  res.json({ id: rows[0]?.id || null });
+}));
+
+app.get("/api/voice-messages", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  if (!SLUG_RE.test(slug) || !(await ownsSlug(req, slug))) return deny(res);
+  res.set("cache-control", "no-store").json(await restGet(`voice_messages?invitation_slug=eq.${enc(slug)}&order=created_at.desc`));
+}));
+
+// ---- QR check-ins ----
+app.post("/api/checkins", express.json({ limit: "4kb" }), eventRoute(async (req, res) => {
+  const b = req.body || {};
+  const slug = String(b.slug || "");
+  if (eventRateLimited(req)) return res.status(429).json({ error: "Too many requests." });
+  if (!SLUG_RE.test(slug) || !(await slugOwnerId(slug))) return res.status(404).json({ error: "Invitation not found." });
+  const token = randomUUID();
+  await restSend("POST", "guest_checkins", {
+    invitation_slug: slug,
+    guest_group_id: String(b.guestGroupId || "").slice(0, 64) || null,
+    guest_names: String(b.guestNames || "").slice(0, 300),
+    token,
+  });
+  res.json({ token });
+}));
+
+app.get("/api/checkins", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  if (!SLUG_RE.test(slug) || !(await canUseSlug(req, slug, "staff"))) return deny(res);
+  res.set("cache-control", "no-store").json(await restGet(`guest_checkins?invitation_slug=eq.${enc(slug)}&order=checked_in_at.desc.nullslast`));
+}));
+
+const TOKEN_RE = /^[A-Za-z0-9-]{8,80}$/;
+app.get("/api/checkins/token/:token", eventRoute(async (req, res) => {
+  if (!TOKEN_RE.test(req.params.token)) return res.json(null);
+  const rows = await restGet(`guest_checkins?token=eq.${enc(req.params.token)}`);
+  res.set("cache-control", "no-store").json(rows[0] || null);
+}));
+
+// A guest reopening their personal link gets their own code back.
+app.get("/api/checkins/group/:groupId", eventRoute(async (req, res) => {
+  const rows = await restGet(`guest_checkins?guest_group_id=eq.${enc(String(req.params.groupId).slice(0, 64))}&select=token`);
+  res.set("cache-control", "no-store").json({ token: rows[0]?.token || null });
+}));
+
+app.post("/api/checkins/token/:token/check-in", eventRoute(async (req, res) => {
+  if (!TOKEN_RE.test(req.params.token)) return res.json(null);
+  const rows = await restSend("PATCH", `guest_checkins?token=eq.${enc(req.params.token)}&checked_in_at=is.null`, { checked_in_at: new Date().toISOString() });
+  res.json(rows[0] || null);
+}));
+
+app.post("/api/checkins/token/:token/reset", eventRoute(async (req, res) => {
+  if (!TOKEN_RE.test(req.params.token)) return res.json(null);
+  const rows = await restSend("PATCH", `guest_checkins?token=eq.${enc(req.params.token)}`, { checked_in_at: null });
+  res.json(rows[0] || null);
+}));
+
+// ---- Guest networking ----
+const NET_PUBLIC_FIELDS = "id,invitation_slug,name,field,interests,linkedin,instagram,opted_in,approved,photo_url,created_at";
+
+// A guest proves who they are with the secret they got when registering.
+// Profiles made before secrets existed have none, and keep working by id.
+async function netGuestAuthed(guestId, secret) {
+  if (!guestId) return null;
+  const rows = await restGet(`networking_guests?id=eq.${enc(guestId)}`);
+  const g = rows[0];
+  if (!g) return null;
+  if (g.secret && !(secret && sameSecret(String(secret), g.secret))) return null;
+  return g;
+}
+const netPublic = (g) => {
+  if (!g) return g;
+  const { secret, ...rest } = g;
+  return rest;
+};
+
+app.post("/api/networking/guests", express.json({ limit: "16kb" }), eventRoute(async (req, res) => {
+  const b = req.body || {};
+  const slug = String(b.slug || "");
+  if (eventRateLimited(req, 10)) return res.status(429).json({ error: "Too many requests — please try again in a minute." });
+  if (!SLUG_RE.test(slug) || !(await slugOwnerId(slug))) return res.status(404).json({ error: "Invitation not found." });
+  const name = String(b.name || "").trim().slice(0, 100);
+  if (!name) return res.status(400).json({ error: "Please enter your name." });
+  const photoUrl = typeof b.photoUrl === "string" && b.photoUrl.startsWith(`${SUPABASE_URL}/storage/v1/object/public/`) ? b.photoUrl.slice(0, 500) : null;
+  const secret = randomBytes(18).toString("hex");
+  const rows = await restSend("POST", "networking_guests", {
+    invitation_slug: slug,
+    name,
+    field: String(b.field || "").trim().slice(0, 100) || null,
+    interests: String(b.interests || "").trim().slice(0, 300) || null,
+    linkedin: String(b.linkedin || "").trim().slice(0, 200) || null,
+    instagram: String(b.instagram || "").trim().slice(0, 200) || null,
+    opted_in: b.optedIn !== false,
+    photo_url: photoUrl,
+    approved: false,
+    secret,
+  });
+  res.json({ ...netPublic(rows[0]), secret });
+}));
+
+// One guest's public profile: their own (with the secret), an approved
+// guest's, or any for the invitation's owner.
+app.get("/api/networking/guests/:id", eventRoute(async (req, res) => {
+  const rows = await restGet(`networking_guests?id=eq.${enc(req.params.id)}`);
+  const g = rows[0];
+  if (!g) return res.json(null);
+  const viewerId = String(req.query.viewer || "");
+  const isSelf = !viewerId || viewerId === g.id
+    ? !g.secret || (req.get("x-guest-secret") && sameSecret(String(req.get("x-guest-secret")), g.secret))
+    : false;
+  // Someone this guest is connected with (either direction) sees them too.
+  let connected = false;
+  if (!isSelf && viewerId && viewerId !== g.id) {
+    const viewer = await netGuestAuthed(viewerId, req.get("x-guest-secret"));
+    if (viewer) connected = (await restGet(`networking_connections?or=(and(from_guest_id.eq.${enc(viewer.id)},to_guest_id.eq.${enc(g.id)}),and(from_guest_id.eq.${enc(g.id)},to_guest_id.eq.${enc(viewer.id)}))&select=id&limit=1`)).length > 0;
+  }
+  if (!isSelf && !connected && !(g.approved && g.opted_in) && !(await ownsSlug(req, g.invitation_slug))) return res.json(null);
+  if (!isSelf) {
+    const { secret, ...shown } = g;
+    return res.set("cache-control", "no-store").json(shown);
+  }
+  res.set("cache-control", "no-store").json(netPublic(g));
+}));
+
+app.get("/api/networking/directory", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  const me = await netGuestAuthed(String(req.query.guestId || ""), req.get("x-guest-secret"));
+  if (!SLUG_RE.test(slug) || !me || me.invitation_slug !== slug) return deny(res);
+  res.set("cache-control", "no-store").json((await restGet(`networking_guests?invitation_slug=eq.${enc(slug)}&opted_in=eq.true&approved=eq.true&id=neq.${enc(me.id)}&select=${NET_PUBLIC_FIELDS}&order=created_at.desc`)).map(netPublic));
+}));
+
+app.post("/api/networking/connections", express.json({ limit: "4kb" }), eventRoute(async (req, res) => {
+  const b = req.body || {};
+  const me = await netGuestAuthed(String(b.fromGuestId || ""), req.get("x-guest-secret"));
+  if (!me) return deny(res);
+  const other = (await restGet(`networking_guests?id=eq.${enc(String(b.toGuestId || ""))}&select=id,invitation_slug,approved,opted_in`))[0];
+  if (!other || other.invitation_slug !== me.invitation_slug || !other.approved || !other.opted_in || other.id === me.id) return deny(res);
+  try {
+    const rows = await restSend("POST", "networking_connections", { invitation_slug: me.invitation_slug, from_guest_id: me.id, to_guest_id: other.id, status: "pending" });
+    res.json(rows[0] || {});
+  } catch (err) {
+    if (err.status === 409) return res.status(409).json({ error: "You've already sent a request to this guest." });
+    throw err;
+  }
+}));
+
+app.get("/api/networking/connections", eventRoute(async (req, res) => {
+  const me = await netGuestAuthed(String(req.query.guestId || ""), req.get("x-guest-secret"));
+  if (!me) return deny(res);
+  res.set("cache-control", "no-store").json(await restGet(`networking_connections?or=(from_guest_id.eq.${enc(me.id)},to_guest_id.eq.${enc(me.id)})&order=created_at.desc`));
+}));
+
+// Only the guest who received the request answers it.
+app.patch("/api/networking/connections/:id", express.json({ limit: "2kb" }), eventRoute(async (req, res) => {
+  const me = await netGuestAuthed(String(req.body?.guestId || ""), req.get("x-guest-secret"));
+  const status = String(req.body?.status || "");
+  if (!me || !["accepted", "declined", "pending"].includes(status)) return deny(res);
+  const rows = await restSend("PATCH", `networking_connections?id=eq.${enc(req.params.id)}&to_guest_id=eq.${enc(me.id)}`, { status, responded_at: new Date().toISOString() });
+  if (!rows.length) return deny(res);
+  res.json(rows[0]);
+}));
+
+async function connectionFor(connectionId, guestId) {
+  const c = (await restGet(`networking_connections?id=eq.${enc(connectionId)}`))[0];
+  return c && (c.from_guest_id === guestId || c.to_guest_id === guestId) ? c : null;
+}
+
+app.post("/api/networking/messages", express.json({ limit: "8kb" }), eventRoute(async (req, res) => {
+  const b = req.body || {};
+  const me = await netGuestAuthed(String(b.senderId || ""), req.get("x-guest-secret"));
+  const text = String(b.text || "").trim().slice(0, 1000);
+  if (!me || !text || !(await connectionFor(String(b.connectionId || ""), me.id))) return deny(res);
+  if (eventRateLimited(req, 60)) return res.status(429).json({ error: "Slow down a little — please try again in a minute." });
+  const rows = await restSend("POST", "networking_messages", { connection_id: String(b.connectionId), sender_id: me.id, text });
+  res.json(rows[0] || {});
+}));
+
+app.get("/api/networking/messages", eventRoute(async (req, res) => {
+  const me = await netGuestAuthed(String(req.query.guestId || ""), req.get("x-guest-secret"));
+  const connectionId = String(req.query.connectionId || "");
+  if (!me || !(await connectionFor(connectionId, me.id))) return deny(res);
+  res.set("cache-control", "no-store").json(await restGet(`networking_messages?connection_id=eq.${enc(connectionId)}&order=created_at.asc`));
+}));
+
+// The couple's own view: every registration (to approve) and connection.
+app.get("/api/networking/owner", eventRoute(async (req, res) => {
+  const slug = String(req.query.slug || "");
+  if (!SLUG_RE.test(slug) || !(await ownsSlug(req, slug))) return deny(res);
+  const [guests, connections] = await Promise.all([
+    restGet(`networking_guests?invitation_slug=eq.${enc(slug)}&select=${NET_PUBLIC_FIELDS}&order=created_at.desc`),
+    restGet(`networking_connections?invitation_slug=eq.${enc(slug)}&select=*,from_guest:from_guest_id(name),to_guest:to_guest_id(name)&order=created_at.desc`),
+  ]);
+  res.set("cache-control", "no-store").json({ guests: guests.map(netPublic), connections });
+}));
+
+app.post("/api/networking/guests/:id/approve", eventRoute(async (req, res) => {
+  const g = (await restGet(`networking_guests?id=eq.${enc(req.params.id)}&select=id,invitation_slug`))[0];
+  if (!g || !(await ownsSlug(req, g.invitation_slug))) return deny(res);
+  const rows = await restSend("PATCH", `networking_guests?id=eq.${enc(g.id)}`, { approved: true });
+  res.json(netPublic(rows[0]) || null);
+}));
+
+// ---------------------------------------------------------------------------
 // Admin password: /admin (the owner's Builder and dashboards) asks for
 // ADMIN_PASSWORD, set on the app in Dokploy, before the page is served.
 // A correct password sets a signed, httpOnly cookie for 30 days; changing
