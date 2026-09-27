@@ -6608,12 +6608,14 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
 // "Peter Kfoury & Martine Kfoury", "A, B & C"
 const joinNames = (names) => (names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`);
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, onUpdateContent }) {
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, onUpdateContent }) {
   // A family's personal link already knows who's invited (the Members the
   // couple entered in the dashboard): their names are shown, and replying
   // answers for all of them instead of asking the guest to type names.
   const invited = editMode ? [] : (invitedNames || []).map((n) => String(n || "").trim()).filter(Boolean);
   const personal = invited.length > 0;
+  // The family's name from the dashboard, else the invited people's names.
+  const invitedHeading = editMode ? "" : String(invitedTitle || "").trim() || joinNames(invited);
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   // Lets the couple fade a customized button background toward the photo
@@ -6892,9 +6894,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               </div>
             )}
             <div style={{ width: 230 }}>
-              {personal && (
+              {invitedHeading && (
                 <p className="mb-3 text-center" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: bs.thankYouText || (light ? PAPER : EMERALD) }}>
-                  {joinNames(invited)}
+                  {invitedHeading}
                 </p>
               )}
               {effectiveSubmitted ? (
@@ -7641,7 +7643,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -8178,7 +8180,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} invitedTitle={invitedTitle} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
@@ -8664,7 +8666,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 // Timeline, Registry, Rsvp, ...) and the same already-saved content/layout
 // data — this is a different way of PRESENTING that data, not a separate
 // copy of it.
-function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, onUpdateRsvpContent }) {
+function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, onUpdateRsvpContent }) {
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
   const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
@@ -8693,7 +8695,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} invitedTitle={invitedTitle} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
       case "djRequests":
@@ -9082,6 +9084,15 @@ function StatCard({ label, value, accent }) {
   );
 }
 
+// A guest family's name as the couple wrote it in the dashboard's Name
+// column (e.g. "Peter & Martine Kfoury") — shown on their personal
+// invitation. Older rows kept it as a first + last name.
+const guestGroupName = (g) => {
+  if (!g) return "";
+  if (typeof g.name === "string") return g.name.trim();
+  return [g.firstName ?? g.members?.[0]?.name ?? "", g.lastName ?? ""].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+};
+
 // The dashboard's Members cell: one editable name per invited person (e.g.
 // "Peter Kfoury", "Martine Kfoury") plus "+ Add member". The dot shows each
 // person's RSVP (green yes, red no, grey pending). Everyone listed here is
@@ -9238,7 +9249,7 @@ function TableCard({ table, groups, allTables, onUpdateTable, onDeleteTable, onA
           <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: INK_3 }}>
             <div className="min-w-0">
               <div className="truncate text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
-                {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest"}
+                {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || guestGroupName(g) || "Guest"}
                 {g.lastName ? ` (${g.lastName})` : ""}
               </div>
               <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{groupHeadcount(g)} seat{groupHeadcount(g) === 1 ? "" : "s"}</div>
@@ -9806,7 +9817,7 @@ function SeatingManager({ guestGroups, tables, onAddTable, onUpdateTable, onDele
               <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: INK_3 }}>
                 <div className="min-w-0">
                   <div className="truncate text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
-                    {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest"}
+                    {g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || guestGroupName(g) || "Guest"}
                     {g.lastName ? ` (${g.lastName})` : ""}
                   </div>
                   <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{groupHeadcount(g)} seat{groupHeadcount(g) === 1 ? "" : "s"}</div>
@@ -9870,7 +9881,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
 
   const seatedAt = (tableId) => confirmedGroups.filter((g) => g.tableId === tableId);
   const unassigned = confirmedGroups.filter((g) => !g.tableId || !tables.some((t) => t.id === g.tableId));
-  const guestLabel = (g) => g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || g.lastName || "Guest";
+  const guestLabel = (g) => g.members.filter((m) => m.status === "yes").map((m) => m.name).join(", ") || guestGroupName(g) || "Guest";
 
   const shapeSize = (table) => {
     const scale = table.scale || 1;
@@ -10194,7 +10205,6 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
-  const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [addGuestsCount, setAddGuestsCount] = useState(0);
   const [addGuestError, setAddGuestError] = useState("");
@@ -10323,7 +10333,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         to: group.phone,
         templateName: WHATSAPP_TEMPLATE_NAME,
         languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
-        variables: [group.members[0]?.name || group.lastName, coupleTitle, guestLink(group)],
+        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", coupleTitle, guestLink(group)],
         headerImageUrl: og?.image || null,
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
@@ -10359,7 +10369,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         to: group.phone,
         templateName: WHATSAPP_REMINDER_TEMPLATE_NAME,
         languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
-        variables: [group.members[0]?.name || group.lastName, coupleTitle, guestLink(group)],
+        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", coupleTitle, guestLink(group)],
         headerImageUrl: og?.image || null,
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
@@ -10418,8 +10428,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
 
   // The guest family's contact first name — its own field now; older rows
   // only had it as the first member's name.
-  const groupFirstName = (g) => (g.firstName ?? g.members[0]?.name ?? "");
-  const groupFullName = (g) => [groupFirstName(g), g.lastName].filter((x) => x && x.trim()).join(" ");
+  const groupFullName = guestGroupName;
 
   const nameAdditionalGuest = (group, name) => {
     updateGuestGroup(group.id, {
@@ -10429,32 +10438,32 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   };
 
   const submitAddGuest = () => {
-    if (!lastName.trim() || !firstName.trim()) return;
+    if (!firstName.trim()) return;
     if (!phone.trim()) {
       setAddGuestError("Phone number is required.");
       return;
     }
     setAddGuestError("");
     addGuestGroup({
-      id: uid(), firstName: firstName.trim(), lastName: lastName.trim(),
+      id: uid(), name: firstName.trim(), lastName: "",
       members: [{ id: uid(), name: firstName.trim(), status: "pending" }],
       additionalGuests: addGuestsCount, table: "", phone: phone.trim(), invitationSent: false, invitationViewed: false, updatedAt: Date.now(),
     });
-    setLastName(""); setFirstName(""); setAddGuestsCount(0); setPhone("");
+    setFirstName(""); setAddGuestsCount(0); setPhone("");
   };
 
-  const addBlankRow = () => addGuestGroup({ id: uid(), firstName: "", lastName: "", members: [], additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: false, updatedAt: Date.now() });
+  const addBlankRow = () => addGuestGroup({ id: uid(), name: "", lastName: "", members: [], additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: false, updatedAt: Date.now() });
 
   // One row per invited person (not per family group), since that's what's
   // actually useful for a headcount or a mail-merge — a group's shared
   // fields (last name, phone, table) repeat on every member's row.
   const exportGuestsToCsv = () => {
-    const header = ["First Name", "Last Name", "Guest Name", "RSVP Status", "Phone", "Additional Guests", "Table", "Invitation Sent", "Invitation Viewed"];
+    const header = ["Name", "Guest Name", "RSVP Status", "Phone", "Additional Guests", "Table", "Invitation Sent", "Invitation Viewed"];
     const rows = guestGroups.flatMap((g) => {
       const tableName = tables.find((t) => t.id === g.tableId)?.name || "";
       const members = g.members.length > 0 ? g.members : [{ name: "", status: "" }];
       return members.map((m) => [
-        groupFirstName(g), g.lastName || "", m.name || "", m.status || "", g.phone || "",
+        groupFullName(g), m.name || "", m.status || "", g.phone || "",
         g.additionalGuests || 0, tableName, g.invitationSent ? "Yes" : "No", g.invitationViewed ? "Yes" : "No",
       ]);
     });
@@ -10581,10 +10590,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         </div>
         <div className="flex flex-col justify-center gap-2">
           <FieldLabel>Add a guest family</FieldLabel>
-          <div className="grid grid-cols-2 gap-2">
-            <TextInput value={firstName} onChange={setFirstName} placeholder="First name" />
-            <TextInput value={lastName} onChange={setLastName} placeholder="Last name" />
-          </div>
+          <TextInput value={firstName} onChange={setFirstName} placeholder="Name (e.g. Peter & Martine Kfoury)" />
           <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: INK_3 }}>
             <span className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>+ Guests</span>
             <div className="flex items-center gap-2">
@@ -10706,9 +10712,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
             <colgroup>
               <col style={{ width: 26 }} />
               <col style={{ width: 64 }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "19%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "22%" }} />
               <col style={{ width: "12%" }} />
               <col style={{ width: "14%" }} />
               <col style={{ width: "8%" }} />
@@ -10721,8 +10726,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                   <input type="checkbox" checked={paged.length > 0 && paged.every((g) => selectedIds.has(g.id))} onChange={toggleSelectAllVisible} />
                 </th>
                 <th></th>
-                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>First Name</th>
-                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Last Name</th>
+                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Name</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Members</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Phone</th>
                 <th className="px-2 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>+ Guests</th>
@@ -10743,7 +10747,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                 if (confirming) {
                   return (
                     <tr key={g.id} className="border-b" style={{ borderColor: "rgba(147,166,155,0.08)" }}>
-                      <td colSpan={11} className="px-2 py-2.5">
+                      <td colSpan={10} className="px-2 py-2.5">
                         <div className="flex items-center gap-2">
                           <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Delete {groupFullName(g) || "this guest"}?</span>
                           <GhostButton danger onClick={() => { deleteGuestGroup(g.id); setConfirmDeleteId(null); }}>Yes, delete</GhostButton>
@@ -10774,18 +10778,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                     </td>
                     <td className="px-2 py-0.5">
                       <input
-                        value={groupFirstName(g)}
-                        onChange={(e) => updateGuestGroup(g.id, { firstName: e.target.value })}
-                        placeholder="First name"
-                        className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
-                        style={{ color: IVORY, fontFamily: FONT_BODY }}
-                      />
-                    </td>
-                    <td className="px-2 py-0.5">
-                      <input
-                        value={g.lastName}
-                        onChange={(e) => updateGuestGroup(g.id, { lastName: e.target.value })}
-                        placeholder="Last name"
+                        value={groupFullName(g)}
+                        onChange={(e) => updateGuestGroup(g.id, { name: e.target.value })}
+                        placeholder="Name"
                         className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
                         style={{ color: IVORY, fontFamily: FONT_BODY }}
                       />
@@ -16313,7 +16308,8 @@ export default function InvitationBuilder() {
     : (guestView && guestView.found ? (guestView.ownSlug ? activeLang : (guestView.snapshot.defaultLang || "en")) : "en");
   const matchedGroup = guestView && guestView.found ? guestView.snapshotGuestGroups.find((g) => g.id === guestView.groupId) : null;
   const resolvedInvitedNames = (matchedGroup?.members || []).map((m) => m.name).filter((n) => n && n.trim() && n !== "Guest");
-  const resolvedGuestName = matchedGroup?.members?.find((m) => m.status === "yes")?.name || matchedGroup?.members?.[0]?.name || guestView?.guestNameParam || null;
+  const resolvedInvitedTitle = guestGroupName(matchedGroup);
+  const resolvedGuestName = matchedGroup?.members?.find((m) => m.status === "yes")?.name || matchedGroup?.members?.[0]?.name || resolvedInvitedTitle || guestView?.guestNameParam || null;
   // Lets a guest reopening their own personal link see that they already
   // responded (and their QR code, if they said yes) instead of the RSVP
   // block silently resetting to a blank form every time.
@@ -16494,6 +16490,7 @@ export default function InvitationBuilder() {
               prefilledRsvpStatus={resolvedRsvpStatus}
               guestGroupId={guestView.groupId}
               invitedNames={resolvedInvitedNames}
+              invitedTitle={resolvedInvitedTitle}
               onUpdateRsvpContent={() => {}}
             />
           ) : (
@@ -16521,6 +16518,7 @@ export default function InvitationBuilder() {
               prefilledRsvpStatus={resolvedRsvpStatus}
               guestGroupId={guestView.groupId}
               invitedNames={resolvedInvitedNames}
+              invitedTitle={resolvedInvitedTitle}
               onUpdateRsvpContent={() => {}}
               swipeDirection={guestSettings.swipeDirection}
             />
