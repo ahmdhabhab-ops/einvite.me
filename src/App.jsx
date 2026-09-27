@@ -1311,6 +1311,8 @@ const WHATSAPP_REMINDER_TEMPLATE_NAME = "wedding_invitation_reminder"; // sent v
 const WHATSAPP_TEMPLATE_LANGUAGE = "en"; // confirmed via Meta's own template list — do not change without re-checking there first
 
 async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
+  // Through the app's own server (logged-in users only) once it's set up.
+  if (await serverAuthReady()) return apiJson("/api/whatsapp/send", { method: "POST", body: { to, templateName, languageCode, variables, headerImageUrl } });
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
     headers: supabaseHeaders,
