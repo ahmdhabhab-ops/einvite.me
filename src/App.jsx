@@ -14103,6 +14103,11 @@ export default function InvitationBuilder() {
   // user has made a manual change since mount; the load effect's own
   // callbacks check it and skip applying their (now-stale) result once true.
   const userChangedBackgroundsRef = useRef(false);
+  // Set once the active invitation's own saved snapshot has been applied.
+  // The separate bg-* / introbg-* / og-image / music-audio keys are only a
+  // shared working copy and must never override that invitation's own
+  // backgrounds, intro media, share image or music.
+  const activeSnapshotAppliedRef = useRef(false);
   const [music, setMusic] = useState({ enabled: true, url: null, name: "", icon: "speaker" });
   const [rsvpSchedule, setRsvpSchedule] = useState({ date: "2027-06-12", time: "16:00" });
   const [registry, setRegistry] = useState(defaultRegistry);
@@ -14752,6 +14757,7 @@ export default function InvitationBuilder() {
             try {
               const activeSnapshot = JSON.parse(activeRes.value);
               setInvitationsStore((s) => ({ ...s, [d.activeInvitationId]: activeSnapshot }));
+              activeSnapshotAppliedRef.current = true;
               // THE ACTUAL FIX: the main draft payload's own copies of content,
               // customBlocks, pageBackgrounds, layouts, etc. (set from d.xxx
               // above) reflect whatever was active at the moment of the LAST
@@ -14839,7 +14845,7 @@ export default function InvitationBuilder() {
     const loadBg = (key) => (async () => {
       try {
         const res = await persistentStorage.get(bgKey(key), false);
-        if (cancelled || userChangedBackgroundsRef.current || !res?.value) return;
+        if (cancelled || userChangedBackgroundsRef.current || activeSnapshotAppliedRef.current || !res?.value) return;
         const bg = JSON.parse(res.value);
         setPageBackgrounds((p) => ({ ...p, [key]: bg }));
       } catch {}
@@ -14853,7 +14859,7 @@ export default function InvitationBuilder() {
       (async () => {
         try {
           const res = await persistentStorage.get(introBgKey(lang), false);
-          if (cancelled || !res?.value) return;
+          if (cancelled || activeSnapshotAppliedRef.current || !res?.value) return;
           const media = JSON.parse(res.value);
           setIntro((i) => ({ ...i, media: { ...i.media, [lang]: media } }));
         } catch {}
@@ -14862,7 +14868,7 @@ export default function InvitationBuilder() {
     (async () => {
       try {
         const res = await persistentStorage.get(OG_IMAGE_KEY, false);
-        if (cancelled || !res?.value) return;
+        if (cancelled || activeSnapshotAppliedRef.current || !res?.value) return;
         setOg((o) => ({ ...o, image: res.value }));
       } catch {}
     })();
@@ -14876,7 +14882,7 @@ export default function InvitationBuilder() {
     (async () => {
       try {
         const res = await persistentStorage.get(MUSIC_AUDIO_KEY, false);
-        if (cancelled || !res?.value) return;
+        if (cancelled || activeSnapshotAppliedRef.current || !res?.value) return;
         setMusic((m) => ({ ...m, url: res.value }));
       } catch {}
     })();
@@ -14947,15 +14953,20 @@ export default function InvitationBuilder() {
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
       musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
+    // The shared bg-* / introbg-* / og-image / music-audio keys belong to the
+    // admin's own invitation only. A client's (or the admin acting as a
+    // client) saving them overwrote the admin's images, which then leaked
+    // into the admin's invitation on the next load and save.
+    const ownInvitation = activeInvitationId === OWNER_SLOT;
     const imageJobs = [
       persistentStorage.set(DRAFT_KEY, JSON.stringify(corePayload), false),
-      ...ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)),
+      ...(ownInvitation ? ALL_STEPS.map(({ key }) => persistentStorage.set(bgKey(key), JSON.stringify(pageBackgrounds[key]), false)) : []),
       // Every language, not just ones with media set — filtering out a lang
       // with no media meant deleting it never actually wrote anything here,
       // so the OLD value already saved under that language's key was never
       // overwritten: reloading the page fetched that stale value right back,
       // making a "removed" background reappear after every refresh.
-      ...LANGS.map((lang) => persistentStorage.set(introBgKey(lang), JSON.stringify(intro.media[lang] || null), false)),
+      ...(ownInvitation ? LANGS.map((lang) => persistentStorage.set(introBgKey(lang), JSON.stringify(intro.media[lang] || null), false)) : []),
       // THE ACTUAL FIX: only write the CURRENTLY ACTIVE invitation's own
       // snapshot here — not every other known client's local copy. Other
       // clients' data is now saved at the moment of switching away from
@@ -14967,8 +14978,8 @@ export default function InvitationBuilder() {
       // browser hadn't refreshed recently.
       persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(getActiveSnapshot()), false),
     ];
-    if (og.image) imageJobs.push(persistentStorage.set(OG_IMAGE_KEY, og.image, false));
-    if (music.url) imageJobs.push(persistentStorage.set(MUSIC_AUDIO_KEY, music.url, false));
+    if (ownInvitation && og.image) imageJobs.push(persistentStorage.set(OG_IMAGE_KEY, og.image, false));
+    if (ownInvitation && music.url) imageJobs.push(persistentStorage.set(MUSIC_AUDIO_KEY, music.url, false));
     try {
       const outcomes = await Promise.allSettled(imageJobs);
       const [coreOutcome, ...restOutcomes] = outcomes;
