@@ -916,8 +916,11 @@ app.get("/api/unique-slug", async (req, res) => {
 });
 
 const KV_KEY_RE = /^einvite:[A-Za-z0-9:_\-.]{1,120}$/;
-// Keys a logged-in client's Builder saves besides their own invitation.
-const CLIENT_WRITABLE = (key) => /^einvite:(bg-|introbg-)/.test(key) || key === "einvite:og-image" || key === "einvite:music-audio";
+// The Builder's shared working copy of the admin's own backgrounds, intro
+// media, share image and music. Older Builder versions saved these from a
+// client's session too, overwriting the admin's images; a client's copy
+// lives in their own invitation, so those writes are now ignored.
+const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key === "einvite:og-image" || key === "einvite:music-audio";
 
 app.get("/api/kv", async (req, res) => {
   const key = String(req.query.key || "");
@@ -961,11 +964,13 @@ app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
       // admin's app opens on (activeInvitationId — a client's save used to
       // switch the admin over to that client's invitation).
       const invitationIds = [...new Set([...(current.invitationIds || []), ...(Array.isArray(incoming.invitationIds) ? incoming.invitationIds : [])])];
-      const kept = Object.fromEntries(["introMediaLibrary", "siteDomain", "activeInvitationId"].filter((k) => k in current).map((k) => [k, current[k]]));
-      await kvWrite(DRAFT_KEY, JSON.stringify({ ...incoming, ...kept, users, invitationIds }));
+      // Everything else in the draft (content, layouts, settings...) is the
+      // admin's own working copy; a client's invitation is saved in its own
+      // key, so a client's save only adds their user record and invitation.
+      await kvWrite(DRAFT_KEY, JSON.stringify({ ...(Object.keys(current).length ? current : incoming), users, invitationIds }));
       draftUsersCache = { at: 0, users: [] };
-    } else if (who.role === "client" && CLIENT_WRITABLE(key)) {
-      await kvWrite(key, value);
+    } else if (who.role === "client" && ADMIN_WORKING_COPY(key)) {
+      return res.json({ ok: true, ignored: true });
     } else {
       return res.status(who.role === "anon" ? 401 : 403).json({ error: "not allowed" });
     }
