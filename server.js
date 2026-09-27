@@ -1088,7 +1088,13 @@ const enc = encodeURIComponent;
 async function slugOwnerId(slug) {
   if (slug === ADMIN_PREVIEW_SLUG) return "__owner__";
   if (Date.now() - draftUsersCache.at > 15000) draftUsersCache = { at: Date.now(), users: await readDraftUsers() };
-  return draftUsersCache.users.find((u) => u?.invitationSlug === slug)?.id || null;
+  let user = draftUsersCache.users.find((u) => u?.invitationSlug === slug);
+  // A slug that was just created or renamed may not be in the cache yet.
+  if (!user && Date.now() - draftUsersCache.at > 2000) {
+    draftUsersCache = { at: Date.now(), users: await readDraftUsers() };
+    user = draftUsersCache.users.find((u) => u?.invitationSlug === slug);
+  }
+  return user?.id || null;
 }
 
 async function ownsSlug(req, slug) {
