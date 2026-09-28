@@ -10754,7 +10754,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                   <input type="checkbox" checked={paged.length > 0 && paged.every((g) => selectedIds.has(g.id))} onChange={toggleSelectAllVisible} />
                 </th>
                 <th></th>
-                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Name</th>
+                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Name & Family Name</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Members</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Phone</th>
                 <th className="px-2 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>+ Guests</th>
@@ -10806,9 +10806,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                     </td>
                     <td className="px-2 py-0.5">
                       <input
-                        value={groupFullName(g)}
+                        value={typeof g.name === "string" ? g.name : groupFullName(g)}
                         onChange={(e) => updateGuestGroup(g.id, { name: e.target.value })}
-                        placeholder="Name"
+                        placeholder="Name & family name"
                         className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
                         style={{ color: IVORY, fontFamily: FONT_BODY }}
                       />
