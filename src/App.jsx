@@ -6752,38 +6752,42 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (token) setCheckinToken(token);
   };
 
-  // Personal link: one row per invited person — initial, name, ✓ / ✕.
+  // Personal link: one compact card, a row per invited person — initial,
+  // name, ✓ / ✕ — then the count and Submit.
   const personalForm = (light) => {
     const text = bs.fieldText || (light ? PAPER : EMERALD);
-    const rowBg = fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2);
+    const line = light ? "rgba(244,237,228,0.14)" : "rgba(36,70,61,0.12)";
+    const cardBg = fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2);
     const onYes = { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) };
     const onNo = { background: noBg || ROSE, color: noText || PAPER };
-    const off = { background: "transparent", color: text, opacity: 0.55 };
+    const off = { background: "transparent", color: text, opacity: 0.5 };
     return (
-      <div className="flex flex-col gap-2">
-        {invited.map((n) => {
-          const coming = !notComing.has(n);
-          const set = (yes) => setNotComing((s) => { const next = new Set(s); if (yes) next.delete(n); else next.add(n); return next; });
-          return (
-            <div key={n} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: rowBg }}>
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold" style={{ ...onYes, fontFamily: FONT_BODY }}>
-                {n.trim().charAt(0).toUpperCase()}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[12.5px]" style={{ color: text, fontFamily: FONT_BODY }}>{n}</span>
-              <div className="flex flex-shrink-0 overflow-hidden rounded-md" style={{ border: `1px solid ${light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.25)"}` }}>
-                <button onClick={() => set(true)} className="flex h-7 w-8 items-center justify-center" style={coming ? onYes : off} title="Coming"><Check size={14} /></button>
-                <button onClick={() => set(false)} className="flex h-7 w-8 items-center justify-center" style={coming ? off : onNo} title="Can't make it"><X size={14} /></button>
+      <div className="flex flex-col items-stretch">
+        <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: `1px solid ${line}`, backdropFilter: light ? "blur(6px)" : undefined }}>
+          {invited.map((n, i) => {
+            const coming = !notComing.has(n);
+            const set = (yes) => setNotComing((s) => { const next = new Set(s); if (yes) next.delete(n); else next.add(n); return next; });
+            return (
+              <div key={n} className="flex items-center gap-2 px-2.5 py-1.5" style={{ borderTop: i ? `1px solid ${line}` : "none" }}>
+                <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text, fontFamily: FONT_BODY }}>
+                  {n.trim().charAt(0).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11.5px]" style={{ color: text, fontFamily: FONT_BODY, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through" }}>{n}</span>
+                <div className="flex flex-shrink-0 gap-0.5 rounded-full p-0.5" style={{ border: `1px solid ${line}` }}>
+                  <button onClick={() => set(true)} className="flex h-[22px] w-[26px] items-center justify-center rounded-full" style={coming ? onYes : off} title="Coming"><Check size={12} /></button>
+                  <button onClick={() => set(false)} className="flex h-[22px] w-[26px] items-center justify-center rounded-full" style={coming ? off : onNo} title="Can't make it"><X size={12} /></button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-        <p className="mt-1 text-center text-[11px] font-semibold" style={{ color: text, fontFamily: FONT_BODY }}>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85, letterSpacing: "0.02em" }}>
           {comingNames.length > 0 ? `You're confirming ${comingNames.length} guest${comingNames.length !== 1 ? "s" : ""}` : "None of you can make it"}
         </p>
-        {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
         <button
           onClick={submitPersonal}
-          className="w-full rounded-full py-2.5 text-[11px] font-bold uppercase"
+          className="mt-2 w-full rounded-full py-2 text-[10.5px] font-bold uppercase"
           style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY }}
         >
           Submit RSVP
@@ -6910,7 +6914,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             )}
             <div style={{ width: 230 }}>
               {invitedHeading && (
-                <p className="mb-3 text-center" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15, color: bs.thankYouText || (light ? PAPER : EMERALD) }}>
+                <p className="mb-2 text-center" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.3, color: bs.thankYouText || (light ? PAPER : EMERALD) }}>
                   {invitedHeading}
                 </p>
               )}
