@@ -2288,11 +2288,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
-  ar: { personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
-  fr: { personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
-  es: { personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
-  hy: { personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
+  en: { addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
+  ar: { addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
+  fr: { addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
+  es: { addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -6639,7 +6639,7 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
 // "Peter Kfoury & Martine Kfoury", "A, B & C"
 const joinNames = (names) => (names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`);
 
-function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, onUpdateContent }) {
+function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock, rsvpSettings, totalAttending, onSubmitRsvp, siteDomain, slug, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateContent }) {
   // A family's personal link already knows who's invited (the Members the
   // couple entered in the dashboard): their names are shown, and replying
   // answers for all of them instead of asking the guest to type names.
@@ -6673,6 +6673,11 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [guestCount, setGuestCount] = useState(1);
   const [notComing, setNotComing] = useState(() => new Set()); // invited names the guest un-ticked
   const comingNames = invited.filter((n) => !notComing.has(n));
+  // Extra people the family may bring (the dashboard's "+ Guests"), each
+  // with an optional name; only while someone from the family is coming.
+  const extraAllowed = Math.max(0, Number(invitedExtra) || 0);
+  const [extraGuests, setExtraGuests] = useState([]);
+  const extrasCounted = comingNames.length > 0 ? extraGuests : [];
   const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
@@ -6738,11 +6743,13 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
     setError("");
     const anyoneComing = comingNames.length > 0;
+    const namedExtras = extrasCounted.map((n) => n.trim()).filter(Boolean);
+    const unnamedExtras = extrasCounted.length - namedExtras.length;
     setChoice(anyoneComing ? "yes" : "no");
-    if (anyoneComing) rememberPartySize(comingNames.length);
+    if (anyoneComing) rememberPartySize(comingNames.length + extrasCounted.length);
     setSubmitted(true);
     const token = await onSubmitRsvp(anyoneComing
-      ? { status: "yes", names: comingNames, declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: 0 }
+      ? { status: "yes", names: [...comingNames, ...namedExtras], declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: unnamedExtras }
       : { status: "no", names: invited, additionalGuests: 0 });
     if (token) setCheckinToken(token);
   };
@@ -6815,9 +6822,37 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               </div>
             );
           })}
+          {comingNames.length > 0 && extraGuests.map((g, i) => (
+            <div key={`extra-${i}`} className="flex items-center gap-2 px-2.5 py-1.5" style={{ borderTop: `1px solid ${line}` }}>
+              <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text }}>
+                <Plus size={11} />
+              </span>
+              <input
+                value={g}
+                onChange={(e) => setExtraGuests((list) => list.map((x, j) => (j === i ? e.target.value : x)))}
+                placeholder={t.guestNamePh || "Guest's name"}
+                className="min-w-0 flex-1 bg-transparent text-[11.5px] outline-none"
+                style={{ color: text, fontFamily: FONT_BODY, borderBottom: `1px dashed ${line}` }}
+              />
+              <button onClick={() => setExtraGuests((list) => list.filter((_, j) => j !== i))} className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full" style={{ color: text, opacity: 0.6 }} title="Remove">
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          {comingNames.length > 0 && extraGuests.length < extraAllowed && (
+            <button
+              onClick={() => setExtraGuests((list) => [...list, ""])}
+              className="flex w-full items-center justify-center gap-1 px-2.5 py-1.5 text-[10.5px] font-semibold"
+              style={{ borderTop: `1px solid ${line}`, color: text, fontFamily: FONT_BODY, opacity: 0.85 }}
+            >
+              <Plus size={11} /> {t.addGuest || "Add a guest"} <span style={{ opacity: 0.6, fontWeight: 400 }}>({extraAllowed - extraGuests.length})</span>
+            </button>
+          )}
         </div>
         <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85, letterSpacing: "0.02em" }}>
-          {comingNames.length > 0 ? `You're confirming ${comingNames.length} guest${comingNames.length !== 1 ? "s" : ""}` : "None of you can make it"}
+          {comingNames.length > 0
+            ? `You're confirming ${comingNames.length + extrasCounted.length} guest${comingNames.length + extrasCounted.length !== 1 ? "s" : ""}`
+            : "None of you can make it"}
         </p>
         {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
         <button
@@ -7706,7 +7741,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -8243,7 +8278,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} onMoveBlock={onMove} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} invitedTitle={invitedTitle} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} onMoveBlock={onMove} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} invitedTitle={invitedTitle} invitedExtra={invitedExtra} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} onMoveBlock={onMove} {...common} />;
       case "djRequests":
@@ -8732,7 +8767,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
 // Timeline, Registry, Rsvp, ...) and the same already-saved content/layout
 // data — this is a different way of PRESENTING that data, not a separate
 // copy of it.
-function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, onUpdateRsvpContent }) {
+function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateRsvpContent }) {
   const t = PREVIEW_T[lang];
   const dir = LANG_META[lang].dir;
   const fontDisplay = lang === "ar" ? FONT_AR : lang === "hy" ? FONT_HY : FONT_DISPLAY;
@@ -8761,7 +8796,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
       case "countdown":
         return <CountdownSlide schedule={data.rsvpSchedule} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} locale={LANG_META[lang].locale} layout={layout} {...common} />;
       case "rsvp":
-        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} invitedTitle={invitedTitle} onUpdateContent={onUpdateRsvpContent} {...common} />;
+        return <RsvpSlide content={data.content[lang].rsvp} bg={bg} fontDisplay={fontDisplay} fontScript={fontScript} t={t} layout={layout} rsvpSettings={data.rsvpSettings} totalAttending={data.totalAttending} onSubmitRsvp={onSubmitRsvp} siteDomain={siteDomain} slug={slug} prefilledGuestName={prefilledGuestName} prefilledRsvpStatus={prefilledRsvpStatus} guestGroupId={guestGroupId} invitedNames={invitedNames} invitedTitle={invitedTitle} invitedExtra={invitedExtra} onUpdateContent={onUpdateRsvpContent} {...common} />;
       case "registry":
         return <RegistrySlide items={data.registry} lang={lang} bg={bg} fontDisplay={fontDisplay} t={t} layout={layout} {...common} />;
       case "djRequests":
@@ -16558,6 +16593,7 @@ export default function InvitationBuilder() {
               guestGroupId={guestView.groupId}
               invitedNames={resolvedInvitedNames}
               invitedTitle={resolvedInvitedTitle}
+              invitedExtra={matchedGroup?.additionalGuests || 0}
               onUpdateRsvpContent={() => {}}
             />
           ) : (
@@ -16586,6 +16622,7 @@ export default function InvitationBuilder() {
               guestGroupId={guestView.groupId}
               invitedNames={resolvedInvitedNames}
               invitedTitle={resolvedInvitedTitle}
+              invitedExtra={matchedGroup?.additionalGuests || 0}
               onUpdateRsvpContent={() => {}}
               swipeDirection={guestSettings.swipeDirection}
             />
