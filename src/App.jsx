@@ -6692,6 +6692,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [choice, setChoice] = useState(prefilledRsvpStatus || null);
   const [name, setName] = useState(prefilledGuestName || "");
   const [guestCount, setGuestCount] = useState(1);
+  const [otherNames, setOtherNames] = useState([]); // names of the 2nd, 3rd… person on the open link
   const [notComing, setNotComing] = useState(() => new Set()); // invited names the guest un-ticked
   const comingNames = invited.filter((n) => !notComing.has(n));
   // Extra people the family may bring (the dashboard's "+ Guests"), each
@@ -6754,10 +6755,16 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       setError("Please enter your name.");
       return;
     }
+    const others = choice === "yes" ? Array.from({ length: Math.max(0, guestCount - 1) }, (_, i) => (otherNames[i] || "").trim()) : [];
+    if (choice === "yes" && rsvpSettings.namesRequired && others.some((n) => !n)) {
+      setError("Please name every guest.");
+      return;
+    }
     setError("");
     if (choice === "yes") rememberPartySize(Math.max(1, guestCount));
     setSubmitted(true); // show the confirmation immediately — the QR code appears a moment later once the token comes back, rather than making the guest wait on a network call before seeing anything
-    const token = await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
+    const names = [name.trim(), ...others].filter(Boolean);
+    const token = await onSubmitRsvp({ status: choice, names: choice === "yes" ? names : name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - names.length) : 0 });
     if (token) setCheckinToken(token);
   };
 
@@ -7193,6 +7200,16 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     <div className="mt-3 flex flex-col gap-2">
                       {nameField(light)}
                       {choice === "yes" && rsvpSettings.maxGuestsOpenInvite > 0 && guestStepper(light)}
+                      {choice === "yes" && Array.from({ length: Math.max(0, guestCount - 1) }, (_, i) => (
+                        <input
+                          key={i}
+                          value={otherNames[i] || ""}
+                          onChange={(e) => setOtherNames((list) => { const next = [...list]; next[i] = e.target.value; return next; })}
+                          placeholder={`${t.guestNamePh || "Guest's name"} ${i + 2}${rsvpSettings.namesRequired ? " *" : ""}`}
+                          className="w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
+                          style={{ background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}
+                        />
+                      ))}
                       {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
                     </div>
                   )}
