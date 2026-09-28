@@ -4423,6 +4423,10 @@ function RsvpSectionTitle({ title, sub }) {
 }
 
 function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSettings }) {
+  const previewAs = useRsvpPreview();
+  const show = (v) => rsvpPreviewStore.set(v);
+  // Leaving the RSVP page puts the preview back to the open link's form.
+  useEffect(() => () => rsvpPreviewStore.set("open"), []);
   const personalMode = rsvpSettings.personalMode === "count" ? "count" : "names";
   const personalSwitch = rsvpSettings.personalSwitch === "text" ? "text" : "icons";
   const mini = { fontFamily: FONT_BODY };
@@ -4438,9 +4442,18 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
   );
   return (
     <div>
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5" style={{ background: INK_3 }}>
+        <span className="text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>Phone preview shows</span>
+        <SegmentedToggle
+          value={previewAs}
+          onChange={show}
+          options={[{ value: "open", label: "Open link" }, { value: "personal", label: "Family's link" }]}
+        />
+      </div>
+
       <RsvpSectionTitle title="Open invitation link" sub={'The shared link anyone can use ("Copy Open Invitation") — guests type their own names.'} />
       <div className="flex gap-3">
-        <RsvpDesignCard active={rsvpSettings.style !== "stacked"} onClick={() => updateRsvpSettings({ style: "classic" })} title="Classic" caption="Accept / Decline side by side, then their name, how many are coming and each person's name.">
+        <RsvpDesignCard active={rsvpSettings.style !== "stacked"} onClick={() => { updateRsvpSettings({ style: "classic" }); show("open"); }} title="Classic" caption="Accept / Decline side by side, then their name, how many are coming and each person's name.">
           <div className="rounded-lg p-2" style={{ background: PAPER }}>
             <div className="text-center text-[9px] font-semibold" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>RSVP</div>
             <div className="mx-auto my-1 h-px w-6" style={{ background: GOLD }} />
@@ -4452,7 +4465,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
             <div className="mt-0.5 flex justify-between rounded-full px-1.5 py-0.5 text-[6px]" style={{ background: PAPER_2, color: ROSE, ...mini }}><span>Attending</span><span style={{ color: EMERALD }}>‹ 2 ›</span></div>
           </div>
         </RsvpDesignCard>
-        <RsvpDesignCard active={rsvpSettings.style === "stacked"} onClick={() => updateRsvpSettings({ style: "stacked" })} title="Stacked" caption={'Two big buttons; accepting opens a "Who\'s joining us?" window for the number and names.'}>
+        <RsvpDesignCard active={rsvpSettings.style === "stacked"} onClick={() => { updateRsvpSettings({ style: "stacked" }); show("open"); }} title="Stacked" caption={'Two big buttons; accepting opens a "Who\'s joining us?" window for the number and names.'}>
           <div className="rounded-lg p-2" style={{ background: EMERALD }}>
             <div className="text-center text-[9px] italic" style={{ color: PAPER, fontFamily: FONT_SCRIPT }}>Be Our Guest</div>
             <div className="mt-1 space-y-1">
@@ -4467,17 +4480,17 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
 
       <RsvpSectionTitle title="Family's personal link" sub="The link sent to each family from the guest list — their family name and members are already filled in." />
       <div className="flex gap-3">
-        <RsvpDesignCard active={personalMode === "names"} onClick={() => updateRsvpSettings({ personalMode: "names" })} title="Names" caption={'Each member answers on their own row, and they can "Add a guest" up to their "+ Guests".'}>
+        <RsvpDesignCard active={personalMode === "names"} onClick={() => { updateRsvpSettings({ personalMode: "names" }); show("personal"); }} title="Names" caption={'Each member answers on their own row, and they can "Add a guest" up to their "+ Guests" (you choose below if the name is required).'}>
           <div className="rounded-lg p-2" style={{ background: PAPER }}>
             <div className="mb-1 text-center text-[7.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
             <div className="overflow-hidden rounded-md" style={{ background: PAPER_2, border: "1px solid rgba(36,70,61,0.12)" }}>
               {row("Peter", true)}
               {row("Martine", false)}
-              <div className="py-0.5 text-center text-[6px] font-semibold" style={{ borderTop: "1px solid rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>+ Add a guest</div>
+              <div className="py-0.5 text-center text-[6px] font-semibold" style={{ borderTop: "1px solid rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>+ Add a guest <span style={{ fontWeight: 400, opacity: 0.7 }}>({rsvpSettings.extraNamesRequired ? "name required" : "name optional"})</span></div>
             </div>
           </div>
         </RsvpDesignCard>
-        <RsvpDesignCard active={personalMode === "count"} onClick={() => updateRsvpSettings({ personalMode: "count" })} title="Number only" caption={'Attending / not attending, then just how many are coming (up to their members + "+ Guests").'}>
+        <RsvpDesignCard active={personalMode === "count"} onClick={() => { updateRsvpSettings({ personalMode: "count" }); show("personal"); }} title="Number only" caption={'Attending / not attending, then just how many are coming (up to their members + "+ Guests").'}>
           <div className="rounded-lg p-2" style={{ background: PAPER }}>
             <div className="mb-1 text-center text-[7.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
             <div className="flex gap-1">
@@ -4492,11 +4505,26 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
 
       {personalMode === "names" && (
         <>
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Extra guests' names</div>
+              <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                {rsvpSettings.extraNamesRequired
+                  ? 'Each guest added with "+ Add a guest" must be named.'
+                  : 'Families may name the guests they add with "+ Add a guest", or leave the name empty.'}
+              </div>
+            </div>
+            <SegmentedToggle
+              value={rsvpSettings.extraNamesRequired ? "required" : "optional"}
+              onChange={(v) => { updateRsvpSettings({ extraNamesRequired: v === "required" }); show("personal"); }}
+              options={[{ value: "optional", label: "Optional" }, { value: "required", label: "Required" }]}
+            />
+          </div>
           <div className="mt-4">
             <RsvpSectionTitle title="Reply buttons next to each name" sub="What the two buttons on every row show." />
           </div>
           <div className="flex gap-3">
-            <RsvpDesignCard active={personalSwitch === "icons"} onClick={() => updateRsvpSettings({ personalSwitch: "icons" })} title="✓ / ✕ icons" caption="A tick and a cross.">
+            <RsvpDesignCard active={personalSwitch === "icons"} onClick={() => { updateRsvpSettings({ personalSwitch: "icons" }); show("personal"); }} title="✓ / ✕ icons" caption="A tick and a cross.">
               <div className="flex justify-center rounded-lg py-2" style={{ background: PAPER }}>
                 <span className="flex gap-0.5 rounded-full p-0.5" style={{ border: "1px solid rgba(36,70,61,0.25)" }}>
                   <span className="flex h-4 w-5 items-center justify-center rounded-full" style={{ background: EMERALD, color: PAPER }}><Check size={9} /></span>
@@ -4504,7 +4532,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
                 </span>
               </div>
             </RsvpDesignCard>
-            <RsvpDesignCard active={personalSwitch === "text"} onClick={() => updateRsvpSettings({ personalSwitch: "text" })} title="Words" caption={'"Yes" / "No" in each language, or your own words below.'}>
+            <RsvpDesignCard active={personalSwitch === "text"} onClick={() => { updateRsvpSettings({ personalSwitch: "text" }); show("personal"); }} title="Words" caption={'"Yes" / "No" in each language, or your own words below.'}>
               <div className="flex justify-center rounded-lg py-2" style={{ background: PAPER }}>
                 <span className="flex gap-0.5 rounded-full p-0.5" style={{ border: "1px solid rgba(36,70,61,0.25)" }}>
                   <span className="flex h-4 items-center justify-center rounded-full px-2 text-[7px] font-semibold" style={{ background: EMERALD, color: PAPER, ...mini }}>{c.personalYes || "Yes"}</span>
@@ -6708,6 +6736,25 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
   );
 }
 
+// Which RSVP the Builder's phone preview shows: the open invitation link's
+// form, or a sample family's personal link — set by clicking a design card
+// on the RSVP editor page.
+const rsvpPreviewStore = {
+  value: "open",
+  subs: new Set(),
+  set(v) { this.value = v; this.subs.forEach((f) => f()); },
+};
+function useRsvpPreview() {
+  const [v, setV] = useState(rsvpPreviewStore.value);
+  useEffect(() => {
+    const f = () => setV(rsvpPreviewStore.value);
+    rsvpPreviewStore.subs.add(f);
+    return () => { rsvpPreviewStore.subs.delete(f); };
+  }, []);
+  return v;
+}
+const SAMPLE_FAMILY = { title: "The Kfoury Family", names: ["Peter Kfoury", "Martine Kfoury"], extra: 1 };
+
 // "Peter Kfoury & Martine Kfoury", "A, B & C"
 const joinNames = (names) => (names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`);
 
@@ -6715,10 +6762,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // A family's personal link already knows who's invited (the Members the
   // couple entered in the dashboard): their names are shown, and replying
   // answers for all of them instead of asking the guest to type names.
-  const invited = editMode ? [] : (invitedNames || []).map((n) => String(n || "").trim()).filter(Boolean);
+  const previewAs = useRsvpPreview();
+  // Only the Builder's RSVP page ever switches this on (see RsvpStep), so a
+  // guest's real invitation never shows the sample family.
+  const samplePersonal = previewAs === "personal";
+  const invited = samplePersonal ? SAMPLE_FAMILY.names : editMode ? [] : (invitedNames || []).map((n) => String(n || "").trim()).filter(Boolean);
   const personal = invited.length > 0;
   // The family's name from the dashboard, else the invited people's names.
-  const invitedHeading = editMode ? "" : String(invitedTitle || "").trim() || joinNames(invited);
+  const invitedHeading = samplePersonal ? SAMPLE_FAMILY.title : editMode ? "" : String(invitedTitle || "").trim() || joinNames(invited);
   // "Number only" mode: the family just says whether they're coming and how
   // many, up to their members + allowed extra guests.
   const countMode = rsvpSettings.personalMode === "count" && !!invitedHeading;
@@ -6751,7 +6802,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const comingNames = invited.filter((n) => !notComing.has(n));
   // Extra people the family may bring (the dashboard's "+ Guests"), each
   // with an optional name; only while someone from the family is coming.
-  const extraAllowed = Math.max(0, Number(invitedExtra) || 0);
+  const extraAllowed = samplePersonal ? SAMPLE_FAMILY.extra : Math.max(0, Number(invitedExtra) || 0);
+  const extraNamesRequired = !!rsvpSettings.extraNamesRequired;
   const [extraGuests, setExtraGuests] = useState([]);
   const extrasCounted = comingNames.length > 0 ? extraGuests : [];
   const countMax = Math.max(1, invited.length + extraAllowed);
@@ -6838,13 +6890,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         ? { status: "yes", names: invited.slice(0, n), declinedNames: invited.slice(n), additionalGuests: Math.max(0, n - invited.length) }
         : { status: "yes", names: [title], additionalGuests: n - 1 })
       : { status: "no", names: invited.length ? invited : [title], additionalGuests: 0 };
-    const token = await onSubmitRsvp(payload);
+    const token = samplePersonal ? null : await onSubmitRsvp(payload);
     if (token) setCheckinToken(token);
   };
 
   // Personal link: everyone's ✓ / ✕ answered at once, right on the page.
   const submitPersonal = async () => {
     if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
+    if (extraNamesRequired && extrasCounted.some((n) => !n.trim())) { setError("Please name every guest."); return; }
     setError("");
     const anyoneComing = comingNames.length > 0;
     const namedExtras = extrasCounted.map((n) => n.trim()).filter(Boolean);
@@ -6852,7 +6905,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     setChoice(anyoneComing ? "yes" : "no");
     if (anyoneComing) rememberPartySize(comingNames.length + extrasCounted.length);
     setSubmitted(true);
-    const token = await onSubmitRsvp(anyoneComing
+    // The sample family on the Builder preview is never saved.
+    const token = samplePersonal ? null : await onSubmitRsvp(anyoneComing
       ? { status: "yes", names: [...comingNames, ...namedExtras], declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: unnamedExtras }
       : { status: "no", names: invited, additionalGuests: 0 });
     if (token) setCheckinToken(token);
@@ -6934,7 +6988,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               <input
                 value={g}
                 onChange={(e) => setExtraGuests((list) => list.map((x, j) => (j === i ? e.target.value : x)))}
-                placeholder={t.guestNamePh || "Guest's name"}
+                placeholder={`${t.guestNamePh || "Guest's name"}${extraNamesRequired ? " *" : ""}`}
                 className="min-w-0 flex-1 bg-transparent text-[11.5px] outline-none"
                 style={{ color: text, fontFamily: FONT_BODY, borderBottom: `1px dashed ${line}` }}
               />
