@@ -7360,10 +7360,21 @@ function LiveViewerCount({ slug }) {
 }
 
 function LivestreamSlide(props) {
-  // Wrapped so the viewer ping can see whether this page is on screen.
+  // Wrapped so the viewer ping can see whether this page is on screen, and
+  // so the "Trouble watching" link sits at the couple's chosen height both
+  // in the Builder preview and on the real page (only with an embedded
+  // YouTube/Vimeo player, the one case it appears).
+  const showHelp = !props.helpHidden && !props.paid && !!getEmbedUrl(props.url);
   return (
     <div className="relative h-full w-full">
       <LivestreamSlideContent {...props} />
+      {showHelp && (
+        <div className="pointer-events-none absolute inset-x-0 z-20 px-3 text-center" style={{ bottom: `calc(${props.helpY ?? 0}% + 24px)` }}>
+          <a href={props.editMode ? undefined : props.url} target="_blank" rel="noreferrer" className="pointer-events-auto text-[11px] underline" style={{ color: props.helpColor || (props.bg?.mode === "photo" ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)"), fontFamily: FONT_BODY }}>
+            {props.helpLabel || LIVESTREAM_HELP_DEFAULT}
+          </a>
+        </div>
+      )}
       {!props.editMode && <LiveViewerPing slug={props.slug} />}
     </div>
   );
@@ -7378,7 +7389,7 @@ const LIVESTREAM_HELP_DEFAULTS = {
 };
 const LIVESTREAM_HELP_DEFAULT = LIVESTREAM_HELP_DEFAULTS.en;
 
-function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, helpLabel, helpColor, helpHidden, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const hs = layout.heading;
   // For a "hidden" (paid) stream, the real video is never part of this
   // invitation's normal saved data — it's fetched separately here, once the
@@ -7436,13 +7447,9 @@ function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, pri
                 own side, which YouTube shows as "refused to connect" right inside
                 the iframe above with no way for the app to detect or work around
                 it — this link is the guest's escape hatch either way. */}
-            {!helpHidden && (
-              <div className="flex-shrink-0 px-3 pb-6 text-center">
-                <a href={url} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: helpColor || (light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)"), fontFamily: FONT_BODY }}>
-                  {helpLabel || LIVESTREAM_HELP_DEFAULT}
-                </a>
-              </div>
-            )}
+            {/* The "Trouble watching" link is drawn by LivestreamSlide, at the
+                couple's chosen height; this keeps its default spot free. */}
+            <div className="flex-shrink-0" style={{ height: 40 }} />
           </div>
         )}
       </StoryPage>
@@ -8228,6 +8235,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             helpLabel={integrationText(data.integrations, lang, "livestreamHelpLabel") || LIVESTREAM_HELP_DEFAULTS[lang]}
             helpColor={data.integrations.livestreamHelpColor}
             helpHidden={!!data.integrations.livestreamHelpHidden}
+            helpY={data.integrations.livestreamHelpY}
             slug={slug}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
@@ -8721,7 +8729,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
           <LivestreamSlide
             heading={integrationText(data.integrations, lang, "livestreamHeading")} subtitle={integrationText(data.integrations, lang, "livestreamSubtitle")} buttonLabel={integrationText(data.integrations, lang, "livestreamButtonLabel")}
             url={data.integrations.livestreamUrl} paid={data.integrations.livestreamPaid} price={data.integrations.livestreamPrice} paymentUrl={data.integrations.livestreamPaymentUrl}
-            helpLabel={integrationText(data.integrations, lang, "livestreamHelpLabel") || LIVESTREAM_HELP_DEFAULTS[lang]} helpColor={data.integrations.livestreamHelpColor} helpHidden={!!data.integrations.livestreamHelpHidden}
+            helpLabel={integrationText(data.integrations, lang, "livestreamHelpLabel") || LIVESTREAM_HELP_DEFAULTS[lang]} helpColor={data.integrations.livestreamHelpColor} helpHidden={!!data.integrations.livestreamHelpHidden} helpY={data.integrations.livestreamHelpY}
             slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common}
           />
         );
@@ -17015,6 +17023,22 @@ export default function InvitationBuilder() {
                       />
                       <div className="mt-3" style={{ maxWidth: 220 }}>
                         <ColorPickerField label="Color" value={integrations.livestreamHelpColor} defaultValue="#F4EDE4" onChange={(v) => updateIntegrations({ livestreamHelpColor: v })} />
+                      </div>
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between">
+                          <FieldLabel>Position (move up / down)</FieldLabel>
+                          {(integrations.livestreamHelpY ?? 0) > 0 && (
+                            <button onClick={() => updateIntegrations({ livestreamHelpY: 0 })} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>Reset</button>
+                          )}
+                        </div>
+                        <input
+                          type="range" min={0} max={85} value={integrations.livestreamHelpY ?? 0}
+                          onChange={(e) => updateIntegrations({ livestreamHelpY: Number(e.target.value) })}
+                          className="w-full" style={{ accentColor: GOLD }}
+                        />
+                        <p className="mt-1 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                          {getEmbedUrl(integrations.livestreamUrl) ? "Watch it move on the preview." : "Shows once a YouTube or Vimeo link is added above."}
+                        </p>
                       </div>
                     </>
                   )}
