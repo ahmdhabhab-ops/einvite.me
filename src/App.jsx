@@ -2288,11 +2288,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
-  ar: { addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
-  fr: { addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
-  es: { addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
-  hy: { addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
+  en: { numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
+  ar: { numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
+  fr: { numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
+  es: { numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -4450,6 +4450,23 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
 
       <div className="flex items-center justify-between gap-4">
         <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Family's personal link reply</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            {rsvpSettings.personalMode === "count"
+              ? "Attending / not attending, then just how many are coming (up to their members + \"+ Guests\")"
+              : "Each invited name with its own reply, plus \"Add a guest\" for their \"+ Guests\""}
+          </div>
+        </div>
+        <SegmentedToggle
+          value={rsvpSettings.personalMode === "count" ? "count" : "names"}
+          onChange={(v) => updateRsvpSettings({ personalMode: v })}
+          options={[{ value: "names", label: "Names" }, { value: "count", label: "Number only" }]}
+        />
+      </div>
+
+      {rsvpSettings.personalMode !== "count" && (<>
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <div>
           <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Each guest's reply buttons</div>
           <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>On a family's personal link, next to every name</div>
         </div>
@@ -4476,6 +4493,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
           </p>
         </>
       )}
+      </>)}
 
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
@@ -6647,6 +6665,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const personal = invited.length > 0;
   // The family's name from the dashboard, else the invited people's names.
   const invitedHeading = editMode ? "" : String(invitedTitle || "").trim() || joinNames(invited);
+  // "Number only" mode: the family just says whether they're coming and how
+  // many, up to their members + allowed extra guests.
+  const countMode = rsvpSettings.personalMode === "count" && !!invitedHeading;
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   // Lets the couple fade a customized button background toward the photo
@@ -6678,6 +6699,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const extraAllowed = Math.max(0, Number(invitedExtra) || 0);
   const [extraGuests, setExtraGuests] = useState([]);
   const extrasCounted = comingNames.length > 0 ? extraGuests : [];
+  const countMax = Math.max(1, invited.length + extraAllowed);
+  const [countPick, setCountPick] = useState(() => Math.min(countMax, Math.max(1, invited.length)));
   const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
@@ -6735,6 +6758,25 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (choice === "yes") rememberPartySize(Math.max(1, guestCount));
     setSubmitted(true); // show the confirmation immediately — the QR code appears a moment later once the token comes back, rather than making the guest wait on a network call before seeing anything
     const token = await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
+    if (token) setCheckinToken(token);
+  };
+
+  // "Number only": map the count onto the family's members (the first N
+  // are marked coming, the rest not), with any beyond them as extra guests.
+  const submitCount = async () => {
+    if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
+    if (!choice) return;
+    setError("");
+    const title = String(invitedTitle || "").trim() || "Guest";
+    const n = Math.min(countMax, Math.max(1, countPick));
+    if (choice === "yes") rememberPartySize(n);
+    setSubmitted(true);
+    const payload = choice === "yes"
+      ? (invited.length
+        ? { status: "yes", names: invited.slice(0, n), declinedNames: invited.slice(n), additionalGuests: Math.max(0, n - invited.length) }
+        : { status: "yes", names: [title], additionalGuests: n - 1 })
+      : { status: "no", names: invited.length ? invited : [title], additionalGuests: 0 };
+    const token = await onSubmitRsvp(payload);
     if (token) setCheckinToken(token);
   };
 
@@ -6859,6 +6901,60 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           onClick={submitPersonal}
           className="mt-2 w-full rounded-full py-2 text-[10.5px] font-bold uppercase"
           style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY }}
+        >
+          Submit RSVP
+        </button>
+      </div>
+    );
+  };
+
+  const personalCountForm = (light) => {
+    const text = bs.fieldText || (light ? PAPER : EMERALD);
+    const line = light ? "rgba(244,237,228,0.3)" : "rgba(36,70,61,0.25)";
+    const pill = (value, label) => {
+      const on = choice === value;
+      const onStyle = value === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), borderColor: "transparent" } : { background: noBg || ROSE, color: noText || PAPER, borderColor: "transparent" };
+      return (
+        <button
+          onClick={() => setChoice(value)}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10.5px] font-semibold"
+          style={{ ...(on ? onStyle : { background: "transparent", color: text, borderColor: line }), fontFamily: FONT_BODY }}
+        >
+          <span className="flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full" style={{ border: "1.5px solid currentColor" }}>
+            {on && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
+          </span>
+          {label}
+        </button>
+      );
+    };
+    return (
+      <div className="flex flex-col items-stretch">
+        <div className="flex gap-2">
+          {pill("yes", content.yesLabel)}
+          {pill("no", content.noLabel)}
+        </div>
+        {choice === "yes" && (
+          <>
+            <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{t.numGuests || "Number of guests"}</label>
+            <select
+              value={Math.min(countMax, countPick)}
+              onChange={(e) => setCountPick(Number(e.target.value))}
+              className="w-full rounded-full px-3 py-1.5 text-center text-[12px] font-semibold outline-none"
+              style={{ background: fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2), color: text, border: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }}
+            >
+              {Array.from({ length: countMax }, (_, i) => i + 1).map((n) => <option key={n} value={n} style={{ color: "#111" }}>{n}</option>)}
+            </select>
+            <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85 }}>
+              You're confirming {Math.min(countMax, countPick)} guest{Math.min(countMax, countPick) !== 1 ? "s" : ""}
+            </p>
+          </>
+        )}
+        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        <button
+          onClick={submitCount}
+          disabled={!choice}
+          className="mt-3 w-full rounded-full py-2 text-[10.5px] font-bold uppercase"
+          style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
         >
           Submit RSVP
         </button>
@@ -7014,6 +7110,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     The deadline to respond has passed.
                   </p>
                 </div>
+              ) : countMode ? (
+                personalCountForm(light)
               ) : personal ? (
                 personalForm(light)
               ) : style === "stacked" ? (
