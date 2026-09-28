@@ -4394,41 +4394,144 @@ function CountdownStep({ schedule, setSchedule, bg, setBg }) {
   );
 }
 
+// One selectable design in the RSVP editor: a mini picture of it, its name
+// and a line on what the guest does with it.
+function RsvpDesignCard({ active, onClick, title, caption, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-1 flex-col rounded-xl p-3 text-left"
+      style={{ background: INK_3, border: `1.5px solid ${active ? GOLD : "rgba(147,166,155,0.25)"}` }}
+    >
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[9px] font-semibold uppercase" style={{ color: active ? GOLD : GOLD_SOFT, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>{title}</span>
+        {active && <CheckCircle2 size={13} color={GOLD} />}
+      </div>
+      <div className="w-full">{children}</div>
+      <p className="mt-2 text-[10px] leading-snug" style={{ color: MUTED, fontFamily: FONT_BODY }}>{caption}</p>
+    </button>
+  );
+}
+
+function RsvpSectionTitle({ title, sub }) {
+  return (
+    <div className="mb-2.5">
+      <div className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{title}</div>
+      <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{sub}</div>
+    </div>
+  );
+}
+
 function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSettings }) {
+  const personalMode = rsvpSettings.personalMode === "count" ? "count" : "names";
+  const personalSwitch = rsvpSettings.personalSwitch === "text" ? "text" : "icons";
+  const mini = { fontFamily: FONT_BODY };
+  const row = (name, yes) => (
+    <div className="flex items-center gap-1 px-1.5 py-1" style={{ borderTop: name === "Peter" ? "none" : "1px solid rgba(36,70,61,0.12)" }}>
+      <span className="flex h-3 w-3 items-center justify-center rounded-full text-[5.5px] font-bold" style={{ background: "rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>{name[0]}</span>
+      <span className="flex-1 text-[6.5px]" style={{ color: EMERALD, ...mini, textDecoration: yes ? "none" : "line-through", opacity: yes ? 1 : 0.6 }}>{name}</span>
+      <span className="flex gap-px rounded-full p-px" style={{ border: "1px solid rgba(36,70,61,0.2)" }}>
+        <span className="flex h-2.5 w-3 items-center justify-center rounded-full" style={{ background: yes ? EMERALD : "transparent", color: yes ? PAPER : EMERALD }}><Check size={6} /></span>
+        <span className="flex h-2.5 w-3 items-center justify-center rounded-full" style={{ background: yes ? "transparent" : ROSE, color: yes ? EMERALD : PAPER }}><X size={6} /></span>
+      </span>
+    </div>
+  );
   return (
     <div>
-      <FieldLabel>RSVP style</FieldLabel>
+      <RsvpSectionTitle title="Open invitation link" sub={'The shared link anyone can use ("Copy Open Invitation") — guests type their own names.'} />
       <div className="flex gap-3">
-        <button
-          onClick={() => updateRsvpSettings({ style: "classic" })}
-          className="flex-1 rounded-xl p-3 text-left"
-          style={{ background: INK_3, border: `1.5px solid ${rsvpSettings.style === "classic" ? GOLD : "rgba(147,166,155,0.25)"}` }}
-        >
-          <div className="mb-1.5 text-[9px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Classic</div>
+        <RsvpDesignCard active={rsvpSettings.style !== "stacked"} onClick={() => updateRsvpSettings({ style: "classic" })} title="Classic" caption="Accept / Decline side by side, then their name, how many are coming and each person's name.">
           <div className="rounded-lg p-2" style={{ background: PAPER }}>
             <div className="text-center text-[9px] font-semibold" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>RSVP</div>
             <div className="mx-auto my-1 h-px w-6" style={{ background: GOLD }} />
             <div className="flex justify-center gap-1">
-              <span className="rounded-full px-1.5 py-0.5 text-[6.5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, fontFamily: FONT_BODY }}>○ Attending</span>
-              <span className="rounded-full px-1.5 py-0.5 text-[6.5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, fontFamily: FONT_BODY }}>○ Not</span>
+              <span className="rounded-full px-1.5 py-0.5 text-[6.5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, ...mini }}>◉ Attending</span>
+              <span className="rounded-full px-1.5 py-0.5 text-[6.5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, ...mini }}>○ Not</span>
             </div>
+            <div className="mt-1 rounded-full py-0.5 text-center text-[6px]" style={{ background: PAPER_2, color: MUTED, ...mini }}>Your name</div>
+            <div className="mt-0.5 flex justify-between rounded-full px-1.5 py-0.5 text-[6px]" style={{ background: PAPER_2, color: ROSE, ...mini }}><span>Attending</span><span style={{ color: EMERALD }}>‹ 2 ›</span></div>
           </div>
-        </button>
-        <button
-          onClick={() => updateRsvpSettings({ style: "stacked" })}
-          className="flex-1 rounded-xl p-3 text-left"
-          style={{ background: INK_3, border: `1.5px solid ${rsvpSettings.style === "stacked" ? GOLD : "rgba(147,166,155,0.25)"}` }}
-        >
-          <div className="mb-1.5 text-[9px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Stacked</div>
+        </RsvpDesignCard>
+        <RsvpDesignCard active={rsvpSettings.style === "stacked"} onClick={() => updateRsvpSettings({ style: "stacked" })} title="Stacked" caption={'Two big buttons; accepting opens a "Who\'s joining us?" window for the number and names.'}>
           <div className="rounded-lg p-2" style={{ background: EMERALD }}>
             <div className="text-center text-[9px] italic" style={{ color: PAPER, fontFamily: FONT_SCRIPT }}>Be Our Guest</div>
             <div className="mt-1 space-y-1">
-              <div className="rounded-full py-0.5 text-center text-[6.5px]" style={{ border: `1px solid ${PAPER}`, color: PAPER, fontFamily: FONT_BODY }}>Yes</div>
-              <div className="rounded-full py-0.5 text-center text-[6.5px]" style={{ border: `1px solid ${PAPER}`, color: PAPER, fontFamily: FONT_BODY }}>No</div>
+              <div className="rounded-full py-0.5 text-center text-[6.5px]" style={{ background: GOLD, color: INK, ...mini }}>Yes</div>
+              <div className="rounded-full py-0.5 text-center text-[6.5px]" style={{ border: `1px solid ${PAPER}`, color: PAPER, ...mini }}>No</div>
             </div>
           </div>
-        </button>
+        </RsvpDesignCard>
       </div>
+
+      <Divider />
+
+      <RsvpSectionTitle title="Family's personal link" sub="The link sent to each family from the guest list — their family name and members are already filled in." />
+      <div className="flex gap-3">
+        <RsvpDesignCard active={personalMode === "names"} onClick={() => updateRsvpSettings({ personalMode: "names" })} title="Names" caption={'Each member answers on their own row, and they can "Add a guest" up to their "+ Guests".'}>
+          <div className="rounded-lg p-2" style={{ background: PAPER }}>
+            <div className="mb-1 text-center text-[7.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
+            <div className="overflow-hidden rounded-md" style={{ background: PAPER_2, border: "1px solid rgba(36,70,61,0.12)" }}>
+              {row("Peter", true)}
+              {row("Martine", false)}
+              <div className="py-0.5 text-center text-[6px] font-semibold" style={{ borderTop: "1px solid rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>+ Add a guest</div>
+            </div>
+          </div>
+        </RsvpDesignCard>
+        <RsvpDesignCard active={personalMode === "count"} onClick={() => updateRsvpSettings({ personalMode: "count" })} title="Number only" caption={'Attending / not attending, then just how many are coming (up to their members + "+ Guests").'}>
+          <div className="rounded-lg p-2" style={{ background: PAPER }}>
+            <div className="mb-1 text-center text-[7.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
+            <div className="flex gap-1">
+              <span className="flex-1 rounded-full py-0.5 text-center text-[6px]" style={{ background: EMERALD, color: PAPER, ...mini }}>◉ Attending</span>
+              <span className="flex-1 rounded-full py-0.5 text-center text-[6px]" style={{ border: "1px solid rgba(36,70,61,0.3)", color: EMERALD, ...mini }}>○ Not</span>
+            </div>
+            <div className="mt-1 text-[5.5px] font-semibold" style={{ color: EMERALD, ...mini }}>Number of guests</div>
+            <div className="mt-0.5 flex justify-between rounded-full px-1.5 py-0.5 text-[6.5px] font-semibold" style={{ background: PAPER_2, color: EMERALD, border: "1px solid rgba(36,70,61,0.2)", ...mini }}><span /><span>3</span><span>▾</span></div>
+          </div>
+        </RsvpDesignCard>
+      </div>
+
+      {personalMode === "names" && (
+        <>
+          <div className="mt-4">
+            <RsvpSectionTitle title="Reply buttons next to each name" sub="What the two buttons on every row show." />
+          </div>
+          <div className="flex gap-3">
+            <RsvpDesignCard active={personalSwitch === "icons"} onClick={() => updateRsvpSettings({ personalSwitch: "icons" })} title="✓ / ✕ icons" caption="A tick and a cross.">
+              <div className="flex justify-center rounded-lg py-2" style={{ background: PAPER }}>
+                <span className="flex gap-0.5 rounded-full p-0.5" style={{ border: "1px solid rgba(36,70,61,0.25)" }}>
+                  <span className="flex h-4 w-5 items-center justify-center rounded-full" style={{ background: EMERALD, color: PAPER }}><Check size={9} /></span>
+                  <span className="flex h-4 w-5 items-center justify-center rounded-full" style={{ color: EMERALD }}><X size={9} /></span>
+                </span>
+              </div>
+            </RsvpDesignCard>
+            <RsvpDesignCard active={personalSwitch === "text"} onClick={() => updateRsvpSettings({ personalSwitch: "text" })} title="Words" caption={'"Yes" / "No" in each language, or your own words below.'}>
+              <div className="flex justify-center rounded-lg py-2" style={{ background: PAPER }}>
+                <span className="flex gap-0.5 rounded-full p-0.5" style={{ border: "1px solid rgba(36,70,61,0.25)" }}>
+                  <span className="flex h-4 items-center justify-center rounded-full px-2 text-[7px] font-semibold" style={{ background: EMERALD, color: PAPER, ...mini }}>{c.personalYes || "Yes"}</span>
+                  <span className="flex h-4 items-center justify-center rounded-full px-2 text-[7px] font-semibold" style={{ color: EMERALD, ...mini }}>{c.personalNo || "No"}</span>
+                </span>
+              </div>
+            </RsvpDesignCard>
+          </div>
+          {personalSwitch === "text" && (
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>"Coming" word</FieldLabel>
+                  <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="Yes" />
+                </div>
+                <div>
+                  <FieldLabel>"Not coming" word</FieldLabel>
+                  <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="No" />
+                </div>
+              </div>
+              <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                Per language — left empty, each language shows its own "Yes" / "No".
+              </p>
+            </>
+          )}
+        </>
+      )}
 
       <Divider />
 
@@ -4443,57 +4546,8 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         </div>
       </div>
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Button wording is per language; the event date lives on the Countdown page.
+        Used on the open link and by "Number only". Button wording is per language; the event date lives on the Countdown page.
       </p>
-
-      <Divider />
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Family's personal link reply</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-            {rsvpSettings.personalMode === "count"
-              ? "Attending / not attending, then just how many are coming (up to their members + \"+ Guests\")"
-              : "Each invited name with its own reply, plus \"Add a guest\" for their \"+ Guests\""}
-          </div>
-        </div>
-        <SegmentedToggle
-          value={rsvpSettings.personalMode === "count" ? "count" : "names"}
-          onChange={(v) => updateRsvpSettings({ personalMode: v })}
-          options={[{ value: "names", label: "Names" }, { value: "count", label: "Number only" }]}
-        />
-      </div>
-
-      {rsvpSettings.personalMode !== "count" && (<>
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Each guest's reply buttons</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>On a family's personal link, next to every name</div>
-        </div>
-        <SegmentedToggle
-          value={rsvpSettings.personalSwitch === "text" ? "text" : "icons"}
-          onChange={(v) => updateRsvpSettings({ personalSwitch: v })}
-          options={[{ value: "icons", label: "✓ / ✕" }, { value: "text", label: "Words" }]}
-        />
-      </div>
-      {rsvpSettings.personalSwitch === "text" && (
-        <>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel>"Coming" word</FieldLabel>
-              <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="Yes" />
-            </div>
-            <div>
-              <FieldLabel>"Not coming" word</FieldLabel>
-              <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="No" />
-            </div>
-          </div>
-          <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-            Per language — left empty, each language shows its own "Yes" / "No".
-          </p>
-        </>
-      )}
-      </>)}
 
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
