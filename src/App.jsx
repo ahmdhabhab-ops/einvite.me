@@ -10991,21 +10991,6 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                             <MessageCircle size={10} />
                           </span>
                         )}
-                        {g.phone && (
-                          <button
-                            onClick={() => sendAutomatedWhatsApp(g)}
-                            disabled={sendingWhatsAppIds.has(g.id)}
-                            title={(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "Sent!" : whatsappResults[g.id] === "error" ? `Failed${whatsappErrors[g.id] ? `: ${whatsappErrors[g.id]}` : ""} — click to retry` : "Send approved WhatsApp template automatically"}
-                            className="flex h-5 w-5 items-center justify-center rounded"
-                            style={{
-                              background: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "rgba(143,191,163,0.2)" : whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
-                              color: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? CHART_COLORS.yes : whatsappResults[g.id] === "error" ? "#E29B9B" : GOLD_SOFT,
-                              opacity: sendingWhatsAppIds.has(g.id) ? 0.5 : 1,
-                            }}
-                          >
-                            {(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? <CheckCircle2 size={10} /> : whatsappResults[g.id] === "error" ? <XCircle size={10} /> : <Send size={10} />}
-                          </button>
-                        )}
                         {g.phone && whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] && (
                           <span
                             title={
