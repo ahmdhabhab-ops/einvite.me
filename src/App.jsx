@@ -9299,8 +9299,9 @@ const guestGroupName = (g) => {
 // The dashboard's Members cell: one editable name per invited person (e.g.
 // "Peter Kfoury", "Martine Kfoury") plus "+ Add member". The dot shows each
 // person's RSVP (green yes, red no, grey pending). Everyone listed here is
-// named on that family's personal invitation link.
-function MembersEditor({ group, onChange, onNameAdditional }) {
+// named on that family's personal invitation link. Extra guests ("+ Guests")
+// only show up here once the family names them on their RSVP.
+function MembersEditor({ group, onChange }) {
   const setMembers = (members) => onChange({ members });
   const statusColor = (st) => (st === "yes" ? CHART_COLORS.yes : st === "no" ? CHART_COLORS.no : "#9AA8A0");
   return (
@@ -9320,13 +9321,6 @@ function MembersEditor({ group, onChange, onNameAdditional }) {
           </button>
         </div>
       ))}
-      {(group.additionalGuests || 0) > 0 && (
-        <div className="flex flex-wrap items-center gap-1">
-          {Array.from({ length: group.additionalGuests }).map((_, i) => (
-            <UnnamedBadge key={i} onNamed={onNameAdditional} />
-          ))}
-        </div>
-      )}
       <button
         onClick={() => setMembers([...group.members, { id: uid(), name: "", status: "pending" }])}
         className="flex items-center gap-1 self-start text-[10px] font-semibold uppercase"
@@ -9335,40 +9329,6 @@ function MembersEditor({ group, onChange, onNameAdditional }) {
         <Plus size={11} /> Add member
       </button>
     </div>
-  );
-}
-
-function UnnamedBadge({ onNamed }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  const commit = () => {
-    if (value.trim()) onNamed(value.trim());
-    setEditing(false);
-    setValue("");
-  };
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); setValue(""); } }}
-        placeholder="Name…"
-        className="w-20 flex-shrink-0 rounded-full px-1.5 py-px text-[9.5px] outline-none leading-tight"
-        style={{ background: INK_3, color: IVORY, border: `1px solid ${GOLD}`, fontFamily: FONT_BODY }}
-      />
-    );
-  }
-  return (
-    <button
-      onClick={() => setEditing(true)}
-      title="Click to name this guest"
-      className="inline-flex flex-shrink-0 items-center whitespace-nowrap rounded-full px-1.5 py-px text-[9.5px] italic leading-tight"
-      style={{ background: "transparent", color: "rgba(147,166,155,0.7)", border: `1px dashed rgba(147,166,155,0.4)`, fontFamily: FONT_BODY }}
-    >
-      (unnamed)
-    </button>
   );
 }
 
@@ -10633,13 +10593,6 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   // only had it as the first member's name.
   const groupFullName = guestGroupName;
 
-  const nameAdditionalGuest = (group, name) => {
-    updateGuestGroup(group.id, {
-      members: [...group.members, { id: uid(), name, status: "pending" }],
-      additionalGuests: Math.max(0, group.additionalGuests - 1),
-    });
-  };
-
   const submitAddGuest = () => {
     if (!firstName.trim()) return;
     if (!phone.trim()) {
@@ -10793,7 +10746,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         </div>
         <div className="flex flex-col justify-center gap-2">
           <FieldLabel>Add a guest family</FieldLabel>
-          <TextInput value={firstName} onChange={setFirstName} placeholder="Name (e.g. Peter & Martine Kfoury)" />
+          <TextInput value={firstName} onChange={setFirstName} placeholder="Family name (e.g. The Kfoury Family)" />
           <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: INK_3 }}>
             <span className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>+ Guests</span>
             <div className="flex items-center gap-2">
@@ -10913,15 +10866,16 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         <div className="overflow-x-auto">
           <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: 26 }} />
-              <col style={{ width: 64 }} />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "22%" }} />
+              <col style={{ width: 24 }} />
+              <col style={{ width: 58 }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "23%" }} />
               <col style={{ width: "12%" }} />
-              <col style={{ width: "14%" }} />
-              <col style={{ width: "8%" }} />
               <col style={{ width: "8%" }} />
               <col style={{ width: "11%" }} />
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "9%" }} />
             </colgroup>
             <thead>
               <tr className="border-b" style={{ borderColor: "rgba(147,166,155,0.15)" }}>
@@ -10929,7 +10883,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                   <input type="checkbox" checked={paged.length > 0 && paged.every((g) => selectedIds.has(g.id))} onChange={toggleSelectAllVisible} />
                 </th>
                 <th></th>
-                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Name & Family Name</th>
+                <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Family Name</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Members</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Phone</th>
                 <th className="px-2 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>+ Guests</th>
@@ -10983,13 +10937,13 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                       <input
                         value={typeof g.name === "string" ? g.name : groupFullName(g)}
                         onChange={(e) => updateGuestGroup(g.id, { name: e.target.value })}
-                        placeholder="Name & family name"
+                        placeholder="Family name"
                         className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
                         style={{ color: IVORY, fontFamily: FONT_BODY }}
                       />
                     </td>
                     <td className="px-2 py-0.5">
-                      <MembersEditor group={g} onChange={(patch) => updateGuestGroup(g.id, patch)} onNameAdditional={(name) => nameAdditionalGuest(g, name)} />
+                      <MembersEditor group={g} onChange={(patch) => updateGuestGroup(g.id, patch)} />
                     </td>
                     <td className="px-2 py-0.5">
                       <input
