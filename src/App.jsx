@@ -4413,152 +4413,105 @@ function RsvpDesignCard({ active, onClick, title, caption, children }) {
   );
 }
 
-function RsvpSectionTitle({ title, sub }) {
-  return (
-    <div className="mb-2.5">
-      <div className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{title}</div>
-      <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{sub}</div>
-    </div>
-  );
-}
-
 function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSettings }) {
-  const previewAs = useRsvpPreview();
-  const show = (v) => rsvpPreviewStore.set(v);
-  // Leaving the RSVP page puts the preview back to the open link's form.
-  useEffect(() => () => rsvpPreviewStore.set("open"), []);
   const personalMode = rsvpSettings.personalMode === "count" ? "count" : "names";
   const personalSwitch = rsvpSettings.personalSwitch === "text" ? "text" : "icons";
   const mini = { fontFamily: FONT_BODY };
-  const row = (name, yes) => (
-    <div className="flex items-center gap-1 px-1.5 py-1" style={{ borderTop: name === "Peter" ? "none" : "1px solid rgba(36,70,61,0.12)" }}>
-      <span className="flex h-3 w-3 items-center justify-center rounded-full text-[5.5px] font-bold" style={{ background: "rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>{name[0]}</span>
-      <span className="flex-1 text-[6.5px]" style={{ color: EMERALD, ...mini, textDecoration: yes ? "none" : "line-through", opacity: yes ? 1 : 0.6 }}>{name}</span>
-      <span className="flex gap-px rounded-full p-px" style={{ border: "1px solid rgba(36,70,61,0.2)" }}>
-        <span className="flex h-2.5 w-3 items-center justify-center rounded-full" style={{ background: yes ? EMERALD : "transparent", color: yes ? PAPER : EMERALD }}><Check size={6} /></span>
-        <span className="flex h-2.5 w-3 items-center justify-center rounded-full" style={{ background: yes ? "transparent" : ROSE, color: yes ? EMERALD : PAPER }}><X size={6} /></span>
-      </span>
+  const tag = (label) => <div className="mb-0.5 text-[5.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.06em", ...mini }}>{label}</div>;
+  const pills = (
+    <div className="flex gap-0.5">
+      <span className="flex-1 rounded-full py-px text-center text-[5px]" style={{ background: EMERALD, color: PAPER, ...mini }}>◉ Yes</span>
+      <span className="flex-1 rounded-full py-px text-center text-[5px]" style={{ border: "1px solid rgba(36,70,61,0.3)", color: EMERALD, ...mini }}>○ No</span>
     </div>
   );
+  const field = (text) => <div className="mt-0.5 rounded-full py-px text-center text-[5px]" style={{ background: PAPER_2, color: MUTED, ...mini }}>{text}</div>;
+  const nameRow = (name, yes) => (
+    <div className="flex items-center gap-0.5 px-1 py-px" style={{ borderTop: name === "Peter" ? "none" : "1px solid rgba(36,70,61,0.12)" }}>
+      <span className="flex-1 text-[5.5px]" style={{ color: EMERALD, ...mini, textDecoration: yes ? "none" : "line-through", opacity: yes ? 1 : 0.6 }}>{name}</span>
+      <span className="flex h-2 w-2.5 items-center justify-center rounded-full" style={{ background: yes ? EMERALD : "transparent", color: yes ? PAPER : EMERALD }}><Check size={5} /></span>
+      <span className="flex h-2 w-2.5 items-center justify-center rounded-full" style={{ background: yes ? "transparent" : ROSE, color: yes ? EMERALD : PAPER }}><X size={5} /></span>
+    </div>
+  );
+  const mock = (children) => <div className="rounded-md p-1.5" style={{ background: PAPER }}>{children}</div>;
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl px-3 py-2.5" style={{ background: INK_3 }}>
-        <span className="text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>Phone preview shows</span>
-        <SegmentedToggle
-          value={previewAs}
-          onChange={show}
-          options={[{ value: "open", label: "Open link" }, { value: "personal", label: "Family's link" }]}
-        />
-      </div>
-
-      <RsvpSectionTitle title="Open invitation link" sub={'The shared link anyone can use ("Copy Open Invitation") — guests type their own names.'} />
-      <div className="flex gap-3">
-        <RsvpDesignCard active={rsvpSettings.style !== "stacked"} onClick={() => { updateRsvpSettings({ style: "classic" }); show("open"); }} title="Classic" caption="Accept / Decline side by side, then their name, how many are coming and each person's name.">
-          <div className="rounded-lg p-2" style={{ background: PAPER }}>
-            <div className="text-center text-[9px] font-semibold" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>RSVP</div>
-            <div className="mx-auto my-1 h-px w-6" style={{ background: GOLD }} />
-            <div className="flex justify-center gap-1">
-              <span className="rounded-full px-1.5 py-0.5 text-[6.5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, ...mini }}>◉ Attending</span>
-              <span className="rounded-full px-1.5 py-0.5 text-[6.5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, ...mini }}>○ Not</span>
+      <FieldLabel>RSVP design</FieldLabel>
+      <p className="-mt-1 mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        One design for both the open invitation link and each family's own link.
+      </p>
+      <div className="grid grid-cols-2 gap-2.5">
+        <RsvpDesignCard active={personalMode === "names"} onClick={() => updateRsvpSettings({ personalMode: "names" })} title="Names" caption="Everyone coming is named.">
+          <div className="grid grid-cols-2 gap-1">
+            <div>
+              {tag("Open link")}
+              {mock(<>{pills}{field("Your name")}{field("Guest's name 2")}</>)}
             </div>
-            <div className="mt-1 rounded-full py-0.5 text-center text-[6px]" style={{ background: PAPER_2, color: MUTED, ...mini }}>Your name</div>
-            <div className="mt-0.5 flex justify-between rounded-full px-1.5 py-0.5 text-[6px]" style={{ background: PAPER_2, color: ROSE, ...mini }}><span>Attending</span><span style={{ color: EMERALD }}>‹ 2 ›</span></div>
-          </div>
-        </RsvpDesignCard>
-        <RsvpDesignCard active={rsvpSettings.style === "stacked"} onClick={() => { updateRsvpSettings({ style: "stacked" }); show("open"); }} title="Stacked" caption={'Two big buttons; accepting opens a "Who\'s joining us?" window for the number and names.'}>
-          <div className="rounded-lg p-2" style={{ background: EMERALD }}>
-            <div className="text-center text-[9px] italic" style={{ color: PAPER, fontFamily: FONT_SCRIPT }}>Be Our Guest</div>
-            <div className="mt-1 space-y-1">
-              <div className="rounded-full py-0.5 text-center text-[6.5px]" style={{ background: GOLD, color: INK, ...mini }}>Yes</div>
-              <div className="rounded-full py-0.5 text-center text-[6.5px]" style={{ border: `1px solid ${PAPER}`, color: PAPER, ...mini }}>No</div>
+            <div>
+              {tag("Family link")}
+              {mock(
+                <div className="overflow-hidden rounded" style={{ background: PAPER_2 }}>
+                  {nameRow("Peter", true)}
+                  {nameRow("Martine", false)}
+                  <div className="py-px text-center text-[5px] font-semibold" style={{ borderTop: "1px solid rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>+ Add a guest</div>
+                </div>
+              )}
             </div>
           </div>
         </RsvpDesignCard>
-      </div>
-
-      <Divider />
-
-      <RsvpSectionTitle title="Family's personal link" sub="The link sent to each family from the guest list — their family name and members are already filled in." />
-      <div className="flex gap-3">
-        <RsvpDesignCard active={personalMode === "names"} onClick={() => { updateRsvpSettings({ personalMode: "names" }); show("personal"); }} title="Names" caption={'Each member answers on their own row, and they can "Add a guest" up to their "+ Guests" (you choose below if the name is required).'}>
-          <div className="rounded-lg p-2" style={{ background: PAPER }}>
-            <div className="mb-1 text-center text-[7.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
-            <div className="overflow-hidden rounded-md" style={{ background: PAPER_2, border: "1px solid rgba(36,70,61,0.12)" }}>
-              {row("Peter", true)}
-              {row("Martine", false)}
-              <div className="py-0.5 text-center text-[6px] font-semibold" style={{ borderTop: "1px solid rgba(36,70,61,0.12)", color: EMERALD, ...mini }}>+ Add a guest <span style={{ fontWeight: 400, opacity: 0.7 }}>({rsvpSettings.extraNamesRequired ? "name required" : "name optional"})</span></div>
+        <RsvpDesignCard active={personalMode === "count"} onClick={() => updateRsvpSettings({ personalMode: "count" })} title="Number only" caption="Just how many are coming.">
+          <div className="grid grid-cols-2 gap-1">
+            <div>
+              {tag("Open link")}
+              {mock(<>{pills}{field("Your name")}{field("Guests: 3 ▾")}</>)}
             </div>
-          </div>
-        </RsvpDesignCard>
-        <RsvpDesignCard active={personalMode === "count"} onClick={() => { updateRsvpSettings({ personalMode: "count" }); show("personal"); }} title="Number only" caption={'Attending / not attending, then just how many are coming (up to their members + "+ Guests").'}>
-          <div className="rounded-lg p-2" style={{ background: PAPER }}>
-            <div className="mb-1 text-center text-[7.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
-            <div className="flex gap-1">
-              <span className="flex-1 rounded-full py-0.5 text-center text-[6px]" style={{ background: EMERALD, color: PAPER, ...mini }}>◉ Attending</span>
-              <span className="flex-1 rounded-full py-0.5 text-center text-[6px]" style={{ border: "1px solid rgba(36,70,61,0.3)", color: EMERALD, ...mini }}>○ Not</span>
+            <div>
+              {tag("Family link")}
+              {mock(<>
+                <div className="mb-0.5 text-center text-[5.5px] italic" style={{ color: EMERALD, fontFamily: FONT_DISPLAY }}>The Kfoury Family</div>
+                {pills}{field("Guests: 3 ▾")}
+              </>)}
             </div>
-            <div className="mt-1 text-[5.5px] font-semibold" style={{ color: EMERALD, ...mini }}>Number of guests</div>
-            <div className="mt-0.5 flex justify-between rounded-full px-1.5 py-0.5 text-[6.5px] font-semibold" style={{ background: PAPER_2, color: EMERALD, border: "1px solid rgba(36,70,61,0.2)", ...mini }}><span /><span>3</span><span>▾</span></div>
           </div>
         </RsvpDesignCard>
       </div>
 
       {personalMode === "names" && (
-        <>
-          <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="mt-3 space-y-2.5 rounded-xl p-3" style={{ background: INK_3 }}>
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Extra guests' names</div>
-              <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                {rsvpSettings.extraNamesRequired
-                  ? 'Each guest added with "+ Add a guest" must be named.'
-                  : 'Families may name the guests they add with "+ Add a guest", or leave the name empty.'}
-              </div>
+              <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Extra guests' names</div>
+              <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>For people added with "+ Add a guest"</div>
             </div>
             <SegmentedToggle
               value={rsvpSettings.extraNamesRequired ? "required" : "optional"}
-              onChange={(v) => { updateRsvpSettings({ extraNamesRequired: v === "required" }); show("personal"); }}
+              onChange={(v) => updateRsvpSettings({ extraNamesRequired: v === "required" })}
               options={[{ value: "optional", label: "Optional" }, { value: "required", label: "Required" }]}
             />
           </div>
-          <div className="mt-4">
-            <RsvpSectionTitle title="Reply buttons next to each name" sub="What the two buttons on every row show." />
-          </div>
-          <div className="flex gap-3">
-            <RsvpDesignCard active={personalSwitch === "icons"} onClick={() => { updateRsvpSettings({ personalSwitch: "icons" }); show("personal"); }} title="✓ / ✕ icons" caption="A tick and a cross.">
-              <div className="flex justify-center rounded-lg py-2" style={{ background: PAPER }}>
-                <span className="flex gap-0.5 rounded-full p-0.5" style={{ border: "1px solid rgba(36,70,61,0.25)" }}>
-                  <span className="flex h-4 w-5 items-center justify-center rounded-full" style={{ background: EMERALD, color: PAPER }}><Check size={9} /></span>
-                  <span className="flex h-4 w-5 items-center justify-center rounded-full" style={{ color: EMERALD }}><X size={9} /></span>
-                </span>
-              </div>
-            </RsvpDesignCard>
-            <RsvpDesignCard active={personalSwitch === "text"} onClick={() => { updateRsvpSettings({ personalSwitch: "text" }); show("personal"); }} title="Words" caption={'"Yes" / "No" in each language, or your own words below.'}>
-              <div className="flex justify-center rounded-lg py-2" style={{ background: PAPER }}>
-                <span className="flex gap-0.5 rounded-full p-0.5" style={{ border: "1px solid rgba(36,70,61,0.25)" }}>
-                  <span className="flex h-4 items-center justify-center rounded-full px-2 text-[7px] font-semibold" style={{ background: EMERALD, color: PAPER, ...mini }}>{c.personalYes || "Yes"}</span>
-                  <span className="flex h-4 items-center justify-center rounded-full px-2 text-[7px] font-semibold" style={{ color: EMERALD, ...mini }}>{c.personalNo || "No"}</span>
-                </span>
-              </div>
-            </RsvpDesignCard>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Reply buttons next to each name</div>
+              <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>On a family's own link</div>
+            </div>
+            <SegmentedToggle
+              value={personalSwitch}
+              onChange={(v) => updateRsvpSettings({ personalSwitch: v })}
+              options={[{ value: "icons", label: "✓ / ✕" }, { value: "text", label: "Words" }]}
+            />
           </div>
           {personalSwitch === "text" && (
-            <>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div>
-                  <FieldLabel>"Coming" word</FieldLabel>
-                  <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="Yes" />
-                </div>
-                <div>
-                  <FieldLabel>"Not coming" word</FieldLabel>
-                  <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="No" />
-                </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <FieldLabel>"Coming" word</FieldLabel>
+                <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="Yes" />
               </div>
-              <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-                Per language — left empty, each language shows its own "Yes" / "No".
-              </p>
-            </>
+              <div>
+                <FieldLabel>"Not coming" word</FieldLabel>
+                <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="No" />
+              </div>
+            </div>
           )}
-        </>
+        </div>
       )}
 
       <Divider />
@@ -4574,7 +4527,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         </div>
       </div>
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Used on the open link and by "Number only". Button wording is per language; the event date lives on the Countdown page.
+        Button wording is per language; the event date lives on the Countdown page.
       </p>
 
       <BackgroundPicker bg={bg} onChange={setBg} />
@@ -6736,25 +6689,6 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
   );
 }
 
-// Which RSVP the Builder's phone preview shows: the open invitation link's
-// form, or a sample family's personal link — set by clicking a design card
-// on the RSVP editor page.
-const rsvpPreviewStore = {
-  value: "open",
-  subs: new Set(),
-  set(v) { this.value = v; this.subs.forEach((f) => f()); },
-};
-function useRsvpPreview() {
-  const [v, setV] = useState(rsvpPreviewStore.value);
-  useEffect(() => {
-    const f = () => setV(rsvpPreviewStore.value);
-    rsvpPreviewStore.subs.add(f);
-    return () => { rsvpPreviewStore.subs.delete(f); };
-  }, []);
-  return v;
-}
-const SAMPLE_FAMILY = { title: "The Kfoury Family", names: ["Peter Kfoury", "Martine Kfoury"], extra: 1 };
-
 // "Peter Kfoury & Martine Kfoury", "A, B & C"
 const joinNames = (names) => (names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`);
 
@@ -6762,17 +6696,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // A family's personal link already knows who's invited (the Members the
   // couple entered in the dashboard): their names are shown, and replying
   // answers for all of them instead of asking the guest to type names.
-  const previewAs = useRsvpPreview();
-  // Only the Builder's RSVP page ever switches this on (see RsvpStep), so a
-  // guest's real invitation never shows the sample family.
-  const samplePersonal = previewAs === "personal";
-  const invited = samplePersonal ? SAMPLE_FAMILY.names : editMode ? [] : (invitedNames || []).map((n) => String(n || "").trim()).filter(Boolean);
+  const invited = editMode ? [] : (invitedNames || []).map((n) => String(n || "").trim()).filter(Boolean);
   const personal = invited.length > 0;
   // The family's name from the dashboard, else the invited people's names.
-  const invitedHeading = samplePersonal ? SAMPLE_FAMILY.title : editMode ? "" : String(invitedTitle || "").trim() || joinNames(invited);
+  const invitedHeading = editMode ? "" : String(invitedTitle || "").trim() || joinNames(invited);
   // "Number only" mode: the family just says whether they're coming and how
   // many, up to their members + allowed extra guests.
-  const countMode = rsvpSettings.personalMode === "count" && !!invitedHeading;
+  // The couple picks one design for both links: "names" (each person
+  // named) or "count" (just how many are coming).
+  const countMode = rsvpSettings.personalMode === "count";
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
   // Lets the couple fade a customized button background toward the photo
@@ -6802,11 +6734,11 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const comingNames = invited.filter((n) => !notComing.has(n));
   // Extra people the family may bring (the dashboard's "+ Guests"), each
   // with an optional name; only while someone from the family is coming.
-  const extraAllowed = samplePersonal ? SAMPLE_FAMILY.extra : Math.max(0, Number(invitedExtra) || 0);
+  const extraAllowed = Math.max(0, Number(invitedExtra) || 0);
   const extraNamesRequired = !!rsvpSettings.extraNamesRequired;
   const [extraGuests, setExtraGuests] = useState([]);
   const extrasCounted = comingNames.length > 0 ? extraGuests : [];
-  const countMax = Math.max(1, invited.length + extraAllowed);
+  const countMax = personal ? Math.max(1, invited.length + extraAllowed) : Math.max(1, Number(rsvpSettings.maxGuestsOpenInvite) || 1);
   const [countPick, setCountPick] = useState(0); // starts at 0 so the family has to pick it themselves
   const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
@@ -6839,12 +6771,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     }
   }, [prefilledRsvpStatus, guestGroupId]);
 
-  const [showModal, setShowModal] = useState(false);
-  const [modalGuestCount, setModalGuestCount] = useState(1);
-  const [confirmedNames, setConfirmedNames] = useState([]);
-  const [skipped, setSkipped] = useState(0);
-  const [nameInput, setNameInput] = useState("");
-  const [modalError, setModalError] = useState("");
 
   const nameNeeded = personal ? false : choice === "yes" ? rsvpSettings.namesRequired : choice === "no";
   const isFull = rsvpSettings.maxTotalRsvps > 0 && totalAttending >= rsvpSettings.maxTotalRsvps;
@@ -6880,17 +6806,22 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
     if (!choice) return;
     if (choice === "yes" && countPick < 1) { setError(t.pickCount || "Please choose how many of you are coming."); return; }
+    if (!personal && nameNeeded && !name.trim()) { setError("Please enter your name."); return; }
     setError("");
     const title = String(invitedTitle || "").trim() || "Guest";
     const n = Math.min(countMax, Math.max(1, countPick));
     if (choice === "yes") rememberPartySize(n);
     setSubmitted(true);
-    const payload = choice === "yes"
+    const payload = !personal
+      ? (choice === "yes"
+        ? { status: "yes", names: name.trim() ? [name.trim()] : [], additionalGuests: n - 1 }
+        : { status: "no", names: name.trim() ? [name.trim()] : [], additionalGuests: 0 })
+      : choice === "yes"
       ? (invited.length
         ? { status: "yes", names: invited.slice(0, n), declinedNames: invited.slice(n), additionalGuests: Math.max(0, n - invited.length) }
         : { status: "yes", names: [title], additionalGuests: n - 1 })
       : { status: "no", names: invited.length ? invited : [title], additionalGuests: 0 };
-    const token = samplePersonal ? null : await onSubmitRsvp(payload);
+    const token = await onSubmitRsvp(payload);
     if (token) setCheckinToken(token);
   };
 
@@ -6905,48 +6836,12 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     setChoice(anyoneComing ? "yes" : "no");
     if (anyoneComing) rememberPartySize(comingNames.length + extrasCounted.length);
     setSubmitted(true);
-    // The sample family on the Builder preview is never saved.
-    const token = samplePersonal ? null : await onSubmitRsvp(anyoneComing
+    const token = await onSubmitRsvp(anyoneComing
       ? { status: "yes", names: [...comingNames, ...namedExtras], declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: unnamedExtras }
       : { status: "no", names: invited, additionalGuests: 0 });
     if (token) setCheckinToken(token);
   };
 
-  const openGuestModal = () => {
-    if (isFull || isPastDeadline) return;
-    setChoice("yes");
-    setModalGuestCount(1);
-    setConfirmedNames([]);
-    setSkipped(0);
-    setNameInput("");
-    setModalError("");
-    setShowModal(true);
-  };
-
-  const accountedFor = confirmedNames.length + skipped;
-  const commitName = () => {
-    if (nameInput.trim()) {
-      setConfirmedNames((n) => [...n, nameInput.trim()]);
-      setNameInput("");
-      setModalError("");
-    } else if (!rsvpSettings.namesRequired) {
-      setSkipped((s) => s + 1);
-    } else {
-      setModalError("Please enter a name, or make names optional in Settings.");
-    }
-  };
-
-  const confirmModal = async () => {
-    if (rsvpSettings.namesRequired && confirmedNames.length < modalGuestCount) {
-      setModalError("Please name every guest before saving.");
-      return;
-    }
-    setShowModal(false);
-    rememberPartySize(Math.max(1, modalGuestCount, confirmedNames.length));
-    setSubmitted(true);
-    const token = await onSubmitRsvp({ status: "yes", names: confirmedNames, additionalGuests: Math.max(0, modalGuestCount - confirmedNames.length) });
-    if (token) setCheckinToken(token);
-  };
 
   // Personal link: one compact card, a row per invited person — initial,
   // name, ✓ / ✕ — then the count and Submit.
@@ -7029,12 +6924,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     const line = light ? "rgba(244,237,228,0.3)" : "rgba(36,70,61,0.25)";
     const pill = (value, label) => {
       const on = choice === value;
+      const blocked = value === "yes" && !personal && isFull;
       const onStyle = value === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), borderColor: "transparent" } : { background: noBg || ROSE, color: noText || PAPER, borderColor: "transparent" };
       return (
         <button
-          onClick={() => setChoice(value)}
+          onClick={() => !blocked && setChoice(value)}
+          disabled={blocked}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10.5px] font-semibold"
-          style={{ ...(on ? onStyle : { background: "transparent", color: text, borderColor: line }), fontFamily: FONT_BODY }}
+          style={{ ...(on ? onStyle : { background: "transparent", color: text, borderColor: line }), fontFamily: FONT_BODY, opacity: blocked ? 0.4 : 1 }}
         >
           <span className="flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full" style={{ border: "1.5px solid currentColor" }}>
             {on && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
@@ -7049,6 +6946,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           {pill("yes", content.yesLabel)}
           {pill("no", content.noLabel)}
         </div>
+        {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: FONT_BODY }}>We've reached capacity for confirmed guests.</p>}
+        {!personal && choice && <div className="mt-3">{nameField(light)}</div>}
         {choice === "yes" && (
           <>
             <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{t.numGuests || "Number of guests"}</label>
@@ -7232,42 +7131,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 personalCountForm(light)
               ) : personal ? (
                 personalForm(light)
-              ) : style === "stacked" ? (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={openGuestModal}
-                      disabled={isFull}
-                      className="rounded-full py-2.5 text-[12px] font-semibold"
-                      style={
-                        isFull
-                          ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
-                          : (editMode || choice === "yes")
-                          ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), fontFamily: FONT_BODY }
-                          : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
-                      }
-                    >
-                      {isFull ? "Fully booked" : content.yesLabel}
-                    </button>
-                    <button
-                      onClick={() => setChoice("no")}
-                      className="rounded-full py-2.5 text-[12px] font-semibold"
-                      style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
-                    >
-                      {content.noLabel}
-                    </button>
-                  </div>
-                  {isFull && <p className="mt-2 text-center text-[10px] italic" style={{ color: light ? "rgba(244,237,228,0.6)" : ROSE, fontFamily: FONT_BODY }}>We've reached capacity for confirmed guests.</p>}
-                  {choice === "no" && (
-                    <div className="mt-3 flex flex-col gap-2">
-                      {nameField(light)}
-                      {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-                      <button onClick={submit} className="rounded-full py-2 text-[10.5px] font-semibold underline" style={{ color: bs.submitText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}>
-                        Submit
-                      </button>
-                    </div>
-                  )}
-                </>
               ) : (
                 <>
                   <div className="flex justify-center gap-2">
@@ -7334,62 +7197,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             </div>
           </DraggableBlock>
 
-          {/* "Who's joining us?" guest-count + names modal, shown for the stacked style's Attending flow */}
-          {showModal && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center p-5" style={{ background: "rgba(10,12,10,0.55)" }}>
-              <div className="w-full rounded-2xl p-4" style={{ maxWidth: 250, background: "#FFFFFF" }}>
-                <h3 style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, color: "#1A1A1A" }}>Who's joining us?</h3>
-
-                <div className="mt-3 flex items-center justify-between rounded-lg p-2.5" style={{ background: "#F2F2F0" }}>
-                  <span style={{ fontSize: 10.5, color: "#333", fontFamily: FONT_BODY, lineHeight: 1.3 }}>How many of<br />you are coming?</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setModalGuestCount((c) => Math.max(1, c - 1))} style={{ color: "#333" }}><ChevronDown size={13} /></button>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#1A1A1A", fontFamily: FONT_BODY }}>{modalGuestCount}</span>
-                    <button onClick={() => setModalGuestCount((c) => Math.min(rsvpSettings.maxGuestsOpenInvite || 1, c + 1))} style={{ color: "#333" }}><ChevronUp size={13} /></button>
-                  </div>
-                </div>
-
-                {confirmedNames.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {confirmedNames.map((n, i) => (
-                      <span key={i} className="rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "#EFEFEF", color: "#333", fontFamily: FONT_BODY }}>{n}</span>
-                    ))}
-                  </div>
-                )}
-
-                {accountedFor < modalGuestCount && (
-                  <div className="mt-2">
-                    <label className="text-[9.5px] font-medium" style={{ color: "#3B6FD4", fontFamily: FONT_BODY }}>
-                      Names {rsvpSettings.namesRequired ? "(required)" : "(optional)"}
-                    </label>
-                    <div className="mt-1 flex items-center gap-1.5 border-b" style={{ borderColor: "#3B6FD4" }}>
-                      <input
-                        value={nameInput}
-                        onChange={(e) => setNameInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && commitName()}
-                        placeholder="Type a name, then +"
-                        className="flex-1 py-1 text-[11px] outline-none"
-                        style={{ color: "#111" }}
-                      />
-                      <button onClick={commitName} style={{ color: "#3B6FD4" }}><Plus size={15} /></button>
-                    </div>
-                  </div>
-                )}
-                <p className="mt-1 text-[9.5px]" style={{ color: "#888", fontFamily: FONT_BODY }}>{confirmedNames.length}/{modalGuestCount} named</p>
-
-                <div className="my-2.5 border-t" style={{ borderColor: "#E5E5E5" }} />
-                <p className="text-center text-[11.5px] font-semibold underline" style={{ color: "#1A1A1A", fontFamily: FONT_BODY }}>
-                  You're confirming {modalGuestCount} guest{modalGuestCount !== 1 ? "s" : ""}
-                </p>
-                {modalError && <p className="mt-1 text-center text-[10px]" style={{ color: "#C0392B", fontFamily: FONT_BODY }}>{modalError}</p>}
-
-                <div className="mt-3 flex items-center justify-between">
-                  <button onClick={() => { setShowModal(false); setChoice(null); }} className="text-[12px]" style={{ color: "#666", fontFamily: FONT_BODY }}>Cancel</button>
-                  <button onClick={confirmModal} className="rounded-full px-5 py-2 text-[12px] font-semibold" style={{ background: "#111", color: "#FFF", fontFamily: FONT_BODY }}>Save</button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </StoryPage>
