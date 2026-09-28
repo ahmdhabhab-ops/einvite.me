@@ -2288,11 +2288,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
-  ar: { pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
-  fr: { pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
-  es: { pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
-  hy: { pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
+  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
+  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
+  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
+  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -4462,7 +4462,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
           <div className="grid grid-cols-2 gap-1">
             <div>
               {tag("Open link")}
-              {mock(<>{pills}{field("Guests: 3 ▾")}</>)}
+              {mock(<>{pills}{field("Family name")}{field("Guests: 3 ▾")}</>)}
             </div>
             <div>
               {tag("Family link")}
@@ -6818,17 +6818,18 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
     if (!choice) return;
     if (choice === "yes" && countPick < 1) { setError(t.pickCount || "Please choose how many of you are coming."); return; }
+    if (!personal && !name.trim()) { setError(t.familyNameMissing || "Please enter your family name."); return; }
     setError("");
     const title = String(invitedTitle || "").trim() || "Guest";
     const n = Math.min(countMax, Math.max(1, countPick));
     if (choice === "yes") rememberPartySize(n);
     setSubmitted(true);
-    // Number only on the open link asks for no name: the reply is saved
-    // as "Guest" with the count.
+    // Number only on the open link asks just the family's name (no one's
+    // individual name): it becomes that reply's Family Name in the guest list.
     const payload = !personal
       ? (choice === "yes"
-        ? { status: "yes", names: [], additionalGuests: n - 1 }
-        : { status: "no", names: [], additionalGuests: 0 })
+        ? { status: "yes", names: [], familyName: name.trim(), additionalGuests: n - 1 }
+        : { status: "no", names: [], familyName: name.trim(), additionalGuests: 0 })
       : choice === "yes"
       ? (invited.length
         ? { status: "yes", names: invited.slice(0, n), declinedNames: invited.slice(n), additionalGuests: Math.max(0, n - invited.length) }
@@ -7001,6 +7002,15 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       <div className="flex flex-col items-stretch">
         {acceptDecline(light, !personal && isFull)}
         {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: FONT_BODY }}>We've reached capacity for confirmed guests.</p>}
+        {!personal && choice && (
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={`${t.familyNamePh || "Family name"} *`}
+            className="mt-3 w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
+            style={{ background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: text, fontFamily: FONT_BODY }}
+          />
+        )}
         {choice === "yes" && (
           <>
             <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{t.numGuests || "Number of guests"}</label>
@@ -15650,7 +15660,7 @@ export default function InvitationBuilder() {
   // though both land in the same guest list. `names` may contain zero, one, or
   // several people (from the "Who's joining us?" modal); anyone not named counts
   // toward additionalGuests as an unnamed slot, same as guests added manually.
-  const submitGuestRsvp = async ({ names, declinedNames, status, additionalGuests, existingGroupId, batchId }) => {
+  const submitGuestRsvp = async ({ names, declinedNames, familyName, status, additionalGuests, existingGroupId, batchId }) => {
     const cleanNames = (names || []).filter((n) => n && n.trim());
     const cleanDeclined = (declinedNames || []).filter((n) => n && n.trim());
     const newMembers = [
@@ -15688,6 +15698,7 @@ export default function InvitationBuilder() {
     const groupId = uid();
     addGuestGroup({
       id: groupId,
+      ...(familyName ? { name: familyName } : {}),
       lastName: "",
       members: newMembers,
       additionalGuests: status === "yes" ? additionalGuests || 0 : 0,
@@ -16402,10 +16413,10 @@ export default function InvitationBuilder() {
   // place — the live state if it's this device's own invitation, or the
   // correct client's slot in invitationsStore otherwise (without touching
   // whatever invitation is currently loaded for editing).
-  const submitGuestViewRsvp = async ({ names, declinedNames, status, additionalGuests }) => {
+  const submitGuestViewRsvp = async ({ names, declinedNames, familyName, status, additionalGuests }) => {
     if (!guestView?.found) return null;
     if (guestView.ownSlug) {
-      return await submitGuestRsvp({ names, declinedNames, status, additionalGuests, existingGroupId: guestView.groupId, batchId: guestView.batchId });
+      return await submitGuestRsvp({ names, declinedNames, familyName, status, additionalGuests, existingGroupId: guestView.groupId, batchId: guestView.batchId });
     }
     const cleanNames = (names || []).filter((n) => n && n.trim());
     const cleanDeclined = (declinedNames || []).filter((n) => n && n.trim());
@@ -16427,7 +16438,7 @@ export default function InvitationBuilder() {
     try {
       if (await serverAuthReady()) {
         // The server adds or updates just this guest's entry in the list.
-        const { group } = await authRequest("/api/guest/rsvp", { ownerId: guestView.userId, groupId: guestView.groupId || null, batchId: guestView.batchId || null, names: cleanNames, declinedNames: cleanDeclined, status, additionalGuests: additionalGuests || 0 });
+        const { group } = await authRequest("/api/guest/rsvp", { ownerId: guestView.userId, groupId: guestView.groupId || null, batchId: guestView.batchId || null, names: cleanNames, declinedNames: cleanDeclined, familyName: familyName || null, status, additionalGuests: additionalGuests || 0 });
         resultGroup = group;
         savedOk = true;
       } else {
@@ -16445,7 +16456,7 @@ export default function InvitationBuilder() {
         resultGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
         latest = { ...latest, guestGroups: existingGroups.map((g) => (g.id === existing.id ? resultGroup : g)) };
       } else {
-        resultGroup = { id: uid(), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: guestView.batchId || null, updatedAt: Date.now() };
+        resultGroup = { id: uid(), ...(familyName ? { name: familyName } : {}), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: guestView.batchId || null, updatedAt: Date.now() };
         latest = { ...latest, guestGroups: [resultGroup, ...existingGroups] };
       }
 
