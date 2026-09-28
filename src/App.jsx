@@ -2214,7 +2214,7 @@ async function optimizeStoredVideo(url, { audio = false } = {}) {
 // labels live on `integrations`, one copy for the main language. Other
 // languages keep their own versions in integrations.texts[lang] and fall
 // back to the main one until they have one.
-const INTEGRATION_TEXT_FIELDS = ["djHeading", "djSubtitle", "djButtonLabel", "networkingHeading", "networkingSubtitle", "networkingButtonLabel", "livestreamHeading", "livestreamSubtitle", "livestreamButtonLabel"];
+const INTEGRATION_TEXT_FIELDS = ["djHeading", "djSubtitle", "djButtonLabel", "networkingHeading", "networkingSubtitle", "networkingButtonLabel", "livestreamHeading", "livestreamSubtitle", "livestreamButtonLabel", "livestreamHelpLabel"];
 const integrationText = (integrations, lang, field) => integrations?.texts?.[lang]?.[field] ?? integrations?.[field];
 
 // The DJ song-request form's own texts. Each language keeps its own copy in
@@ -7369,7 +7369,16 @@ function LivestreamSlide(props) {
   );
 }
 
-function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
+const LIVESTREAM_HELP_DEFAULTS = {
+  en: "Trouble watching here? Open on YouTube/Vimeo directly ↗",
+  ar: "مشكلة في المشاهدة؟ افتح البث على YouTube/Vimeo مباشرة ↗",
+  fr: "Un souci pour regarder ? Ouvrez directement sur YouTube/Vimeo ↗",
+  es: "¿Problemas para verlo? Ábrelo directamente en YouTube/Vimeo ↗",
+  hy: "Դժվարությո՞ւն դիտելիս։ Բացեք անմիջապես YouTube/Vimeo-ում ↗",
+};
+const LIVESTREAM_HELP_DEFAULT = LIVESTREAM_HELP_DEFAULTS.en;
+
+function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, price, paymentUrl, helpLabel, helpColor, helpHidden, slug, bg, fontDisplay, layout, editMode, onMoveBlock, selectedBlock, onSelectBlock }) {
   const hs = layout.heading;
   // For a "hidden" (paid) stream, the real video is never part of this
   // invitation's normal saved data — it's fetched separately here, once the
@@ -7427,11 +7436,13 @@ function LivestreamSlideContent({ heading, subtitle, url, buttonLabel, paid, pri
                 own side, which YouTube shows as "refused to connect" right inside
                 the iframe above with no way for the app to detect or work around
                 it — this link is the guest's escape hatch either way. */}
-            <div className="flex-shrink-0 px-3 pb-6 text-center">
-              <a href={url} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)", fontFamily: FONT_BODY }}>
-                Trouble watching here? Open on YouTube/Vimeo directly ↗
-              </a>
-            </div>
+            {!helpHidden && (
+              <div className="flex-shrink-0 px-3 pb-6 text-center">
+                <a href={url} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: helpColor || (light ? "rgba(244,237,228,0.6)" : "rgba(36,70,61,0.6)"), fontFamily: FONT_BODY }}>
+                  {helpLabel || LIVESTREAM_HELP_DEFAULT}
+                </a>
+              </div>
+            )}
           </div>
         )}
       </StoryPage>
@@ -8214,6 +8225,9 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             paid={data.integrations.livestreamPaid}
             price={data.integrations.livestreamPrice}
             paymentUrl={data.integrations.livestreamPaymentUrl}
+            helpLabel={integrationText(data.integrations, lang, "livestreamHelpLabel") || LIVESTREAM_HELP_DEFAULTS[lang]}
+            helpColor={data.integrations.livestreamHelpColor}
+            helpHidden={!!data.integrations.livestreamHelpHidden}
             slug={slug}
             bg={bg} fontDisplay={fontDisplay} layout={layout} onMoveBlock={onMove} {...common}
           />
@@ -8707,6 +8721,7 @@ function ScrollStoryPreview({ data, steps, lang, slug, siteDomain, onSubmitRsvp,
           <LivestreamSlide
             heading={integrationText(data.integrations, lang, "livestreamHeading")} subtitle={integrationText(data.integrations, lang, "livestreamSubtitle")} buttonLabel={integrationText(data.integrations, lang, "livestreamButtonLabel")}
             url={data.integrations.livestreamUrl} paid={data.integrations.livestreamPaid} price={data.integrations.livestreamPrice} paymentUrl={data.integrations.livestreamPaymentUrl}
+            helpLabel={integrationText(data.integrations, lang, "livestreamHelpLabel") || LIVESTREAM_HELP_DEFAULTS[lang]} helpColor={data.integrations.livestreamHelpColor} helpHidden={!!data.integrations.livestreamHelpHidden}
             slug={slug} bg={bg} fontDisplay={fontDisplay} layout={layout} {...common}
           />
         );
@@ -16975,6 +16990,34 @@ export default function InvitationBuilder() {
                 <div className="mt-4">
                   <FieldLabel>Viewers</FieldLabel>
                   <LiveViewerCount slug={slug} />
+                </div>
+              )}
+              {stepKey === "livestream" && (
+                <div className="mt-4 rounded-xl p-4" style={{ background: INK_3 }}>
+                  <div className="mb-3 flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>"Trouble watching" link</div>
+                      <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>The small link under the video that opens it on YouTube/Vimeo</div>
+                    </div>
+                    <SegmentedToggle
+                      value={!integrations.livestreamHelpHidden}
+                      onChange={(v) => updateIntegrations({ livestreamHelpHidden: !v })}
+                      options={[{ value: true, label: "Show" }, { value: false, label: "Hide" }]}
+                    />
+                  </div>
+                  {!integrations.livestreamHelpHidden && (
+                    <>
+                      <FieldLabel>Text</FieldLabel>
+                      <TextInput
+                        value={integrationText(integrations, activeLang, "livestreamHelpLabel") || ""}
+                        onChange={(v) => setIntegrationText(activeLang, "livestreamHelpLabel", v)}
+                        placeholder={LIVESTREAM_HELP_DEFAULTS[activeLang] || LIVESTREAM_HELP_DEFAULT}
+                      />
+                      <div className="mt-3" style={{ maxWidth: 220 }}>
+                        <ColorPickerField label="Color" value={integrations.livestreamHelpColor} defaultValue="#F4EDE4" onChange={(v) => updateIntegrations({ livestreamHelpColor: v })} />
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
