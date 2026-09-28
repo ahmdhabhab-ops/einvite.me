@@ -2288,11 +2288,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
-  ar: { orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
-  fr: { orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
-  es: { orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
-  hy: { orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
+  en: { personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
+  ar: { personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
+  fr: { personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
+  es: { personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -4445,6 +4445,37 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Button wording is per language; the event date lives on the Countdown page.
       </p>
+
+      <Divider />
+
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Each guest's reply buttons</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>On a family's personal link, next to every name</div>
+        </div>
+        <SegmentedToggle
+          value={rsvpSettings.personalSwitch === "text" ? "text" : "icons"}
+          onChange={(v) => updateRsvpSettings({ personalSwitch: v })}
+          options={[{ value: "icons", label: "✓ / ✕" }, { value: "text", label: "Words" }]}
+        />
+      </div>
+      {rsvpSettings.personalSwitch === "text" && (
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel>"Coming" word</FieldLabel>
+              <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="Yes" />
+            </div>
+            <div>
+              <FieldLabel>"Not coming" word</FieldLabel>
+              <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="No" />
+            </div>
+          </div>
+          <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            Per language — left empty, each language shows its own "Yes" / "No".
+          </p>
+        </>
+      )}
 
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
@@ -6761,6 +6792,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     const onYes = { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) };
     const onNo = { background: noBg || ROSE, color: noText || PAPER };
     const off = { background: "transparent", color: text, opacity: 0.5 };
+    // The couple's choice: ✓ / ✕ icons, or words ("Yes" / "No" or their own).
+    const words = rsvpSettings.personalSwitch === "text";
+    const yesWord = (content.personalYes || "").trim() || t.personalYes || "Yes";
+    const noWord = (content.personalNo || "").trim() || t.personalNo || "No";
     return (
       <div className="flex flex-col items-stretch">
         <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: `1px solid ${line}`, backdropFilter: light ? "blur(6px)" : undefined }}>
@@ -6772,10 +6807,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text, fontFamily: FONT_BODY }}>
                   {n.trim().charAt(0).toUpperCase()}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[11.5px]" style={{ color: text, fontFamily: FONT_BODY, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through" }}>{n}</span>
+                <span className="min-w-0 flex-1 break-words text-[11.5px] leading-tight" style={{ color: text, fontFamily: FONT_BODY, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through" }}>{n}</span>
                 <div className="flex flex-shrink-0 gap-0.5 rounded-full p-0.5" style={{ border: `1px solid ${line}` }}>
-                  <button onClick={() => set(true)} className="flex h-[22px] w-[26px] items-center justify-center rounded-full" style={coming ? onYes : off} title="Coming"><Check size={12} /></button>
-                  <button onClick={() => set(false)} className="flex h-[22px] w-[26px] items-center justify-center rounded-full" style={coming ? off : onNo} title="Can't make it"><X size={12} /></button>
+                  <button onClick={() => set(true)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? onYes : off), fontFamily: FONT_BODY }} title="Coming">{words ? yesWord : <Check size={12} />}</button>
+                  <button onClick={() => set(false)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? off : onNo), fontFamily: FONT_BODY }} title="Can't make it">{words ? noWord : <X size={12} />}</button>
                 </div>
               </div>
             );
