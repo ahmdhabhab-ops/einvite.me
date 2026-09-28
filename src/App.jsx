@@ -4462,7 +4462,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
           <div className="grid grid-cols-2 gap-1">
             <div>
               {tag("Open link")}
-              {mock(<>{pills}{field("Your name")}{field("Guests: 3 ▾")}</>)}
+              {mock(<>{pills}{field("Guests: 3 ▾")}</>)}
             </div>
             <div>
               {tag("Family link")}
@@ -6818,16 +6818,17 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
     if (!choice) return;
     if (choice === "yes" && countPick < 1) { setError(t.pickCount || "Please choose how many of you are coming."); return; }
-    if (!personal && nameNeeded && !name.trim()) { setError("Please enter your name."); return; }
     setError("");
     const title = String(invitedTitle || "").trim() || "Guest";
     const n = Math.min(countMax, Math.max(1, countPick));
     if (choice === "yes") rememberPartySize(n);
     setSubmitted(true);
+    // Number only on the open link asks for no name: the reply is saved
+    // as "Guest" with the count.
     const payload = !personal
       ? (choice === "yes"
-        ? { status: "yes", names: name.trim() ? [name.trim()] : [], additionalGuests: n - 1 }
-        : { status: "no", names: name.trim() ? [name.trim()] : [], additionalGuests: 0 })
+        ? { status: "yes", names: [], additionalGuests: n - 1 }
+        : { status: "no", names: [], additionalGuests: 0 })
       : choice === "yes"
       ? (invited.length
         ? { status: "yes", names: invited.slice(0, n), declinedNames: invited.slice(n), additionalGuests: Math.max(0, n - invited.length) }
@@ -7000,7 +7001,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       <div className="flex flex-col items-stretch">
         {acceptDecline(light, !personal && isFull)}
         {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: FONT_BODY }}>We've reached capacity for confirmed guests.</p>}
-        {!personal && choice && <div className="mt-3">{nameField(light)}</div>}
         {choice === "yes" && (
           <>
             <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{t.numGuests || "Number of guests"}</label>
