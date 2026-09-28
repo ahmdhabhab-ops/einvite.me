@@ -4475,16 +4475,61 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         </RsvpDesignCard>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: INK_3 }}>
-        <div>
-          <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Accept / Decline buttons</div>
-          <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>How the two answer buttons are laid out</div>
+      <div className="mt-4">
+        <FieldLabel>Look</FieldLabel>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            ["classic", "Classic", (
+              <>
+                <div className="flex gap-0.5">
+                  <span className="flex-1 rounded-full py-0.5 text-center text-[5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, fontFamily: FONT_BODY }}>◉ Yes</span>
+                  <span className="flex-1 rounded-full py-0.5 text-center text-[5px]" style={{ border: `1px solid ${EMERALD}`, color: EMERALD, fontFamily: FONT_BODY }}>○ No</span>
+                </div>
+                <div className="mt-1 rounded-full py-0.5" style={{ background: PAPER_2 }} />
+                <div className="mt-1 rounded-full py-1" style={{ background: EMERALD }} />
+              </>
+            )],
+            ["stacked", "Stacked", (
+              <>
+                <div className="rounded-full py-0.5 text-center text-[5px]" style={{ background: EMERALD, color: PAPER, fontFamily: FONT_BODY }}>Yes</div>
+                <div className="mt-0.5 rounded-full py-0.5 text-center text-[5px]" style={{ border: `1px solid ${ROSE}`, color: ROSE, fontFamily: FONT_BODY }}>No</div>
+                <div className="mt-1 rounded-full py-1" style={{ background: GOLD }} />
+              </>
+            )],
+            ["card", "Card", (
+              <div className="rounded-md p-1" style={{ background: "rgba(255,255,255,0.7)", border: "1px solid rgba(36,70,61,0.15)", boxShadow: "0 4px 8px -6px rgba(0,0,0,0.4)" }}>
+                <div className="flex gap-px rounded-full p-px" style={{ border: "1px solid rgba(36,70,61,0.2)" }}>
+                  <span className="flex-1 rounded-full py-px text-center text-[5px]" style={{ background: EMERALD, color: PAPER, fontFamily: FONT_BODY }}>Yes</span>
+                  <span className="flex-1 py-px text-center text-[5px]" style={{ color: EMERALD, fontFamily: FONT_BODY }}>No</span>
+                </div>
+                <div className="mt-1 rounded-full py-1" style={{ background: EMERALD }} />
+              </div>
+            )],
+            ["elegant", "Elegant", (
+              <>
+                <div className="flex items-center gap-1 pb-0.5 text-[6px] italic" style={{ color: EMERALD, borderBottom: "1px solid rgba(36,70,61,0.15)", fontFamily: FONT_DISPLAY }}><span className="h-1.5 w-1.5 rounded-full" style={{ border: `1px solid ${GOLD}`, background: GOLD }} />Yes</div>
+                <div className="mt-0.5 flex items-center gap-1 pb-0.5 text-[6px] italic" style={{ color: EMERALD, borderBottom: "1px solid rgba(36,70,61,0.15)", fontFamily: FONT_DISPLAY }}><span className="h-1.5 w-1.5 rounded-full" style={{ border: `1px solid ${EMERALD}` }} />No</div>
+                <div className="mt-1 rounded-full py-0.5" style={{ border: `1px solid ${EMERALD}` }} />
+              </>
+            )],
+          ].map(([value, label, pic]) => {
+            const on = (["stacked", "card", "elegant"].includes(rsvpSettings.style) ? rsvpSettings.style : "classic") === value;
+            return (
+              <button
+                key={value}
+                onClick={() => updateRsvpSettings({ style: value })}
+                className="rounded-xl p-2 text-left"
+                style={{ background: INK_3, border: `1.5px solid ${on ? GOLD : "rgba(147,166,155,0.25)"}` }}
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[8.5px] font-semibold uppercase" style={{ color: on ? GOLD : GOLD_SOFT, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>{label}</span>
+                  {on && <CheckCircle2 size={11} color={GOLD} />}
+                </div>
+                <div className="rounded-md p-1.5" style={{ background: PAPER, minHeight: 44 }}>{pic}</div>
+              </button>
+            );
+          })}
         </div>
-        <SegmentedToggle
-          value={rsvpSettings.style === "stacked" ? "stacked" : "classic"}
-          onChange={(v) => updateRsvpSettings({ style: v })}
-          options={[{ value: "classic", label: "Side by side" }, { value: "stacked", label: "Stacked" }]}
-        />
       </div>
 
       {personalMode === "names" && (
@@ -6719,6 +6764,28 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const countMode = rsvpSettings.personalMode === "count";
   const hs = layout.heading, bs = layout.buttons;
   const style = rsvpSettings.style || "classic";
+  // The RSVP form's look: classic (side-by-side buttons), stacked (two big
+  // buttons), card (everything in a frosted card with a Yes/No switch) or
+  // elegant (italic choices, underlined fields, outlined button).
+  const skin = ["stacked", "card", "elegant"].includes(style) ? style : "classic";
+  const fieldClass = skin === "elegant"
+    ? "w-full bg-transparent px-1 py-2 text-center text-[12px] outline-none"
+    : "w-full rounded-full px-3 py-2 text-center text-[12px] outline-none";
+  const fieldLook = (light) => (skin === "elegant"
+    ? { color: bs.fieldText || (light ? PAPER : EMERALD), borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}`, fontFamily: FONT_BODY }
+    : { background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY });
+  const submitButton = (light, onClick, enabled = true, extraClass = "mt-3") => (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      className={`${extraClass} w-full rounded-full py-2.5 text-[10.5px] font-bold uppercase`}
+      style={skin === "elegant"
+        ? { background: "transparent", color: bs.submitText || (light ? PAPER : EMERALD), border: `1px solid ${bs.submitBg || (light ? "rgba(244,237,228,0.7)" : EMERALD)}`, letterSpacing: "0.22em", fontFamily: FONT_BODY, opacity: enabled ? 1 : 0.5 }
+        : { background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: enabled ? 1 : 0.5 }}
+    >
+      Submit RSVP
+    </button>
+  );
   // Lets the couple fade a customized button background toward the photo
   // behind it (a "frosted glass" look) instead of only ever a flat color —
   // null while no color has been customized yet, so the untouched default
@@ -6862,7 +6929,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const personalForm = (light) => {
     const text = bs.fieldText || (light ? PAPER : EMERALD);
     const line = light ? "rgba(244,237,228,0.14)" : "rgba(36,70,61,0.12)";
-    const cardBg = fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2);
+    const cardBg = skin === "card" || skin === "elegant" ? "transparent" : fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2);
     const onYes = { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) };
     const onNo = { background: noBg || ROSE, color: noText || PAPER };
     const off = { background: "transparent", color: text, opacity: 0.5 };
@@ -6922,20 +6989,53 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             : "None of you can make it"}
         </p>
         {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-        <button
-          onClick={submitPersonal}
-          className="mt-2 w-full rounded-full py-2 text-[10.5px] font-bold uppercase"
-          style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY }}
-        >
-          Submit RSVP
-        </button>
+        {submitButton(light, submitPersonal, true, "mt-2")}
       </div>
     );
   };
 
   // Accept / Decline in the invitation's own button look: "stacked" (two
   // full-width buttons, one above the other) or side by side.
-  const acceptDecline = (light, blockYes = isFull) => (style === "stacked" ? (
+  const acceptDecline = (light, blockYes = isFull) => (skin === "card" ? (
+    <div className="flex gap-1 rounded-full p-1" style={{ background: light ? "rgba(255,255,255,0.08)" : "rgba(36,70,61,0.07)", border: `1px solid ${light ? "rgba(244,237,228,0.22)" : "rgba(36,70,61,0.18)"}` }}>
+      <button
+        onClick={() => !blockYes && setChoice("yes")}
+        disabled={blockYes}
+        className="flex-1 rounded-full px-2 py-2 text-[11px] font-semibold leading-tight"
+        style={{ ...(choice === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: FONT_BODY, opacity: blockYes ? 0.4 : 1 }}
+      >
+        {blockYes ? "Fully booked" : content.yesLabel}
+      </button>
+      <button
+        onClick={() => setChoice("no")}
+        className="flex-1 rounded-full px-2 py-2 text-[11px] font-semibold leading-tight"
+        style={{ ...(choice === "no" ? { background: noBg || ROSE, color: noText || PAPER } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: FONT_BODY }}
+      >
+        {content.noLabel}
+      </button>
+    </div>
+  ) : skin === "elegant" ? (
+    <div className="flex flex-col gap-2.5 px-1">
+      {[["yes", content.yesLabel, yesBg || GOLD], ["no", content.noLabel, noBg || ROSE]].map(([value, label, accent]) => {
+        const on = choice === value;
+        const blocked = value === "yes" && blockYes;
+        return (
+          <button
+            key={value}
+            onClick={() => !blocked && setChoice(value)}
+            disabled={blocked}
+            className="flex items-center gap-3 pb-2 text-left"
+            style={{ color: light ? PAPER : EMERALD, borderBottom: `1px solid ${light ? "rgba(244,237,228,0.18)" : "rgba(36,70,61,0.15)"}`, opacity: blocked ? 0.4 : 1 }}
+          >
+            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full" style={{ border: `1px solid ${on ? accent : "currentColor"}` }}>
+              {on && <span className="h-2 w-2 rounded-full" style={{ background: accent }} />}
+            </span>
+            <span style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15 }}>{blocked ? "Fully booked" : label}</span>
+          </button>
+        );
+      })}
+    </div>
+  ) : style === "stacked" ? (
     <div className="flex flex-col gap-2">
       <button
         onClick={() => !blockYes && setChoice("yes")}
@@ -7007,8 +7107,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={`${t.familyNamePh || "Family name"} *`}
-            className="mt-3 w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
-            style={{ background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: text, fontFamily: FONT_BODY }}
+            className={`mt-3 ${fieldClass}`}
+            style={fieldLook(light)}
           />
         )}
         {choice === "yes" && (
@@ -7017,8 +7117,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             <select
               value={Math.min(countMax, countPick)}
               onChange={(e) => { setCountPick(Number(e.target.value)); setError(""); }}
-              className="w-full rounded-full px-3 py-1.5 text-center text-[12px] font-semibold outline-none"
-              style={{ background: fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2), color: text, border: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }}
+              className={skin === "elegant" ? "w-full bg-transparent px-1 py-1.5 text-center text-[12px] font-semibold outline-none" : "w-full rounded-full px-3 py-1.5 text-center text-[12px] font-semibold outline-none"}
+              style={skin === "elegant"
+                ? { color: text, borderBottom: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }
+                : { background: fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2), color: text, border: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }}
             >
               {Array.from({ length: countMax + 1 }, (_, i) => i).map((n) => <option key={n} value={n} style={{ color: "#111" }}>{n}</option>)}
             </select>
@@ -7030,20 +7132,13 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           </>
         )}
         {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
-        <button
-          onClick={submitCount}
-          disabled={!choice}
-          className="mt-3 w-full rounded-full py-2 text-[10.5px] font-bold uppercase"
-          style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
-        >
-          Submit RSVP
-        </button>
+        {submitButton(light, submitCount, !!choice)}
       </div>
     );
   };
 
   const guestStepper = (light) => (
-    <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
+    <div className={skin === "elegant" ? "flex items-center justify-between px-1 py-1.5" : "flex items-center justify-between rounded-full px-3 py-1.5"} style={skin === "elegant" ? { borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}` } : { background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
       <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>Number of attending</span>
       <div className="flex items-center gap-2">
         <button onClick={() => setGuestCount((c) => Math.max(1, c - 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronDown size={13} /></button>
@@ -7058,8 +7153,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       value={name}
       onChange={(e) => setName(e.target.value)}
       placeholder={nameNeeded ? "Your name *" : "Your name (optional)"}
-      className="w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
-      style={{ background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}
+      className={fieldClass}
+      style={fieldLook(light)}
     />
   );
 
@@ -7158,7 +7253,11 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 </button>
               </div>
             )}
-            <div style={{ width: 230 }}>
+            <div
+              style={skin === "card"
+                ? { width: 250, padding: 16, borderRadius: 20, background: light ? "rgba(15,20,18,0.38)" : "rgba(255,255,255,0.55)", border: `1px solid ${light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.12)"}`, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", boxShadow: "0 18px 40px -24px rgba(0,0,0,0.5)" }
+                : { width: 230 }}
+            >
               {invitedHeading && (
                 <p className="mb-2 text-center" style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.3, color: bs.thankYouText || (light ? PAPER : EMERALD) }}>
                   {invitedHeading}
@@ -7208,21 +7307,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                           value={otherNames[i] || ""}
                           onChange={(e) => setOtherNames((list) => { const next = [...list]; next[i] = e.target.value; return next; })}
                           placeholder={`${t.guestNamePh || "Guest's name"} ${i + 2}${rsvpSettings.namesRequired ? " *" : ""}`}
-                          className="w-full rounded-full px-3 py-2 text-center text-[12px] outline-none"
-                          style={{ background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}
+                          className={fieldClass}
+                          style={fieldLook(light)}
                         />
                       ))}
                       {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
                     </div>
                   )}
-                  <button
-                    onClick={submit}
-                    disabled={!choice}
-                    className="mt-3 w-full rounded-full py-2.5 text-[11px] font-bold uppercase"
-                    style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: choice ? 1 : 0.5 }}
-                  >
-                    Submit RSVP
-                  </button>
+                  {submitButton(light, submit, !!choice)}
                 </>
               )}
             </div>
