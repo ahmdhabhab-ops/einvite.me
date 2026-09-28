@@ -4475,6 +4475,18 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         </RsvpDesignCard>
       </div>
 
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: INK_3 }}>
+        <div>
+          <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Accept / Decline buttons</div>
+          <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>How the two answer buttons are laid out</div>
+        </div>
+        <SegmentedToggle
+          value={rsvpSettings.style === "stacked" ? "stacked" : "classic"}
+          onChange={(v) => updateRsvpSettings({ style: v })}
+          options={[{ value: "classic", label: "Side by side" }, { value: "stacked", label: "Stacked" }]}
+        />
+      </div>
+
       {personalMode === "names" && (
         <div className="mt-3 space-y-2.5 rounded-xl p-3" style={{ background: INK_3 }}>
           <div className="flex items-center justify-between gap-3">
@@ -6919,33 +6931,74 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     );
   };
 
+  // Accept / Decline in the invitation's own button look: "stacked" (two
+  // full-width buttons, one above the other) or side by side.
+  const acceptDecline = (light, blockYes = isFull) => (style === "stacked" ? (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={() => !blockYes && setChoice("yes")}
+        disabled={blockYes}
+        className="rounded-full py-2.5 text-[12px] font-semibold"
+        style={
+          blockYes
+            ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
+            : (editMode || choice === "yes")
+            ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), fontFamily: FONT_BODY }
+            : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
+        }
+      >
+        {blockYes ? "Fully booked" : content.yesLabel}
+      </button>
+      <button
+        onClick={() => setChoice("no")}
+        className="rounded-full py-2.5 text-[12px] font-semibold"
+        style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
+      >
+        {content.noLabel}
+      </button>
+    </div>
+  ) : (
+    <div className="flex justify-center gap-2">
+      <button
+        onClick={() => !blockYes && setChoice("yes")}
+        disabled={blockYes}
+        className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
+        style={{
+          background: yesBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+          border: `1.5px solid ${blockYes ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
+          color: blockYes ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : yesText || (light ? PAPER : EMERALD),
+          fontFamily: FONT_BODY,
+        }}
+      >
+        <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
+          {choice === "yes" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
+        </span>
+        {blockYes ? "Fully booked" : content.yesLabel}
+      </button>
+      <button
+        onClick={() => setChoice("no")}
+        className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
+        style={{
+          background: noBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
+          border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
+          color: noText || (light ? PAPER : EMERALD),
+          fontFamily: FONT_BODY,
+        }}
+      >
+        <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
+          {choice === "no" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
+        </span>
+        {content.noLabel}
+      </button>
+    </div>
+  ));
+
   const personalCountForm = (light) => {
     const text = bs.fieldText || (light ? PAPER : EMERALD);
     const line = light ? "rgba(244,237,228,0.3)" : "rgba(36,70,61,0.25)";
-    const pill = (value, label) => {
-      const on = choice === value;
-      const blocked = value === "yes" && !personal && isFull;
-      const onStyle = value === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), borderColor: "transparent" } : { background: noBg || ROSE, color: noText || PAPER, borderColor: "transparent" };
-      return (
-        <button
-          onClick={() => !blocked && setChoice(value)}
-          disabled={blocked}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10.5px] font-semibold"
-          style={{ ...(on ? onStyle : { background: "transparent", color: text, borderColor: line }), fontFamily: FONT_BODY, opacity: blocked ? 0.4 : 1 }}
-        >
-          <span className="flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full" style={{ border: "1.5px solid currentColor" }}>
-            {on && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
-          </span>
-          {label}
-        </button>
-      );
-    };
     return (
       <div className="flex flex-col items-stretch">
-        <div className="flex gap-2">
-          {pill("yes", content.yesLabel)}
-          {pill("no", content.noLabel)}
-        </div>
+        {acceptDecline(light, !personal && isFull)}
         {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: FONT_BODY }}>We've reached capacity for confirmed guests.</p>}
         {!personal && choice && <div className="mt-3">{nameField(light)}</div>}
         {choice === "yes" && (
@@ -7133,39 +7186,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 personalForm(light)
               ) : (
                 <>
-                  <div className="flex justify-center gap-2">
-                    <button
-                      onClick={() => !isFull && setChoice("yes")}
-                      disabled={isFull}
-                      className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
-                      style={{
-                        background: yesBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
-                        border: `1.5px solid ${isFull ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: isFull ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : yesText || (light ? PAPER : EMERALD),
-                        fontFamily: FONT_BODY,
-                      }}
-                    >
-                      <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
-                        {choice === "yes" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
-                      </span>
-                      {isFull ? "Fully booked" : content.yesLabel}
-                    </button>
-                    <button
-                      onClick={() => setChoice("no")}
-                      className="flex items-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-medium"
-                      style={{
-                        background: noBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
-                        border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
-                        color: noText || (light ? PAPER : EMERALD),
-                        fontFamily: FONT_BODY,
-                      }}
-                    >
-                      <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
-                        {choice === "no" && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "currentColor" }} />}
-                      </span>
-                      {content.noLabel}
-                    </button>
-                  </div>
+                  {acceptDecline(light)}
                   {isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: light ? "rgba(244,237,228,0.6)" : ROSE, fontFamily: FONT_BODY }}>We've reached capacity for confirmed guests.</p>}
                   {choice && (
                     <div className="mt-3 flex flex-col gap-2">
