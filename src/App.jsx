@@ -6696,17 +6696,23 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       return;
     }
     setError("");
-    if (personal && choice === "yes" && comingNames.length === 0) {
-      setError("Tick who's coming, or choose that you can't make it.");
-      return;
-    }
-    if (choice === "yes") rememberPartySize(personal ? comingNames.length : Math.max(1, guestCount));
+    if (choice === "yes") rememberPartySize(Math.max(1, guestCount));
     setSubmitted(true); // show the confirmation immediately — the QR code appears a moment later once the token comes back, rather than making the guest wait on a network call before seeing anything
-    const token = personal
-      ? await onSubmitRsvp(choice === "yes"
-        ? { status: "yes", names: comingNames, declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: 0 }
-        : { status: "no", names: invited, additionalGuests: 0 })
-      : await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
+    const token = await onSubmitRsvp({ status: choice, names: name.trim() ? [name.trim()] : [], additionalGuests: choice === "yes" ? Math.max(0, guestCount - (name.trim() ? 1 : 0)) : 0 });
+    if (token) setCheckinToken(token);
+  };
+
+  // Personal link: everyone's ✓ / ✕ answered at once, right on the page.
+  const submitPersonal = async () => {
+    if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
+    setError("");
+    const anyoneComing = comingNames.length > 0;
+    setChoice(anyoneComing ? "yes" : "no");
+    if (anyoneComing) rememberPartySize(comingNames.length);
+    setSubmitted(true);
+    const token = await onSubmitRsvp(anyoneComing
+      ? { status: "yes", names: comingNames, declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: 0 }
+      : { status: "no", names: invited, additionalGuests: 0 });
     if (token) setCheckinToken(token);
   };
 
@@ -6735,15 +6741,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   };
 
   const confirmModal = async () => {
-    if (personal) {
-      if (comingNames.length === 0) { setModalError("Tick who's coming."); return; }
-      setShowModal(false);
-      rememberPartySize(comingNames.length);
-      setSubmitted(true);
-      const token = await onSubmitRsvp({ status: "yes", names: comingNames, declinedNames: invited.filter((n) => notComing.has(n)), additionalGuests: 0 });
-      if (token) setCheckinToken(token);
-      return;
-    }
     if (rsvpSettings.namesRequired && confirmedNames.length < modalGuestCount) {
       setModalError("Please name every guest before saving.");
       return;
@@ -6755,27 +6752,45 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     if (token) setCheckinToken(token);
   };
 
-  // Personal link: tick who's coming.
-  const personalPicker = (textColor, boxColor) => (
-    <div className="flex flex-col gap-1.5">
-      {invited.map((n) => {
-        const on = !notComing.has(n);
-        return (
-          <button
-            key={n}
-            onClick={() => setNotComing((s) => { const next = new Set(s); if (next.has(n)) next.delete(n); else next.add(n); return next; })}
-            className="flex items-center gap-2 text-left text-[12px]"
-            style={{ color: textColor, fontFamily: FONT_BODY }}
-          >
-            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded" style={{ border: `1.5px solid ${boxColor}`, background: on ? boxColor : "transparent" }}>
-              {on && <Check size={11} color="#fff" />}
-            </span>
-            {n}
-          </button>
-        );
-      })}
-    </div>
-  );
+  // Personal link: one row per invited person — initial, name, ✓ / ✕.
+  const personalForm = (light) => {
+    const text = bs.fieldText || (light ? PAPER : EMERALD);
+    const rowBg = fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2);
+    const onYes = { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) };
+    const onNo = { background: noBg || ROSE, color: noText || PAPER };
+    const off = { background: "transparent", color: text, opacity: 0.55 };
+    return (
+      <div className="flex flex-col gap-2">
+        {invited.map((n) => {
+          const coming = !notComing.has(n);
+          const set = (yes) => setNotComing((s) => { const next = new Set(s); if (yes) next.delete(n); else next.add(n); return next; });
+          return (
+            <div key={n} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: rowBg }}>
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold" style={{ ...onYes, fontFamily: FONT_BODY }}>
+                {n.trim().charAt(0).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[12.5px]" style={{ color: text, fontFamily: FONT_BODY }}>{n}</span>
+              <div className="flex flex-shrink-0 overflow-hidden rounded-md" style={{ border: `1px solid ${light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.25)"}` }}>
+                <button onClick={() => set(true)} className="flex h-7 w-8 items-center justify-center" style={coming ? onYes : off} title="Coming"><Check size={14} /></button>
+                <button onClick={() => set(false)} className="flex h-7 w-8 items-center justify-center" style={coming ? off : onNo} title="Can't make it"><X size={14} /></button>
+              </div>
+            </div>
+          );
+        })}
+        <p className="mt-1 text-center text-[11px] font-semibold" style={{ color: text, fontFamily: FONT_BODY }}>
+          {comingNames.length > 0 ? `You're confirming ${comingNames.length} guest${comingNames.length !== 1 ? "s" : ""}` : "None of you can make it"}
+        </p>
+        {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        <button
+          onClick={submitPersonal}
+          className="w-full rounded-full py-2.5 text-[11px] font-bold uppercase"
+          style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY }}
+        >
+          Submit RSVP
+        </button>
+      </div>
+    );
+  };
 
   const guestStepper = (light) => (
     <div className="flex items-center justify-between rounded-full px-3 py-1.5" style={{ background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
@@ -6925,6 +6940,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     The deadline to respond has passed.
                   </p>
                 </div>
+              ) : personal ? (
+                personalForm(light)
               ) : style === "stacked" ? (
                 <>
                   <div className="flex flex-col gap-2">
@@ -7000,8 +7017,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                   {choice && (
                     <div className="mt-3 flex flex-col gap-2">
                       {nameField(light)}
-                      {choice === "yes" && personal && personalPicker(bs.fieldText || (light ? PAPER : EMERALD), light ? GOLD : EMERALD)}
-                      {choice === "yes" && !personal && rsvpSettings.maxGuestsOpenInvite > 0 && guestStepper(light)}
+                      {choice === "yes" && rsvpSettings.maxGuestsOpenInvite > 0 && guestStepper(light)}
                       {error && <p className="text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
                     </div>
                   )}
@@ -7024,15 +7040,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               <div className="w-full rounded-2xl p-4" style={{ maxWidth: 250, background: "#FFFFFF" }}>
                 <h3 style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 15, color: "#1A1A1A" }}>Who's joining us?</h3>
 
-                {personal ? (
-                  <>
-                    <div className="mt-3">{personalPicker("#1A1A1A", "#111")}</div>
-                    <div className="my-2.5 border-t" style={{ borderColor: "#E5E5E5" }} />
-                    <p className="text-center text-[11.5px] font-semibold underline" style={{ color: "#1A1A1A", fontFamily: FONT_BODY }}>
-                      You're confirming {comingNames.length} guest{comingNames.length !== 1 ? "s" : ""}
-                    </p>
-                  </>
-                ) : (<>
                 <div className="mt-3 flex items-center justify-between rounded-lg p-2.5" style={{ background: "#F2F2F0" }}>
                   <span style={{ fontSize: 10.5, color: "#333", fontFamily: FONT_BODY, lineHeight: 1.3 }}>How many of<br />you are coming?</span>
                   <div className="flex items-center gap-2">
@@ -7074,7 +7081,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 <p className="text-center text-[11.5px] font-semibold underline" style={{ color: "#1A1A1A", fontFamily: FONT_BODY }}>
                   You're confirming {modalGuestCount} guest{modalGuestCount !== 1 ? "s" : ""}
                 </p>
-                </>)}
                 {modalError && <p className="mt-1 text-center text-[10px]" style={{ color: "#C0392B", fontFamily: FONT_BODY }}>{modalError}</p>}
 
                 <div className="mt-3 flex items-center justify-between">
