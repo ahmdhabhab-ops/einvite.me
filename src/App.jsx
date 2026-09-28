@@ -7015,7 +7015,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     <div className="text-center">
       <CheckCircle2 size={22} color={bs.thankYouText || (light ? PAPER : EMERALD)} style={{ margin: "0 auto 6px" }} />
       <p style={{ color: bs.thankYouText || (light ? PAPER : EMERALD), fontFamily: fontDisplay, fontStyle: "italic", fontSize: 14 }}>Thank you for your response!</p>
-      {rsvpSettings.showTotalAttending && shownPartySize > 0 && (
+      {shownPartySize > 0 && (
         <p className="mt-2 text-[11.5px]" style={{ color: bs.thankYouSub || (light ? GOLD_SOFT : ROSE), fontFamily: FONT_BODY }}>
           Confirmed for {shownPartySize} {shownPartySize === 1 ? "person" : "people"}
         </p>
@@ -9274,18 +9274,6 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
           <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Closes "Attending" on the open invitation link once this many confirmed guests are reached. 0 = unlimited.</div>
         </div>
         <NumberStepper value={rsvpSettings.maxTotalRsvps} onChange={(v) => updateRsvpSettings({ maxTotalRsvps: v })} min={0} max={2000} />
-      </div>
-
-      <Divider />
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Show guest's party size</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>After replying, each guest sees how many people they confirmed (e.g. "Confirmed for 4 people") — never the event's total</div>
-        </div>
-        <button onClick={() => updateRsvpSettings({ showTotalAttending: !rsvpSettings.showTotalAttending })} className="relative h-6 w-11 flex-shrink-0 rounded-full transition-colors" style={{ background: rsvpSettings.showTotalAttending ? GOLD : INK_3 }}>
-          <span className="absolute top-0.5 h-5 w-5 rounded-full transition-transform" style={{ background: IVORY, transform: rsvpSettings.showTotalAttending ? "translateX(22px)" : "translateX(2px)" }} />
-        </button>
       </div>
     </div>
   );
@@ -14631,7 +14619,7 @@ export default function InvitationBuilder() {
   const [guestGroups, setGuestGroups] = useState(seedGuestGroups);
   const [tables, setTables] = useState(seedTables);
   const [venueElements, setVenueElements] = useState([]); // [{ id, type: 'stage'|'danceFloor'|'entrance'|'lounge', x, y, width, height, label }]
-  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null });
+  const [rsvpSettings, setRsvpSettings] = useState({ style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, enableGuestVoiceRecorder: true, deadline: null });
   const [openInviteLinks, setOpenInviteLinks] = useState([]); // [{ id, label, maxGuests }] — each is its own separately-tracked open invitation link, independent of the single shared one and of each other
   const addOpenInviteLink = (label, maxGuests) => {
     const newLink = { id: uid(), label: label.trim() || "Untitled link", maxGuests: Number(maxGuests) || 0 };
@@ -14765,7 +14753,7 @@ export default function InvitationBuilder() {
     enabledSteps: Object.fromEntries(ALL_STEPS.map((s) => [s.key, true])), pageOrder: ALL_STEPS.map((s) => s.key),
     defaultLang: "en", enabledLanguages: LANGS, layouts: DEFAULT_LAYOUTS, customBlocks: emptyCustomBlocks(),
     og: { image: null, title: "", description: "" }, guestGroups: [], tables: [],
-    rsvpSettings: { style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, showTotalAttending: true, enableGuestVoiceRecorder: true, deadline: null },
+    rsvpSettings: { style: "classic", namesRequired: true, maxGuestsOpenInvite: 5, maxTotalRsvps: 0, enableGuestVoiceRecorder: true, deadline: null },
     openInviteLinks: [],
     venueElements: [],
     integrations: {
