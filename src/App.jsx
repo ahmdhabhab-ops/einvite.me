@@ -2288,11 +2288,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
-  ar: { numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
-  fr: { numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
-  es: { numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
-  hy: { numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
+  en: { pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry" },
+  ar: { pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة" },
+  fr: { pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste" },
+  es: { pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista" },
+  hy: { pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -6700,7 +6700,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [extraGuests, setExtraGuests] = useState([]);
   const extrasCounted = comingNames.length > 0 ? extraGuests : [];
   const countMax = Math.max(1, invited.length + extraAllowed);
-  const [countPick, setCountPick] = useState(() => Math.min(countMax, Math.max(1, invited.length)));
+  const [countPick, setCountPick] = useState(0); // starts at 0 so the family has to pick it themselves
   const [submitted, setSubmitted] = useState(!!prefilledRsvpStatus);
   const [error, setError] = useState("");
   const [checkinToken, setCheckinToken] = useState(null);
@@ -6766,6 +6766,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const submitCount = async () => {
     if (isPastDeadline) { setError("The RSVP deadline has passed."); return; }
     if (!choice) return;
+    if (choice === "yes" && countPick < 1) { setError(t.pickCount || "Please choose how many of you are coming."); return; }
     setError("");
     const title = String(invitedTitle || "").trim() || "Guest";
     const n = Math.min(countMax, Math.max(1, countPick));
@@ -6938,15 +6939,17 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{t.numGuests || "Number of guests"}</label>
             <select
               value={Math.min(countMax, countPick)}
-              onChange={(e) => setCountPick(Number(e.target.value))}
+              onChange={(e) => { setCountPick(Number(e.target.value)); setError(""); }}
               className="w-full rounded-full px-3 py-1.5 text-center text-[12px] font-semibold outline-none"
               style={{ background: fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2), color: text, border: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }}
             >
-              {Array.from({ length: countMax }, (_, i) => i + 1).map((n) => <option key={n} value={n} style={{ color: "#111" }}>{n}</option>)}
+              {Array.from({ length: countMax + 1 }, (_, i) => i).map((n) => <option key={n} value={n} style={{ color: "#111" }}>{n}</option>)}
             </select>
-            <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85 }}>
-              You're confirming {Math.min(countMax, countPick)} guest{Math.min(countMax, countPick) !== 1 ? "s" : ""}
-            </p>
+            {countPick > 0 && (
+              <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85 }}>
+                You're confirming {Math.min(countMax, countPick)} guest{Math.min(countMax, countPick) !== 1 ? "s" : ""}
+              </p>
+            )}
           </>
         )}
         {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
