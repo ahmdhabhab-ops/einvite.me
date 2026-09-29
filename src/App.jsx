@@ -2289,11 +2289,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry", voiceTitle: "We'll Miss You", voiceSub: "Record a quick note so they know you're thinking of them.", voiceRecord: "Record", voiceStop: "Stop", voiceAgain: "Record Again", voiceSend: "Send", voiceSending: "Sending…", voiceSent: "Sent ✓", voiceSkip: "Skip", voiceMicError: "Couldn't access your microphone — please allow microphone access and try again.", voiceProcessError: "Couldn't process the recording — please try again.", thankYou: "Thank you for your response!", confirmedFor: "Confirmed for {n} {people}", person: "person", people: "people", saveQr: "Save this — show it at the door for quick check-in", submitRsvp: "Submit RSVP", rsvpClosed: "RSVP Closed", deadlinePassed: "The deadline to respond has passed.", fullyBooked: "Fully booked", yourName: "Your name", optionalTag: "(optional)", numAttending: "Number of attending", capacityReached: "We've reached capacity for confirmed guests.", confirmingN: "You're confirming {n} {guests}", guestWord: "guest", guestsWord: "guests" },
-  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة", voiceTitle: "سنفتقدكم", voiceSub: "سجّلوا رسالة صوتية قصيرة ليعرفوا أنكم تفكرون بهم.", voiceRecord: "تسجيل", voiceStop: "إيقاف", voiceAgain: "إعادة التسجيل", voiceSend: "إرسال", voiceSending: "جارٍ الإرسال…", voiceSent: "تم الإرسال ✓", voiceSkip: "تخطي", voiceMicError: "تعذّر الوصول إلى الميكروفون — الرجاء السماح بالوصول إليه والمحاولة مجدداً.", voiceProcessError: "تعذّرت معالجة التسجيل — الرجاء المحاولة مجدداً.", thankYou: "شكراً على ردّكم!", confirmedFor: "تم التأكيد لـ {n} {people}", person: "شخص", people: "أشخاص", saveQr: "احفظوا هذا الرمز — أظهروه عند الباب لتسجيل الدخول بسرعة", submitRsvp: "إرسال الرد", rsvpClosed: "انتهى تأكيد الحضور", deadlinePassed: "انتهت مهلة الرد.", fullyBooked: "اكتمل العدد", yourName: "اسمك", optionalTag: "(اختياري)", numAttending: "عدد الحضور", capacityReached: "اكتمل عدد الضيوف المؤكَّدين.", confirmingN: "أنت تؤكد حضور {n} {guests}", guestWord: "ضيف", guestsWord: "ضيوف" },
-  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste", voiceTitle: "Vous allez nous manquer", voiceSub: "Enregistrez un petit message pour leur montrer que vous pensez à eux.", voiceRecord: "Enregistrer", voiceStop: "Arrêter", voiceAgain: "Recommencer", voiceSend: "Envoyer", voiceSending: "Envoi…", voiceSent: "Envoyé ✓", voiceSkip: "Passer", voiceMicError: "Impossible d'accéder au micro — autorisez l'accès au micro et réessayez.", voiceProcessError: "Impossible de traiter l'enregistrement — veuillez réessayer.", thankYou: "Merci pour votre réponse !", confirmedFor: "Confirmé pour {n} {people}", person: "personne", people: "personnes", saveQr: "Gardez ce code — montrez-le à l'entrée pour un accueil rapide", submitRsvp: "Envoyer ma réponse", rsvpClosed: "Réponses closes", deadlinePassed: "La date limite pour répondre est passée.", fullyBooked: "Complet", yourName: "Votre nom", optionalTag: "(facultatif)", numAttending: "Nombre de personnes", capacityReached: "Nous avons atteint le nombre maximum d'invités confirmés.", confirmingN: "Vous confirmez {n} {guests}", guestWord: "invité", guestsWord: "invités" },
-  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista", voiceTitle: "Te extrañaremos", voiceSub: "Graba una nota corta para que sepan que piensas en ellos.", voiceRecord: "Grabar", voiceStop: "Detener", voiceAgain: "Grabar de nuevo", voiceSend: "Enviar", voiceSending: "Enviando…", voiceSent: "Enviado ✓", voiceSkip: "Omitir", voiceMicError: "No se pudo acceder al micrófono — permite el acceso e inténtalo de nuevo.", voiceProcessError: "No se pudo procesar la grabación — inténtalo de nuevo.", thankYou: "¡Gracias por tu respuesta!", confirmedFor: "Confirmado para {n} {people}", person: "persona", people: "personas", saveQr: "Guarda esto — muéstralo en la entrada para un registro rápido", submitRsvp: "Enviar respuesta", rsvpClosed: "Confirmaciones cerradas", deadlinePassed: "La fecha límite para responder ya pasó.", fullyBooked: "Completo", yourName: "Tu nombre", optionalTag: "(opcional)", numAttending: "Número de asistentes", capacityReached: "Hemos alcanzado el cupo de invitados confirmados.", confirmingN: "Estás confirmando {n} {guests}", guestWord: "invitado", guestsWord: "invitados" },
-  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը", voiceTitle: "Մենք ձեզ կկարոտենք", voiceSub: "Ձայնագրեք կարճ ուղերձ, որ իմանան՝ մտածում եք նրանց մասին։", voiceRecord: "Ձայնագրել", voiceStop: "Կանգնեցնել", voiceAgain: "Կրկին ձայնագրել", voiceSend: "Ուղարկել", voiceSending: "Ուղարկվում է…", voiceSent: "Ուղարկված է ✓", voiceSkip: "Բաց թողնել", voiceMicError: "Չհաջողվեց միանալ խոսափողին — թույլատրեք խոսափողի օգտագործումը և փորձեք կրկին։", voiceProcessError: "Չհաջողվեց մշակել ձայնագրությունը — փորձեք կրկին։", thankYou: "Շնորհակալություն պատասխանի համար։", confirmedFor: "Հաստատված է {n} {people}", person: "հոգու համար", people: "հոգու համար", saveQr: "Պահեք սա — ցույց տվեք մուտքի մոտ արագ գրանցման համար", submitRsvp: "Ուղարկել պատասխանը", rsvpClosed: "Հաստատումը փակված է", deadlinePassed: "Պատասխանելու ժամկետն անցել է։", fullyBooked: "Տեղեր չկան", yourName: "Ձեր անունը", optionalTag: "(ըստ ցանկության)", numAttending: "Մասնակիցների թիվը", capacityReached: "Հաստատված հյուրերի տեղերը լրացել են։", confirmingN: "Դուք հաստատում եք {n} {guests}", guestWord: "հյուր", guestsWord: "հյուր" },
+  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry", voiceTitle: "We'll Miss You", voiceSub: "Record a quick note so they know you're thinking of them.", voiceRecord: "Record", voiceStop: "Stop", voiceAgain: "Record Again", voiceSend: "Send", voiceSending: "Sending…", voiceSent: "Sent ✓", voiceSkip: "Skip", voiceMicError: "Couldn't access your microphone — please allow microphone access and try again.", voiceProcessError: "Couldn't process the recording — please try again.", thankYou: "Thank you for your response!", confirmedFor: "Confirmed for {n} {people}", person: "person", people: "people", saveQr: "Save this — show it at the door for quick check-in", submitRsvp: "Submit RSVP", rsvpClosed: "RSVP Closed", deadlinePassed: "The deadline to respond has passed.", fullyBooked: "Fully booked", yourName: "Your name", optionalTag: "(optional)", numAttending: "Number of attending", capacityReached: "We've reached capacity for confirmed guests.", confirmingN: "You're confirming {n} {guests}", guestWord: "guest", guestsWord: "guests", nameMissing: "Please enter your name.", nameEveryGuest: "Please name every guest." },
+  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة", voiceTitle: "سنفتقدكم", voiceSub: "سجّلوا رسالة صوتية قصيرة ليعرفوا أنكم تفكرون بهم.", voiceRecord: "تسجيل", voiceStop: "إيقاف", voiceAgain: "إعادة التسجيل", voiceSend: "إرسال", voiceSending: "جارٍ الإرسال…", voiceSent: "تم الإرسال ✓", voiceSkip: "تخطي", voiceMicError: "تعذّر الوصول إلى الميكروفون — الرجاء السماح بالوصول إليه والمحاولة مجدداً.", voiceProcessError: "تعذّرت معالجة التسجيل — الرجاء المحاولة مجدداً.", thankYou: "شكراً على ردّكم!", confirmedFor: "تم التأكيد لـ {n} {people}", person: "شخص", people: "أشخاص", saveQr: "احفظوا هذا الرمز — أظهروه عند الباب لتسجيل الدخول بسرعة", submitRsvp: "إرسال الرد", rsvpClosed: "انتهى تأكيد الحضور", deadlinePassed: "انتهت مهلة الرد.", fullyBooked: "اكتمل العدد", yourName: "اسمك", optionalTag: "(اختياري)", numAttending: "عدد الحضور", capacityReached: "اكتمل عدد الضيوف المؤكَّدين.", confirmingN: "أنت تؤكد حضور {n} {guests}", guestWord: "ضيف", guestsWord: "ضيوف", nameMissing: "الرجاء إدخال اسمك.", nameEveryGuest: "الرجاء كتابة اسم كل ضيف." },
+  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste", voiceTitle: "Vous allez nous manquer", voiceSub: "Enregistrez un petit message pour leur montrer que vous pensez à eux.", voiceRecord: "Enregistrer", voiceStop: "Arrêter", voiceAgain: "Recommencer", voiceSend: "Envoyer", voiceSending: "Envoi…", voiceSent: "Envoyé ✓", voiceSkip: "Passer", voiceMicError: "Impossible d'accéder au micro — autorisez l'accès au micro et réessayez.", voiceProcessError: "Impossible de traiter l'enregistrement — veuillez réessayer.", thankYou: "Merci pour votre réponse !", confirmedFor: "Confirmé pour {n} {people}", person: "personne", people: "personnes", saveQr: "Gardez ce code — montrez-le à l'entrée pour un accueil rapide", submitRsvp: "Envoyer ma réponse", rsvpClosed: "Réponses closes", deadlinePassed: "La date limite pour répondre est passée.", fullyBooked: "Complet", yourName: "Votre nom", optionalTag: "(facultatif)", numAttending: "Nombre de personnes", capacityReached: "Nous avons atteint le nombre maximum d'invités confirmés.", confirmingN: "Vous confirmez {n} {guests}", guestWord: "invité", guestsWord: "invités", nameMissing: "Veuillez indiquer votre nom.", nameEveryGuest: "Veuillez indiquer le nom de chaque invité." },
+  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista", voiceTitle: "Te extrañaremos", voiceSub: "Graba una nota corta para que sepan que piensas en ellos.", voiceRecord: "Grabar", voiceStop: "Detener", voiceAgain: "Grabar de nuevo", voiceSend: "Enviar", voiceSending: "Enviando…", voiceSent: "Enviado ✓", voiceSkip: "Omitir", voiceMicError: "No se pudo acceder al micrófono — permite el acceso e inténtalo de nuevo.", voiceProcessError: "No se pudo procesar la grabación — inténtalo de nuevo.", thankYou: "¡Gracias por tu respuesta!", confirmedFor: "Confirmado para {n} {people}", person: "persona", people: "personas", saveQr: "Guarda esto — muéstralo en la entrada para un registro rápido", submitRsvp: "Enviar respuesta", rsvpClosed: "Confirmaciones cerradas", deadlinePassed: "La fecha límite para responder ya pasó.", fullyBooked: "Completo", yourName: "Tu nombre", optionalTag: "(opcional)", numAttending: "Número de asistentes", capacityReached: "Hemos alcanzado el cupo de invitados confirmados.", confirmingN: "Estás confirmando {n} {guests}", guestWord: "invitado", guestsWord: "invitados", nameMissing: "Escribe tu nombre.", nameEveryGuest: "Escribe el nombre de cada invitado." },
+  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը", voiceTitle: "Մենք ձեզ կկարոտենք", voiceSub: "Ձայնագրեք կարճ ուղերձ, որ իմանան՝ մտածում եք նրանց մասին։", voiceRecord: "Ձայնագրել", voiceStop: "Կանգնեցնել", voiceAgain: "Կրկին ձայնագրել", voiceSend: "Ուղարկել", voiceSending: "Ուղարկվում է…", voiceSent: "Ուղարկված է ✓", voiceSkip: "Բաց թողնել", voiceMicError: "Չհաջողվեց միանալ խոսափողին — թույլատրեք խոսափողի օգտագործումը և փորձեք կրկին։", voiceProcessError: "Չհաջողվեց մշակել ձայնագրությունը — փորձեք կրկին։", thankYou: "Շնորհակալություն պատասխանի համար։", confirmedFor: "Հաստատված է {n} {people}", person: "հոգու համար", people: "հոգու համար", saveQr: "Պահեք սա — ցույց տվեք մուտքի մոտ արագ գրանցման համար", submitRsvp: "Ուղարկել պատասխանը", rsvpClosed: "Հաստատումը փակված է", deadlinePassed: "Պատասխանելու ժամկետն անցել է։", fullyBooked: "Տեղեր չկան", yourName: "Ձեր անունը", optionalTag: "(ըստ ցանկության)", numAttending: "Մասնակիցների թիվը", capacityReached: "Հաստատված հյուրերի տեղերը լրացել են։", confirmingN: "Դուք հաստատում եք {n} {guests}", guestWord: "հյուր", guestsWord: "հյուր", nameMissing: "Խնդրում ենք գրել ձեր անունը։", nameEveryGuest: "Խնդրում ենք գրել յուրաքանչյուր հյուրի անունը։" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -6909,7 +6909,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   }, [prefilledRsvpStatus, guestGroupId]);
 
 
-  const nameNeeded = personal ? false : choice === "yes" ? rsvpSettings.namesRequired : choice === "no";
+  // The name field comes before the reply buttons, so it has to say up front
+  // whether it's required; a guest who declines always leaves a name.
+  const nameNeeded = !personal && (!!rsvpSettings.namesRequired || choice === "no");
   const isFull = rsvpSettings.maxTotalRsvps > 0 && totalAttending >= rsvpSettings.maxTotalRsvps;
   // editMode is exempt so the couple can keep previewing/styling the RSVP
   // block on the phone canvas even after their own deadline has passed.
@@ -6917,16 +6919,16 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
 
   const submit = async () => {
     if (isPastDeadline) {
-      setError("The RSVP deadline has passed.");
+      setError(t.deadlinePassed);
       return;
     }
     if (nameNeeded && !name.trim()) {
-      setError("Please enter your name.");
+      setError(t.nameMissing);
       return;
     }
     const others = choice === "yes" ? Array.from({ length: Math.max(0, guestCount - 1) }, (_, i) => (otherNames[i] || "").trim()) : [];
     if (choice === "yes" && rsvpSettings.namesRequired && others.some((n) => !n)) {
-      setError("Please name every guest.");
+      setError(t.nameEveryGuest);
       return;
     }
     setError("");
@@ -15015,6 +15017,7 @@ export default function InvitationBuilder() {
     // whatever's really saved for them. Switching between clients only
     // makes sense once the real data is in anyway, so this just waits.
     if (!coreLoadCompletedRef.current) return;
+    if (nextId === activeInvitationId && invitationsStore[nextId]) return; // already open (a client's own invitation loads first now)
     const outgoing = getActiveSnapshot();
     // The other invitations load in the background after the page opens, so
     // this one may not have arrived yet (a client's session restore right
@@ -15044,7 +15047,10 @@ export default function InvitationBuilder() {
     // sitting in local state — which could silently overwrite fresher data
     // written elsewhere (a guest's direct RSVP, for example) with a stale
     // local copy the owner's browser hadn't refreshed in a while.
-    if (activeInvitationId && persistentStorage.available()) {
+    // Only the admin app switches between invitations it has open; outside
+    // it, the "outgoing" one was never loaded (a client's builder opens just
+    // the client's own), so there is nothing of it to save.
+    if (activeInvitationId && persistentStorage.available() && /^\/admin(\/|$)/.test(window.location.pathname)) {
       try {
         await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(outgoing), false);
       } catch (err) {
@@ -15206,6 +15212,10 @@ export default function InvitationBuilder() {
         const res = await persistentStorage.get(DRAFT_KEY, false);
         if (cancelled || !res?.value) return;
         const d = JSON.parse(res.value);
+        // Which invitation opens first: the admin's current one in the admin
+        // app; a logged-in client's own everywhere else (none before login).
+        const onAdminPage = /^\/admin(\/|$)/.test(window.location.pathname);
+        const loadId = onAdminPage ? d.activeInvitationId : (lsGet("einvite:acting-as-user-id") || null);
         if (d.content) setContent(mergeContentWithDefaults(d.content));
         if (d.timeline) setTimeline(d.timeline);
         if (d.locations) setLocations(d.locations);
@@ -15242,11 +15252,11 @@ export default function InvitationBuilder() {
           // single client's full snapshot right here, on every load,
           // regardless of which one was even needed yet, was what made a
           // refresh (and the Users list) get slower as the client list grew.
-          const activeRes = d.activeInvitationId ? await persistentStorage.get(invitationKey(d.activeInvitationId), false) : null;
+          const activeRes = loadId ? await persistentStorage.get(invitationKey(loadId), false) : null;
           if (!cancelled && activeRes?.value) {
             try {
               const activeSnapshot = JSON.parse(activeRes.value);
-              setInvitationsStore((s) => ({ ...s, [d.activeInvitationId]: activeSnapshot }));
+              setInvitationsStore((s) => ({ ...s, [loadId]: activeSnapshot }));
               activeSnapshotAppliedRef.current = true;
               // THE ACTUAL FIX: the main draft payload's own copies of content,
               // customBlocks, pageBackgrounds, layouts, etc. (set from d.xxx
@@ -15291,7 +15301,10 @@ export default function InvitationBuilder() {
           // The rest of the clients — fire-and-forget, populates
           // invitationsStore progressively as each one resolves instead of
           // blocking coreDataLoaded on all of them.
-          const otherIds = d.invitationIds.filter((id) => id !== d.activeInvitationId);
+          // Only the admin's own app needs every client's invitation (the
+          // Users list, switching between clients). A client's builder used
+          // to download all of them too, which made it very slow to open.
+          const otherIds = onAdminPage ? d.invitationIds.filter((id) => id !== loadId) : [];
           if (otherIds.length) {
             (async () => {
               const results = await Promise.allSettled(otherIds.map((id) => persistentStorage.get(invitationKey(id), false)));
@@ -15307,7 +15320,7 @@ export default function InvitationBuilder() {
             })();
           }
         }
-        if (d.activeInvitationId) setActiveInvitationId(d.activeInvitationId);
+        if (loadId) setActiveInvitationId(loadId);
         if (d.users) setUsers(d.users);
         if (Array.isArray(d.introMediaLibrary)) setIntroMediaLibrary(d.introMediaLibrary);
         // shopDesigns loads separately below, from its own dedicated key —
@@ -15323,9 +15336,18 @@ export default function InvitationBuilder() {
       } catch {
         // No saved draft yet — start fresh with the defaults.
       } finally {
-        if (!cancelled) { coreLoadCompletedRef.current = true; setCoreDataLoaded(true); }
+        if (!cancelled) {
+          coreLoadCompletedRef.current = true; setCoreDataLoaded(true);
+          // The shared bg-* / introbg-* / og-image / music-audio keys are only
+          // a fallback for an old draft whose invitation was never saved on
+          // its own. Loading them regardless (several large images, and the
+          // music) slowed every builder down, a client's included.
+          if (activeSnapshotAppliedRef.current || !/^\/admin(\/|$)/.test(window.location.pathname)) setBackgroundsLoaded(true);
+          else loadLegacyMedia();
+        }
       }
     })();
+    const loadLegacyMedia = () => {
     // The Cover page's background is the one thing a guest actually needs
     // for the first paint — load it first and alone, so it isn't racing
     // nine other pages' background images for the same bandwidth. Only once
@@ -15364,16 +15386,17 @@ export default function InvitationBuilder() {
     })();
     (async () => {
       try {
-        const res = await persistentStorage.get(SHOP_DESIGNS_KEY, false);
-        if (cancelled || !res?.value) return;
-        setShopDesigns(JSON.parse(res.value));
-      } catch {}
-    })();
-    (async () => {
-      try {
         const res = await persistentStorage.get(MUSIC_AUDIO_KEY, false);
         if (cancelled || activeSnapshotAppliedRef.current || !res?.value) return;
         setMusic((m) => ({ ...m, url: res.value }));
+      } catch {}
+    })();
+    };
+    (async () => {
+      try {
+        const res = await persistentStorage.get(SHOP_DESIGNS_KEY, false);
+        if (cancelled || !res?.value) return;
+        setShopDesigns(JSON.parse(res.value));
       } catch {}
     })();
     return () => { cancelled = true; };
