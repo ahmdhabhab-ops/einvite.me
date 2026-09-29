@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
+const CostCalculatorPage = lazy(() => import("./CostCalculator.jsx"));
 import jsQR from "jsqr";
 import foliageA from "./assets/foliage-a.webp";
 import foliageB from "./assets/foliage-b.webp";
@@ -13773,6 +13774,8 @@ function LandingPage({ onSignUp, onLogIn }) {
             {hasContact && <a href="#contact" className="landing-link">{t.nav.contact}</a>}
             <a href="/shop" className="landing-link">{t.nav.designs}</a>
             {blogPublic && <a href={`/blog/${lang}`} className="landing-link">{t.nav.blog}</a>}
+            <a href="/wedding-cost-calculator" className="landing-link">{t.footer.weddingCalc}</a>
+            <a href="/birthday-cost-calculator" className="landing-link">{t.footer.birthdayCalc}</a>
             <a href="/privacy" className="landing-link">{t.footer.privacy}</a>
             <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
           </div>
@@ -14417,7 +14420,7 @@ function initialBuilderDataMode() {
   if (p === "/admin" || p.startsWith("/admin/")) return "full";
   const guest = p.match(/^\/e\/([^/]+)\/?$/);
   if (guest) return decodeURIComponent(guest[1]) === "admin-preview" ? "none" : "users"; // the owner's preview (ADMIN_PREVIEW_SLUG) is fetched on its own
-  if (/^\/(shop|designs|privacy|dj|checkin-staff|checkin|quick|network)(\/|$)/.test(p)) return "none";
+  if (/^\/(shop|designs|privacy|dj|checkin-staff|checkin|quick|network|wedding-cost-calculator|birthday-cost-calculator)(\/|$)/.test(p)) return "none";
   // Site root: the Builder for a logged-in client or someone mid sign-up,
   // otherwise the home page (which switches to "full" once they open
   // Log in / Sign up).
@@ -16675,6 +16678,15 @@ export default function InvitationBuilder() {
 
   if (typeof window !== "undefined" && /^\/privacy\/?$/.test(window.location.pathname)) {
     return <PrivacyPolicyPage />;
+  }
+
+  const calculatorMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/(wedding|birthday)-cost-calculator\/?$/);
+  if (calculatorMatch) {
+    return (
+      <Suspense fallback={<AppLoadingScreen />}>
+        <CostCalculatorPage kind={calculatorMatch[1]} />
+      </Suspense>
+    );
   }
 
   if (isShopPath === null) {

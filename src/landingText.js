@@ -98,7 +98,7 @@ export const LANDING_TEXT = {
       bodyChat: "Questions before you start? Message us directly — we're happy to help.",
       bodyNoChat: "Questions before you start? We're happy to help.",
     },
-    footer: { privacy: "Privacy Policy" },
+    footer: { privacy: "Privacy Policy", weddingCalc: "Wedding cost calculator", birthdayCalc: "Birthday cost calculator" },
     language: "Language",
   },
 
@@ -191,7 +191,7 @@ export const LANDING_TEXT = {
       bodyChat: "لديك أسئلة قبل أن تبدأ؟ راسلنا مباشرة، يسعدنا مساعدتك.",
       bodyNoChat: "لديك أسئلة قبل أن تبدأ؟ يسعدنا مساعدتك.",
     },
-    footer: { privacy: "سياسة الخصوصية" },
+    footer: { privacy: "سياسة الخصوصية", weddingCalc: "حاسبة تكاليف الزفاف", birthdayCalc: "حاسبة تكاليف عيد الميلاد" },
     language: "اللغة",
   },
 
@@ -284,7 +284,7 @@ export const LANDING_TEXT = {
       bodyChat: "Des questions avant de commencer ? Écrivez-nous directement, nous serons ravis de vous aider.",
       bodyNoChat: "Des questions avant de commencer ? Nous serons ravis de vous aider.",
     },
-    footer: { privacy: "Politique de confidentialité" },
+    footer: { privacy: "Politique de confidentialité", weddingCalc: "Calculateur de budget mariage", birthdayCalc: "Calculateur de budget anniversaire" },
     language: "Langue",
   },
 
@@ -377,7 +377,7 @@ export const LANDING_TEXT = {
       bodyChat: "¿Tienes preguntas antes de empezar? Escríbenos directamente, estaremos encantados de ayudarte.",
       bodyNoChat: "¿Tienes preguntas antes de empezar? Estaremos encantados de ayudarte.",
     },
-    footer: { privacy: "Política de privacidad" },
+    footer: { privacy: "Política de privacidad", weddingCalc: "Calculadora de gastos de boda", birthdayCalc: "Calculadora de gastos de cumpleaños" },
     language: "Idioma",
   },
 
@@ -470,7 +470,7 @@ export const LANDING_TEXT = {
       bodyChat: "Հարցեր ունե՞ք նախքան սկսելը։ Գրեք մեզ անմիջապես՝ ուրախ կլինենք օգնել։",
       bodyNoChat: "Հարցեր ունե՞ք նախքան սկսելը։ Ուրախ կլինենք օգնել։",
     },
-    footer: { privacy: "Գաղտնիության քաղաքականություն" },
+    footer: { privacy: "Գաղտնիության քաղաքականություն", weddingCalc: "Հարսանիքի ծախսերի հաշվիչ", birthdayCalc: "Ծննդյան տոնի ծախսերի հաշվիչ" },
     language: "Լեզու",
   },
 };
