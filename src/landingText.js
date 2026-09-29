@@ -83,6 +83,7 @@ export const LANDING_TEXT = {
         { q: "How do I get help?", a: "Tap the chat button at the bottom of any page to talk to us directly, or reach us through the Contact section. We're happy to help at every step." },
       ],
     },
+    calculator: { nav: "Cost calculator", eyebrow: "Free tool", title: "Plan the budget, free", body: "Pick your occasion, add the prices you've received, and watch the total add up. Print it or save it as a PDF.", button: "Calculate your budget" },
     cta: { title: "Ready when you are", body: "Start with a design you love, and send it the same day.", create: "Create your invitation", browse: "Browse the designs" },
     about: {
       title: "About us",
@@ -98,7 +99,7 @@ export const LANDING_TEXT = {
       bodyChat: "Questions before you start? Message us directly — we're happy to help.",
       bodyNoChat: "Questions before you start? We're happy to help.",
     },
-    footer: { privacy: "Privacy Policy", weddingCalc: "Wedding cost calculator", birthdayCalc: "Birthday cost calculator" },
+    footer: { privacy: "Privacy Policy" },
     language: "Language",
   },
 
@@ -176,6 +177,7 @@ export const LANDING_TEXT = {
         { q: "كيف أحصل على المساعدة؟", a: "اضغط على زر الدردشة أسفل أي صفحة للتحدث معنا مباشرة، أو تواصل معنا عبر قسم «تواصل معنا». يسعدنا مساعدتك في كل خطوة." },
       ],
     },
+    calculator: { nav: "حاسبة التكاليف", eyebrow: "أداة مجانية", title: "خطّط لميزانيتك مجاناً", body: "اختر مناسبتك، أضف الأسعار التي حصلت عليها، وشاهد المجموع يتجمّع. اطبعه أو احفظه كملف PDF.", button: "احسب ميزانيتك" },
     cta: { title: "جاهزون متى كنت جاهزاً", body: "ابدأ بتصميم تحبه، وأرسله في اليوم نفسه.", create: "أنشئ دعوتك", browse: "تصفّح التصاميم" },
     about: {
       title: "من نحن",
@@ -191,7 +193,7 @@ export const LANDING_TEXT = {
       bodyChat: "لديك أسئلة قبل أن تبدأ؟ راسلنا مباشرة، يسعدنا مساعدتك.",
       bodyNoChat: "لديك أسئلة قبل أن تبدأ؟ يسعدنا مساعدتك.",
     },
-    footer: { privacy: "سياسة الخصوصية", weddingCalc: "حاسبة تكاليف الزفاف", birthdayCalc: "حاسبة تكاليف عيد الميلاد" },
+    footer: { privacy: "سياسة الخصوصية" },
     language: "اللغة",
   },
 
@@ -269,6 +271,7 @@ export const LANDING_TEXT = {
         { q: "Comment obtenir de l'aide ?", a: "Touchez le bouton de discussion en bas de n'importe quelle page pour nous parler directement, ou contactez-nous via la section Contact. Nous sommes ravis de vous aider à chaque étape." },
       ],
     },
+    calculator: { nav: "Calculateur de budget", eyebrow: "Outil gratuit", title: "Planifiez le budget, gratuitement", body: "Choisissez votre occasion, ajoutez les prix reçus et regardez le total s'additionner. Imprimez-le ou enregistrez-le en PDF.", button: "Calculer votre budget" },
     cta: { title: "Prêts quand vous l'êtes", body: "Commencez avec un modèle que vous aimez, et envoyez-le le jour même.", create: "Créer votre invitation", browse: "Parcourir les modèles" },
     about: {
       title: "À propos",
@@ -284,7 +287,7 @@ export const LANDING_TEXT = {
       bodyChat: "Des questions avant de commencer ? Écrivez-nous directement, nous serons ravis de vous aider.",
       bodyNoChat: "Des questions avant de commencer ? Nous serons ravis de vous aider.",
     },
-    footer: { privacy: "Politique de confidentialité", weddingCalc: "Calculateur de budget mariage", birthdayCalc: "Calculateur de budget anniversaire" },
+    footer: { privacy: "Politique de confidentialité" },
     language: "Langue",
   },
 
@@ -362,6 +365,7 @@ export const LANDING_TEXT = {
         { q: "¿Cómo consigo ayuda?", a: "Toca el botón de chat en la parte inferior de cualquier página para hablar con nosotros directamente, o contáctanos en la sección de Contacto. Estaremos encantados de ayudarte en cada paso." },
       ],
     },
+    calculator: { nav: "Calculadora de gastos", eyebrow: "Herramienta gratis", title: "Planifica el presupuesto, gratis", body: "Elige tu ocasión, añade los precios que te dieron y mira cómo suma el total. Imprímelo o guárdalo en PDF.", button: "Calcula tu presupuesto" },
     cta: { title: "Listos cuando tú lo estés", body: "Empieza con un diseño que te encante y envíalo el mismo día.", create: "Crea tu invitación", browse: "Explorar los diseños" },
     about: {
       title: "Sobre nosotros",
@@ -377,7 +381,7 @@ export const LANDING_TEXT = {
       bodyChat: "¿Tienes preguntas antes de empezar? Escríbenos directamente, estaremos encantados de ayudarte.",
       bodyNoChat: "¿Tienes preguntas antes de empezar? Estaremos encantados de ayudarte.",
     },
-    footer: { privacy: "Política de privacidad", weddingCalc: "Calculadora de gastos de boda", birthdayCalc: "Calculadora de gastos de cumpleaños" },
+    footer: { privacy: "Política de privacidad" },
     language: "Idioma",
   },
 
@@ -455,6 +459,7 @@ export const LANDING_TEXT = {
         { q: "Ինչպե՞ս ստանալ օգնություն", a: "Հպեք զրույցի կոճակին ցանկացած էջի ներքևում՝ մեզ հետ անմիջապես խոսելու համար, կամ կապվեք մեզ հետ «Կապ» բաժնի միջոցով։ Ուրախ կլինենք օգնել ձեզ յուրաքանչյուր քայլում։" },
       ],
     },
+    calculator: { nav: "Ծախսերի հաշվիչ", eyebrow: "Անվճար գործիք", title: "Պլանավորեք բյուջեն անվճար", body: "Ընտրեք ձեր առիթը, ավելացրեք ստացած գները և տեսեք ընդհանուր գումարը։ Տպեք այն կամ պահեք որպես PDF։", button: "Հաշվեք ձեր բյուջեն" },
     cta: { title: "Պատրաստ ենք, երբ դուք պատրաստ եք", body: "Սկսեք ձեր սիրած դիզայնով և ուղարկեք այն նույն օրը։", create: "Ստեղծեք ձեր հրավերը", browse: "Դիտել դիզայնները" },
     about: {
       title: "Մեր մասին",
@@ -470,7 +475,7 @@ export const LANDING_TEXT = {
       bodyChat: "Հարցեր ունե՞ք նախքան սկսելը։ Գրեք մեզ անմիջապես՝ ուրախ կլինենք օգնել։",
       bodyNoChat: "Հարցեր ունե՞ք նախքան սկսելը։ Ուրախ կլինենք օգնել։",
     },
-    footer: { privacy: "Գաղտնիության քաղաքականություն", weddingCalc: "Հարսանիքի ծախսերի հաշվիչ", birthdayCalc: "Ծննդյան տոնի ծախսերի հաշվիչ" },
+    footer: { privacy: "Գաղտնիության քաղաքականություն" },
     language: "Լեզու",
   },
 };
