@@ -1014,6 +1014,8 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
   const headerImageUrl = /^https:\/\/[^\s]{1,1000}$/.test(String(b.headerImageUrl || "")) ? b.headerImageUrl : null;
   if (to.length < 6 || to.length > 16) return res.status(400).json({ error: "That phone number doesn't look right." });
   if (!WHATSAPP_TEMPLATES.has(templateName)) return res.status(400).json({ error: "Unknown message template." });
+  // Both templates read "…the wedding of {{2}}" — never send it without names.
+  if (!String(variables[1] || "").trim()) return res.status(400).json({ error: "Fill in \"Names in WhatsApp messages\" first." });
   const components = [];
   if (headerImageUrl) components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
   if (variables.length) components.push({ type: "body", parameters: variables.map((text) => ({ type: "text", text })) });
