@@ -1995,7 +1995,7 @@ app.get("/robots.txt", (_req, res) => {
 
 app.get("/sitemap.xml", (_req, res) => {
   const blogUrls = BLOG_PUBLIC ? BLOG_LANGS.flatMap((l) => (blogPosts[l]?.length ? [`/blog/${l}`, ...blogPosts[l].map((p) => `/blog/${l}/${p.slug}`)] : [])) : [];
-  const urls = ["/", "/shop", "/wedding-cost-calculator", "/birthday-cost-calculator", ...blogUrls];
+  const urls = ["/", "/shop", "/cost-calculator", ...["wedding", "birthday", "quinceanera", "baptism", "baby-shower", "party"].map((o) => `/${o}-cost-calculator`), ...blogUrls];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url><loc>${escapeHtml(SITE_URL + (u === "/" ? "/" : u))}</loc></url>`).join("\n")}

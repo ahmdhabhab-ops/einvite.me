@@ -13520,6 +13520,9 @@ function PrivacyPolicyPage() {
   );
 }
 
+// Which cost calculator page each home-page occasion opens (see CostCalculator.jsx).
+const CALCULATOR_SLUGS = { wedding: "wedding", birthday: "birthday", quinceanera: "quinceanera", baptism: "baptism", babyShower: "baby-shower", any: "party" };
+
 function LandingPage({ onSignUp, onLogIn }) {
   // Canva designs from the shop — same list /shop shows, fetched the same way.
   const [shopDesigns, setShopDesigns] = useState([]);
@@ -13591,6 +13594,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             <a href="#how" className="landing-link hidden lg:inline">{t.nav.how}</a>
             <a href="#features" className="landing-link hidden md:inline">{t.nav.features}</a>
             <a href="/shop" className="landing-link hidden md:inline">{t.nav.designs}</a>
+            <a href="/cost-calculator" className="landing-link hidden lg:inline">{t.calculator.nav}</a>
             {blogPublic && <a href={`/blog/${lang}`} className="landing-link hidden md:inline">{t.nav.blog}</a>}
             <a href="#faq" className="landing-link hidden lg:inline">{t.nav.faq}</a>
             <a href="#about" className="landing-link hidden lg:inline">{t.nav.about}</a>
@@ -13674,6 +13678,22 @@ function LandingPage({ onSignUp, onLogIn }) {
               <p className="mt-2 text-[13.5px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
             </div>
           ); })}
+        </div>
+      </section>
+
+      <section id="calculator" className="relative px-4 pb-20 pt-4 sm:px-6">
+        <div className="mx-auto max-w-4xl rounded-3xl px-6 py-12 text-center sm:px-10" style={{ background: "linear-gradient(135deg, rgba(212,171,78,0.12), rgba(212,171,78,0.03))", border: "1px solid rgba(212,171,78,0.25)" }}>
+          <div className="mb-3 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: lang === "ar" ? 0 : "0.2em" }}>{t.calculator.eyebrow}</div>
+          <h2 style={heading("clamp(26px, 3.4vw, 36px)")}>{t.calculator.title}</h2>
+          <p className="mx-auto mt-4 max-w-xl text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.calculator.body}</p>
+          <div className="mt-7 flex flex-wrap justify-center gap-2">
+            {[...EVENT_TYPES.map((et) => ({ key: et.id, name: t.occasions.names[et.id] || et.name, icon: et.icon })), { key: "any", name: t.occasions.names.any, icon: CalendarDays }].map(({ key, name, icon: Icon }) => (
+              <a key={key} href={`/${CALCULATOR_SLUGS[key] || "party"}-cost-calculator`} className="landing-card inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium" style={{ background: LP.card, border: `1px solid ${LP.line}`, color: LP.text }}>
+                <Icon size={14} color={LP.gold} strokeWidth={1.8} /> {name}
+              </a>
+            ))}
+          </div>
+          <a href="/cost-calculator" className="mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>{t.calculator.button}</a>
         </div>
       </section>
 
@@ -13774,8 +13794,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             {hasContact && <a href="#contact" className="landing-link">{t.nav.contact}</a>}
             <a href="/shop" className="landing-link">{t.nav.designs}</a>
             {blogPublic && <a href={`/blog/${lang}`} className="landing-link">{t.nav.blog}</a>}
-            <a href="/wedding-cost-calculator" className="landing-link">{t.footer.weddingCalc}</a>
-            <a href="/birthday-cost-calculator" className="landing-link">{t.footer.birthdayCalc}</a>
+            <a href="/cost-calculator" className="landing-link">{t.calculator.nav}</a>
             <a href="/privacy" className="landing-link">{t.footer.privacy}</a>
             <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
           </div>
@@ -14420,7 +14439,7 @@ function initialBuilderDataMode() {
   if (p === "/admin" || p.startsWith("/admin/")) return "full";
   const guest = p.match(/^\/e\/([^/]+)\/?$/);
   if (guest) return decodeURIComponent(guest[1]) === "admin-preview" ? "none" : "users"; // the owner's preview (ADMIN_PREVIEW_SLUG) is fetched on its own
-  if (/^\/(shop|designs|privacy|dj|checkin-staff|checkin|quick|network|wedding-cost-calculator|birthday-cost-calculator)(\/|$)/.test(p)) return "none";
+  if (/^\/(shop|designs|privacy|dj|checkin-staff|checkin|quick|network|([a-z-]+-)?cost-calculator)(\/|$)/.test(p)) return "none";
   // Site root: the Builder for a logged-in client or someone mid sign-up,
   // otherwise the home page (which switches to "full" once they open
   // Log in / Sign up).
@@ -16680,11 +16699,11 @@ export default function InvitationBuilder() {
     return <PrivacyPolicyPage />;
   }
 
-  const calculatorMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/(wedding|birthday)-cost-calculator\/?$/);
+  const calculatorMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/(?:(wedding|birthday|quinceanera|baptism|baby-shower|party)-)?cost-calculator\/?$/);
   if (calculatorMatch) {
     return (
       <Suspense fallback={<AppLoadingScreen />}>
-        <CostCalculatorPage kind={calculatorMatch[1]} />
+        <CostCalculatorPage slug={calculatorMatch[1] || null} />
       </Suspense>
     );
   }
