@@ -4688,6 +4688,37 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         Button wording is per language; the event date lives on the Countdown page.
       </p>
 
+      {(() => {
+        const ft = PREVIEW_T[lang] || PREVIEW_T.en;
+        return (
+          <>
+            <Divider />
+            <FieldLabel>Form wording</FieldLabel>
+            <p className="mb-2.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              The words inside the RSVP form. Leave a field empty to use the wording shown in grey. The "*" (required) or "(optional)" is added on its own. Per language, like the buttons above.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <FieldLabel>Name field</FieldLabel>
+                <TextInput value={c.namePh || ""} onChange={(v) => updateContent({ namePh: v })} placeholder={ft.yourName} />
+              </div>
+              <div>
+                <FieldLabel>"Number of attending"</FieldLabel>
+                <TextInput value={c.numAttendingLabel || ""} onChange={(v) => updateContent({ numAttendingLabel: v })} placeholder={ft.numAttending} />
+              </div>
+              <div>
+                <FieldLabel>Family name field (Number only)</FieldLabel>
+                <TextInput value={c.familyNamePh || ""} onChange={(v) => updateContent({ familyNamePh: v })} placeholder={ft.familyNamePh} />
+              </div>
+              <div>
+                <FieldLabel>"Number of guests" (Number only)</FieldLabel>
+                <TextInput value={c.numGuestsLabel || ""} onChange={(v) => updateContent({ numGuestsLabel: v })} placeholder={ft.numGuests} />
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
       {rsvpSettings.enableGuestVoiceRecorder && (() => {
         const vt = PREVIEW_T[lang] || PREVIEW_T.en;
         return (
@@ -7264,7 +7295,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`${t.familyNamePh || "Family name"} *`}
+            placeholder={`${(String(content.familyNamePh || "").trim() || (t.familyNamePh || "Family name"))} *`}
             className={`mb-3 ${fieldClass}`}
             style={fieldLook(light)}
           />
@@ -7273,7 +7304,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: FONT_BODY }}>{t.capacityReached}</p>}
         {choice === "yes" && (
           <>
-            <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{t.numGuests || "Number of guests"}</label>
+            <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{(String(content.numGuestsLabel || "").trim() || (t.numGuests || "Number of guests"))}</label>
             <select
               value={Math.min(countMax, countPick)}
               onChange={(e) => { setCountPick(Number(e.target.value)); setError(""); }}
@@ -7299,7 +7330,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
 
   const guestStepper = (light) => (
     <div className={skin === "elegant" ? "flex items-center justify-between px-1 py-1.5" : "flex items-center justify-between rounded-full px-3 py-1.5"} style={skin === "elegant" ? { borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}` } : { background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
-      <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>{t.numAttending}</span>
+      <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>{(String(content.numAttendingLabel || "").trim() || t.numAttending)}</span>
       <div className="flex items-center gap-2">
         <button onClick={() => setGuestCount((c) => Math.max(1, c - 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronDown size={13} /></button>
         <span className="text-[12px] font-semibold" style={{ color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}>{guestCount}</span>
@@ -7312,7 +7343,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     <input
       value={name}
       onChange={(e) => setName(e.target.value)}
-      placeholder={nameNeeded ? `${t.yourName} *` : `${t.yourName} ${t.optionalTag}`}
+      placeholder={`${(String(content.namePh || "").trim() || t.yourName)} ${nameNeeded ? "*" : t.optionalTag}`}
       className={fieldClass}
       style={fieldLook(light)}
     />
