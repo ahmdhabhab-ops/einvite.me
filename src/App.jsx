@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -13065,7 +13065,7 @@ const LANDING_GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
 
 // Icons for the home page's feature cards, in the same order as
 // LANDING_TEXT[lang].features.items (see landingText.js).
-const LANDING_FEATURE_ICONS = [Mail, Music2, CheckCircle2, MapPin, Gift, Video, Disc3, Handshake, Mic, QrCode, Globe, Sparkles];
+const LANDING_FEATURE_ICONS = [Mail, Music2, CheckCircle2, MapPin, Gift, Video, Disc3, Handshake, Mic, QrCode, Globe, Sparkles, Calculator];
 
 // The home page speaks the same five languages as the invitations. The
 // visitor's choice is remembered in this browser; the first visit follows
@@ -13671,7 +13671,21 @@ function LandingPage({ onSignUp, onLogIn }) {
         <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.features.title}</h2>
         <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.features.body}</p>
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {t.features.items.map(({ title, body }, i) => { const Icon = LANDING_FEATURE_ICONS[i]; return (
+          {t.features.items.map(({ title, body, href, cta }, i) => { const Icon = LANDING_FEATURE_ICONS[i]; return href ? (
+            // A feature that's a page of its own (the cost calculator): a wide, linked card.
+            <a key={title} href={href} className="landing-card flex flex-col gap-5 rounded-2xl p-6 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between lg:col-span-3" style={{ background: "linear-gradient(135deg, rgba(212,171,78,0.13), rgba(212,171,78,0.04))", border: "1px solid rgba(212,171,78,0.3)" }}>
+              <div className="flex items-start gap-4">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(212,171,78,0.14)" }}><Icon size={21} color={LP.gold} strokeWidth={1.6} /></span>
+                <div>
+                  <h3 className="text-[16px] font-semibold" style={{ color: LP.text }}>{title}</h3>
+                  <p className="mt-1.5 max-w-xl text-[13.5px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
+                </div>
+              </div>
+              <span className="inline-flex flex-shrink-0 items-center justify-center gap-2 self-start rounded-full px-5 py-2.5 text-[13.5px] font-semibold sm:self-center" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
+                {cta} <ArrowRight size={15} className={lang === "ar" ? "rotate-180" : ""} />
+              </span>
+            </a>
+          ) : (
             <div key={title} className="landing-card rounded-2xl p-6" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
               <Icon size={22} color={LP.gold} strokeWidth={1.6} />
               <h3 className="mt-4 text-[16px] font-semibold" style={{ color: LP.text }}>{title}</h3>
