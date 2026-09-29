@@ -11026,7 +11026,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
             headerImageUrl: og?.image || null,
           });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
-      updateGuestGroup(group.id, { whatsappTemplateSentAt: Date.now() });
+      updateGuestGroup(group.id, { whatsappTemplateSentAt: Date.now(), invitationSent: true });
     } catch (err) {
       console.error("WhatsApp send failed:", err.message);
       setWhatsappErrors((e) => ({ ...e, [group.id]: err.message }));
@@ -11102,7 +11102,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   // using each row's own WhatsApp button.
   const sendInvites = () => {
     const pool = selectedIds.size > 0 ? filtered.filter((g) => selectedIds.has(g.id)) : filtered;
-    const targets = pool.filter((g) => g.phone && !g.invitationSent);
+    const targets = pool.filter((g) => g.phone && !g.invitationSent && !g.whatsappTemplateSentAt);
     if (targets.length === 0) {
       setSendNote("Nothing to send — everyone selected already has an invite marked sent, or has no phone number.");
       setTimeout(() => setSendNote(""), 5000);
@@ -11149,7 +11149,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       const members = g.members.length > 0 ? g.members : [{ name: "", status: "" }];
       return members.map((m) => [
         groupFullName(g), m.name || "", m.status || "", g.phone || "",
-        g.additionalGuests || 0, tableName, g.invitationSent ? "Yes" : "No", g.invitationViewed ? "Yes" : "No",
+        g.additionalGuests || 0, tableName, (g.invitationSent || g.whatsappTemplateSentAt) ? "Yes" : "No", g.invitationViewed ? "Yes" : "No",
       ]);
     });
     const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n");
@@ -11508,8 +11508,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                       <RsvpBadges members={g.members} />
                     </td>
                     <td className="px-1 py-0.5 text-center">
-                      <button onClick={() => updateGuestGroup(g.id, { invitationSent: !g.invitationSent })} title={g.invitationSent ? "Marked as sent — click to unmark" : "Not sent yet — click to mark as sent"}>
-                        {g.invitationSent ? <CheckCircle2 size={14} color={CHART_COLORS.yes} /> : <XCircle size={14} color="rgba(147,166,155,0.4)" />}
+                      <button onClick={() => updateGuestGroup(g.id, (g.invitationSent || g.whatsappTemplateSentAt) ? { invitationSent: false, whatsappTemplateSentAt: null } : { invitationSent: true })} title={(g.invitationSent || g.whatsappTemplateSentAt) ? "Marked as sent — click to unmark" : "Not sent yet — click to mark as sent"}>
+                        {(g.invitationSent || g.whatsappTemplateSentAt) ? <CheckCircle2 size={14} color={CHART_COLORS.yes} /> : <XCircle size={14} color="rgba(147,166,155,0.4)" />}
                       </button>
                     </td>
                     <td className="px-1 py-0.5 text-center">
