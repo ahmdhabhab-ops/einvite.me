@@ -7422,13 +7422,11 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             isEmpty={!!hs.hidden}
           >
             <div style={{ opacity: hs.hidden ? 0 : 1 }}>
-            {style === "stacked" ? (
-              <p className="text-center" style={{ fontFamily: hs.fontFamily || fontScript, fontSize: hs.fontSize ? `${hs.fontSize}px` : 28, color: hs.color || (light ? PAPER : EMERALD) }}>
-                {content.heading || "RSVP"}
-              </p>
-            ) : (
+            {/* Every look shares this heading, so its settings (text under
+                it, line, fonts, colors) always show; "stacked" only starts
+                from a bigger script title. */}
               <div className="text-center">
-                <div className="font-semibold" style={{ fontFamily: hs.fontFamily || fontDisplay, fontSize: hs.fontSize ? `${hs.fontSize}px` : 22, color: hs.color || (light ? PAPER : EMERALD) }}>{content.heading || "RSVP"}</div>
+                <div className={style === "stacked" ? "" : "font-semibold"} style={{ fontFamily: hs.fontFamily || (style === "stacked" ? fontScript : fontDisplay), fontSize: hs.fontSize ? `${hs.fontSize}px` : style === "stacked" ? 28 : 22, color: hs.color || (light ? PAPER : EMERALD) }}>{content.heading || "RSVP"}</div>
                 {!hs.hideLine && <div className="mx-auto my-1.5 h-px w-10" style={{ background: hs.lineColor || (light ? GOLD_SOFT : GOLD) }} />}
                 {!hs.hideSubtitle && (
                   <p style={{ fontFamily: hs.subtitleFont || fontDisplay, fontStyle: hs.subtitleItalic === false ? "normal" : "italic", fontSize: hs.subtitleSize || 12, color: hs.subtitleColor || (light ? "rgba(244,237,228,0.85)" : ROSE), marginTop: hs.hideLine ? 4 : 0 }}>
@@ -7436,7 +7434,6 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                   </p>
                 )}
               </div>
-            )}
             </div>
           </DraggableBlock>
           )}
