@@ -9049,6 +9049,32 @@ function WhatsAppPreviewCard({ image, title, description, domain }) {
   );
 }
 
+// The couple's names the WhatsApp invitation uses ("celebrate the wedding
+// of …"), kept apart from the cover so a design with its own name artwork
+// doesn't have to show them. Required before any WhatsApp message goes out.
+function MessageNamesField({ integrations, updateIntegrations, highlight }) {
+  const value = integrations?.messageNames || "";
+  const missing = !String(value).trim();
+  return (
+    <div id="message-names-field" className="flex flex-wrap items-center gap-3 rounded-2xl p-4" style={{ background: INK_2, border: missing && highlight ? "1px solid #E29B9B" : `1px solid rgba(201,164,76,0.12)` }}>
+      <div className="min-w-[200px] flex-1">
+        <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names in WhatsApp messages <span style={{ color: "#E29B9B" }}>*</span></div>
+        <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          Used in "…celebrate the wedding of <span style={{ color: GOLD_SOFT }}>{String(value).trim() || "…"}</span>". Only in messages — it doesn't change your design.
+        </div>
+        {missing && (
+          <div className="mt-1 text-[11px]" style={{ color: highlight ? "#E29B9B" : "#E4CE95", fontFamily: FONT_BODY }}>
+            Required — WhatsApp messages can't be sent until you fill this in.
+          </div>
+        )}
+      </div>
+      <div className="w-full sm:w-72">
+        <TextInput value={value} onChange={(v) => updateIntegrations({ messageNames: v })} placeholder="e.g. Emma & Ahmad" />
+      </div>
+    </div>
+  );
+}
+
 function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
@@ -9146,6 +9172,15 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
       </p>
 
       <Divider />
+
+      {integrations && (
+        <>
+          <div className="mb-2">
+            <MessageNamesField integrations={integrations} updateIntegrations={updateIntegrations} />
+          </div>
+          <Divider />
+        </>
+      )}
 
       <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Share preview</h2>
       <p className="mb-6 text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
@@ -10423,6 +10458,16 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   const [copiedRowId, setCopiedRowId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  // WhatsApp messages carry the couple's names, so nothing is sent until
+  // "Names in WhatsApp messages" is filled in.
+  const messageNames = String(integrations?.messageNames || "").trim();
+  const [namesNeeded, setNamesNeeded] = useState(false);
+  const requireMessageNames = () => {
+    if (messageNames) return true;
+    setNamesNeeded(true);
+    document.getElementById("message-names-field")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  };
   const [sendNote, setSendNote] = useState("");
   const [subTab, setSubTab] = useState("guests");
   const [copiedLivestream, setCopiedLivestream] = useState(false);
@@ -10529,6 +10574,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   }, []);
 
   const sendAutomatedWhatsApp = async (group) => {
+    if (!requireMessageNames()) return;
     if (!group.phone) {
       setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
       return;
@@ -10539,7 +10585,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         to: group.phone,
         templateName: WHATSAPP_TEMPLATE_NAME,
         languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
-        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", coupleTitle, guestLink(group)],
+        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", messageNames, guestLink(group)],
         headerImageUrl: og?.image || null,
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
@@ -10554,6 +10600,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   };
 
   const sendWhatsAppToSelected = async () => {
+    if (!requireMessageNames()) return;
     const groups = guestGroups.filter((g) => selectedIds.has(g.id));
     // Sent one at a time with a short pause between each — Meta rate-limits
     // bursts of template sends, and this keeps each guest's row updating
@@ -10565,6 +10612,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   };
 
   const sendAutomatedReminder = async (group) => {
+    if (!requireMessageNames()) return;
     if (!integrations.reminderFeatureUnlocked || !group.phone) {
       setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
       return;
@@ -10575,7 +10623,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         to: group.phone,
         templateName: WHATSAPP_REMINDER_TEMPLATE_NAME,
         languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
-        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", coupleTitle, guestLink(group)],
+        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", messageNames, guestLink(group)],
         headerImageUrl: og?.image || null,
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
@@ -10590,6 +10638,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   };
 
   const sendReminderToSelected = async () => {
+    if (!requireMessageNames()) return;
     const groups = guestGroups.filter((g) => selectedIds.has(g.id));
     for (const group of groups) {
       await sendAutomatedReminder(group);
@@ -10685,20 +10734,9 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         </span>
       </div>
 
-      {/* The names the WhatsApp invitation uses ("celebrate the wedding of …"),
-          kept apart from the cover so a design with its own name artwork
-          doesn't have to show them. */}
       {integrations && (
-        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
-          <div className="min-w-[200px] flex-1">
-            <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names in WhatsApp messages</div>
-            <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-              Used in "…celebrate the wedding of <span style={{ color: GOLD_SOFT }}>{coupleTitle}</span>". Only in messages — it doesn't change your design.
-            </div>
-          </div>
-          <div className="w-full sm:w-72">
-            <TextInput value={integrations.messageNames || ""} onChange={(v) => updateIntegrations({ messageNames: v })} placeholder="e.g. Emma & Ahmad" />
-          </div>
+        <div className="mb-6">
+          <MessageNamesField integrations={integrations} updateIntegrations={updateIntegrations} highlight={namesNeeded} />
         </div>
       )}
 
