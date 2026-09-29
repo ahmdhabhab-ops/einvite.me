@@ -9400,6 +9400,19 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
           options={[{ value: "standard", label: "Standard wedding" }, { value: "custom", label: "My own template" }]}
         />
       </div>
+      {!wt.custom && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="w-48">
+            <FieldLabel>Language</FieldLabel>
+            <select value={wt.stdLang || "en"} onChange={(e) => set({ stdLang: e.target.value })} className="w-full rounded-lg px-3 py-2.5 text-[12.5px] outline-none" style={selectStyle}>
+              {[["en", "English"], ["ar", "Arabic"], ["fr", "French"], ["es", "Spanish"]].map(([v, l]) => <option key={v} value={v}>{l} ({v})</option>)}
+            </select>
+          </div>
+          <p className="min-w-[220px] flex-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+            Sends the approved "wedding_invitation" template in this language ("wedding_invitation_reminder" for reminders). A language other than English needs its own translation of those templates approved in WhatsApp Manager first.
+          </p>
+        </div>
+      )}
       {wt.custom && (
         <div className="mt-3">
           <div className="grid gap-3 sm:grid-cols-[1fr_150px_150px]">
@@ -10967,7 +10980,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         : {
             to: group.phone,
             templateName: WHATSAPP_TEMPLATE_NAME,
-            languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
+            languageCode: waTemplate.stdLang || WHATSAPP_TEMPLATE_LANGUAGE,
             variables: [guestName, messageNames, guestLink(group)],
             headerImageUrl: og?.image || null,
           });
@@ -11005,7 +11018,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
       await sendWhatsAppMessage({
         to: group.phone,
         templateName: WHATSAPP_REMINDER_TEMPLATE_NAME,
-        languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
+        languageCode: waTemplate.stdLang || WHATSAPP_TEMPLATE_LANGUAGE,
         variables: [guestGroupName(group) || group.members[0]?.name || "Guest", messageNames, guestLink(group)],
         headerImageUrl: og?.image || null,
       });
