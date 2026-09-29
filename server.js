@@ -1068,22 +1068,66 @@ async function whatsappAccountIds() {
   wabaIdsCache = [...ids];
   return wabaIdsCache;
 }
+// What a template needs filled in: its body variables ({{1}}… or named
+// ones), whether it has an image or text-variable header, and a "Visit
+// website" button whose URL ends in a variable (filled with the guest's
+// own link).
+function whatsappTemplateShape(t) {
+  const comps = t.components || [];
+  const tokens = (text) => [...new Set([...String(text || "").matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)].map((m) => m[1]))];
+  const header = comps.find((c) => c.type === "HEADER");
+  const buttons = comps.find((c) => c.type === "BUTTONS")?.buttons || [];
+  let urlButton = null;
+  buttons.forEach((btn, index) => {
+    if (!urlButton && btn.type === "URL" && /\{\{/.test(btn.url || "")) urlButton = { index, base: String(btn.url).split("{{")[0] };
+  });
+  const params = tokens(comps.find((c) => c.type === "BODY")?.text);
+  return {
+    params,
+    named: t.parameter_format === "NAMED" || params.some((p) => !/^\d+$/.test(p)),
+    imageHeader: header?.format === "IMAGE",
+    headerParams: header?.format === "TEXT" ? tokens(header.text) : [],
+    urlButton,
+  };
+}
+// What each body variable is filled with when the couple hasn't said:
+// the guest's name first, then their link (unless a link button already
+// carries it), then the couple's names.
+function defaultWhatsappVars(count, hasUrlButton) {
+  const base = hasUrlButton ? ["name", "names"] : count === 1 ? ["link"] : count === 2 ? ["name", "link"] : ["name", "names", "link"];
+  return Array.from({ length: count }, (_, i) => base[i] || "names");
+}
+async function whatsappTemplatesRaw(name) {
+  const out = [];
+  for (const id of await whatsappAccountIds()) {
+    const q = name ? `&name=${encodeURIComponent(name)}` : "";
+    const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(id)}/message_templates?fields=name,language,status,components,parameter_format&limit=200${q}`, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data?.error?.message || `Meta answered ${r.status}`);
+    out.push(...(data.data || []));
+  }
+  return out;
+}
+const templateShapeCache = new Map(); // "name:lang" -> { at, shape }
+async function whatsappTemplateShapeFor(name, lang) {
+  const key = `${name}:${lang}`;
+  const hit = templateShapeCache.get(key);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.shape;
+  const t = (await whatsappTemplatesRaw(name)).find((x) => x.name === name && x.language === lang);
+  const shape = t ? whatsappTemplateShape(t) : null;
+  templateShapeCache.set(key, { at: Date.now(), shape });
+  return shape;
+}
 app.get("/api/whatsapp/templates", async (req, res) => {
   if (!authReady) return res.status(503).json({ error: "not ready" });
   if (requestRole(req).role === "anon") return res.status(401).json({ error: "Please log in." });
   if (!WHATSAPP_TOKEN) return res.status(503).json({ error: "WhatsApp sending isn't set up." });
   try {
-    const templates = [];
-    for (const id of await whatsappAccountIds()) {
-      const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(id)}/message_templates?fields=name,language,status,components&limit=200`, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.error?.message || `Meta answered ${r.status}`);
-      for (const t of data.data || []) {
-        const body = (t.components || []).find((c) => c.type === "BODY")?.text || "";
-        const header = (t.components || []).find((c) => c.type === "HEADER");
-        templates.push({ name: t.name, language: t.language, status: t.status, variables: (body.match(/\{\{\d+\}\}/g) || []).length, imageHeader: header?.format === "IMAGE" });
-      }
-    }
+    templateShapeCache.clear();
+    const templates = (await whatsappTemplatesRaw()).map((t) => {
+      const shape = whatsappTemplateShape(t);
+      return { name: t.name, language: t.language, status: t.status, variables: shape.params.length, params: shape.params, imageHeader: shape.imageHeader, urlButton: shape.urlButton };
+    });
     res.set("cache-control", "no-store").json({ templates });
   } catch (err) {
     res.status(502).json({ error: err.message });
@@ -1117,9 +1161,36 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
   if (!standardTemplate && !/^[a-z0-9_]{1,100}$/.test(templateName)) return res.status(400).json({ error: "Unknown message template." });
   // The standard templates read "…the wedding of {{2}}" — never send them without names.
   if (standardTemplate && !String(variables[1] || "").trim()) return res.status(400).json({ error: "Fill in \"Names in WhatsApp messages\" first." });
-  const components = [];
+  let components = [];
   if (headerImageUrl) components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
   if (variables.length) components.push({ type: "body", parameters: variables.map((text) => ({ type: "text", text })) });
+  // A couple's own template: fill exactly what that template has (its
+  // variables, image header, link button), looked up from Meta, so the
+  // message always matches it.
+  const fill = !standardTemplate && b.fill && typeof b.fill === "object" ? b.fill : null;
+  if (fill) {
+    const val = (k) => String(fill[k] ?? "").slice(0, 500).trim();
+    let shape = null;
+    try { shape = await whatsappTemplateShapeFor(templateName, languageCode); } catch (err) { console.error("WhatsApp template lookup failed:", err.message); }
+    if (shape) {
+      const roles = Array.isArray(b.vars) && b.vars.length ? b.vars.map(String) : defaultWhatsappVars(shape.params.length, !!shape.urlButton);
+      const text = (role) => val(["name", "names", "link"].includes(role) ? role : "name") || val("name") || "-";
+      const param = (tok, role) => ({ type: "text", text: text(role), ...(shape.named ? { parameter_name: tok } : {}) });
+      components = [];
+      if (shape.imageHeader) {
+        if (!headerImageUrl) return res.status(400).json({ error: "This template has an image at the top: add a photo in Settings → Share preview first." });
+        components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
+      } else if (shape.headerParams.length) {
+        components.push({ type: "header", parameters: shape.headerParams.map((tok) => param(tok, "name")) });
+      }
+      if (shape.params.length) components.push({ type: "body", parameters: shape.params.map((tok, i) => param(tok, roles[i] || defaultWhatsappVars(shape.params.length, !!shape.urlButton)[i])) });
+      if (shape.urlButton) {
+        const link = val("link");
+        const suffix = link.startsWith(shape.urlButton.base) ? link.slice(shape.urlButton.base.length) : link;
+        components.push({ type: "button", sub_type: "url", index: String(shape.urlButton.index), parameters: [{ type: "text", text: suffix || "-" }] });
+      }
+    }
+  }
   try {
     const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(WHATSAPP_PHONE_ID)}/messages`, {
       method: "POST",

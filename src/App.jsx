@@ -1311,9 +1311,12 @@ const WHATSAPP_TEMPLATE_NAME = "wedding_invitation";
 const WHATSAPP_REMINDER_TEMPLATE_NAME = "wedding_invitation_reminder"; // sent via the paid "Send Reminder" feature, once unlocked
 const WHATSAPP_TEMPLATE_LANGUAGE = "en"; // confirmed via Meta's own template list — do not change without re-checking there first
 
-async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl }) {
+async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl, fill, vars }) {
   // Through the app's own server (logged-in users only) once it's set up.
-  if (await serverAuthReady()) return apiJson("/api/whatsapp/send", { method: "POST", body: { to, templateName, languageCode, variables, headerImageUrl } });
+  // `fill` ({ name, names, link }) lets the server fill a couple's own
+  // template exactly as it's written in Meta; `vars` says which of those
+  // goes in each of its variables.
+  if (await serverAuthReady()) return apiJson("/api/whatsapp/send", { method: "POST", body: { to, templateName, languageCode, variables, headerImageUrl, fill, vars } });
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
     headers: supabaseHeaders,
@@ -9380,9 +9383,19 @@ function MessageNamesField({ integrations, updateIntegrations, highlight }) {
   );
 }
 
+// What goes in each variable of a couple's own template: the guest's name,
+// their invitation link, or the couple's names. Defaults match the server:
+// name first, then the link (unless a "Visit website" button carries it).
+function waTemplateVars(wt) {
+  const count = Array.isArray(wt.params) ? wt.params.length : 2;
+  const base = wt.urlButton ? ["name", "names"] : count === 1 ? ["link"] : count === 2 ? ["name", "link"] : ["name", "names", "link"];
+  const chosen = Array.isArray(wt.vars) ? wt.vars : [];
+  return Array.from({ length: count }, (_, i) => chosen[i] || base[i] || "names");
+}
+
 // Which WhatsApp message the automatic send (✈) uses: the standard wedding
 // invitation, or the couple's own template approved in Meta's WhatsApp
-// Manager, where {{1}} is the guest's name and {{2}} their invitation link.
+// Manager (its variables filled with the guest's name, link, etc.).
 function WhatsAppTemplateField({ integrations, updateIntegrations }) {
   const wt = integrations?.waTemplate || {};
   const set = (patch) => updateIntegrations({ waTemplate: { ...wt, ...patch } });
@@ -9435,11 +9448,11 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
           <div className="grid gap-3 sm:grid-cols-[1fr_150px_150px]">
             <div>
               <FieldLabel>Template name (from WhatsApp Manager)</FieldLabel>
-              <TextInput value={wt.name || ""} onChange={(v) => set({ name: v.toLowerCase().replace(/[^a-z0-9_]/g, "_") })} placeholder="e.g. beirut_book_invitation" />
+              <TextInput value={wt.name || ""} onChange={(v) => set({ name: v.toLowerCase().replace(/[^a-z0-9_]/g, "_"), params: null, urlButton: null, vars: null })} placeholder="e.g. beirut_book_invitation" />
             </div>
             <div>
               <FieldLabel>Language</FieldLabel>
-              <select value={wt.lang || "ar"} onChange={(e) => set({ lang: e.target.value })} className="w-full rounded-lg px-3 py-2.5 text-[12.5px] outline-none" style={selectStyle}>
+              <select value={wt.lang || "ar"} onChange={(e) => set({ lang: e.target.value, params: null, urlButton: null, vars: null })} className="w-full rounded-lg px-3 py-2.5 text-[12.5px] outline-none" style={selectStyle}>
                 {[["ar", "Arabic"], ["en", "English"], ["en_US", "English (US)"], ["en_GB", "English (UK)"], ["fr", "French"], ["es", "Spanish"], ...(wt.lang && !["ar", "en", "en_US", "en_GB", "fr", "es"].includes(wt.lang) ? [[wt.lang, wt.lang]] : [])].map(([v, l]) => <option key={v} value={v}>{l} ({v})</option>)}
               </select>
             </div>
@@ -9463,11 +9476,11 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
                   return (
                     <button
                       key={`${tp.name}:${tp.language}`}
-                      onClick={() => set({ name: tp.name, lang: tp.language, imageHeader: tp.imageHeader })}
+                      onClick={() => set({ name: tp.name, lang: tp.language, imageHeader: tp.imageHeader, params: tp.params || [], urlButton: tp.urlButton || null, vars: null })}
                       className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[12px]"
                       style={{ background: chosen ? "rgba(201,164,76,0.14)" : "transparent", borderBottom: `1px solid ${INK_3}`, color: IVORY, fontFamily: FONT_BODY }}
                     >
-                      <span className="truncate"><strong>{tp.name}</strong> <span style={{ color: MUTED }}>· {tp.language} · {tp.variables} variable{tp.variables === 1 ? "" : "s"}{tp.imageHeader ? " · image" : ""}</span></span>
+                      <span className="truncate"><strong>{tp.name}</strong> <span style={{ color: MUTED }}>· {tp.language} · {tp.variables} variable{tp.variables === 1 ? "" : "s"}{tp.imageHeader ? " · image" : ""}{tp.urlButton ? " · link button" : ""}</span></span>
                       <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: approved ? "rgba(143,191,163,0.2)" : "rgba(226,155,155,0.2)", color: approved ? "#8FBFA3" : "#E29B9B" }}>{tp.status}</span>
                     </button>
                   );
@@ -9475,8 +9488,44 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
               </div>
             )}
           </div>
+          {Array.isArray(wt.params) && (
+            <div className="mt-3 rounded-lg p-3" style={{ background: INK_3 }}>
+              <div className="text-[11.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+                "{wt.name}" has {wt.params.length} variable{wt.params.length === 1 ? "" : "s"}{wt.urlButton ? " and a link button" : ""}
+              </div>
+              {wt.params.length > 0 && (
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {wt.params.map((tok, i) => (
+                    <div key={tok}>
+                      <FieldLabel>{`{{${tok}}}`}</FieldLabel>
+                      <select
+                        value={waTemplateVars(wt)[i]}
+                        onChange={(e) => { const next = waTemplateVars(wt); next[i] = e.target.value; set({ vars: next }); }}
+                        className="w-full rounded-lg px-3 py-2 text-[12px] outline-none"
+                        style={{ ...selectStyle, background: INK_2 }}
+                      >
+                        <option value="name">Guest's name</option>
+                        <option value="link">Invitation link</option>
+                        <option value="names">Names in WhatsApp messages</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {wt.urlButton && (
+                <p className="mt-2 text-[11px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+                  The link button opens each guest's own invitation ({wt.urlButton.base}…).
+                </p>
+              )}
+              {!wt.urlButton && !waTemplateVars(wt).includes("link") && (
+                <p className="mt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+                  Guests won't get their invitation link with this template. In WhatsApp Manager, add a variable for it in the text, or a "Visit website" button with a dynamic URL like https://cores.einvite.me/{"{{1}}"}.
+                </p>
+              )}
+            </div>
+          )}
           <p className="mt-2 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-            In the template, write <span style={{ color: GOLD_SOFT }}>{"{{1}}"}</span> where the guest's name goes and <span style={{ color: GOLD_SOFT }}>{"{{2}}"}</span> where their invitation link goes (Meta doesn't allow a variable as the very last thing, so add a word or line after it). The name and language must match the template exactly. With "Image at the top", the template needs an Image header; the Share preview photo is sent.
+            Pick your template from the list above so each variable gets filled in correctly. Otherwise write <span style={{ color: GOLD_SOFT }}>{"{{1}}"}</span> where the guest's name goes and <span style={{ color: GOLD_SOFT }}>{"{{2}}"}</span> where their invitation link goes (Meta doesn't allow a variable as the very last thing, so add a word or line after it). The name and language must match the template exactly. With "Image at the top", the template needs an Image header; the Share preview photo is sent.
           </p>
         </div>
       )}
@@ -11017,6 +11066,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
             languageCode: waTemplate.lang || "ar",
             variables: [guestName, guestLink(group)],
             headerImageUrl: waTemplate.imageHeader === false ? null : og?.image || null,
+            fill: { name: guestName, names: messageNames, link: guestLink(group) },
+            vars: Array.isArray(waTemplate.params) ? waTemplateVars(waTemplate) : undefined,
           }
         : {
             to: group.phone,
