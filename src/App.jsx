@@ -14696,6 +14696,14 @@ export default function InvitationBuilder() {
     if (on && defaultLang && defaultLang !== lang) confirmAndTranslate(defaultLang, lang);
   };
   const [activeLang, setActiveLang] = useState("en");
+  // The editor's language must be one the invitation actually has. It
+  // starts at "en" and loading an invitation doesn't change it, so an
+  // Arabic-only invitation used to open on its (empty, default) English
+  // version, looking as if the whole design had disappeared.
+  useEffect(() => {
+    if (!enabledLanguages.length || enabledLanguages.includes(activeLang)) return;
+    setActiveLang(enabledLanguages.includes(defaultLang) ? defaultLang : enabledLanguages[0]);
+  }, [enabledLanguages, defaultLang, activeLang]);
   const [layouts, setLayouts] = useState(() => Object.fromEntries(LANGS.map((l) => [l, DEFAULT_LAYOUTS])));
   const [customBlocks, setCustomBlocks] = useState(() => Object.fromEntries(LANGS.map((l) => [l, emptyCustomBlocks()])));
 
@@ -15008,7 +15016,24 @@ export default function InvitationBuilder() {
     // makes sense once the real data is in anyway, so this just waits.
     if (!coreLoadCompletedRef.current) return;
     const outgoing = getActiveSnapshot();
-    const incoming = invitationsStore[nextId] || freshInvitationSnapshot();
+    // The other invitations load in the background after the page opens, so
+    // this one may not have arrived yet (a client's session restore right
+    // after a refresh, especially). Fetch it directly rather than opening a
+    // blank invitation that a later Save would write over the real one.
+    let incoming = invitationsStore[nextId];
+    if (!incoming && persistentStorage.available()) {
+      try {
+        // get() answers null both for "never saved" and for a failed request,
+        // so a null gets one more try before this is treated as a new invitation.
+        let res = await persistentStorage.get(invitationKey(nextId), false);
+        if (!res?.value) { await new Promise((r) => setTimeout(r, 1200)); res = await persistentStorage.get(invitationKey(nextId), false); }
+        if (res?.value) incoming = JSON.parse(res.value);
+      } catch (err) {
+        console.error(`switchActiveInvitation: couldn't load invitation "${nextId}":`, err);
+        return; // don't open a blank copy over a real one we just failed to read
+      }
+    }
+    incoming = incoming || freshInvitationSnapshot();
     setInvitationsStore((store) => ({ ...store, [activeInvitationId]: outgoing, [nextId]: incoming }));
     applySnapshot(incoming);
     setActiveInvitationId(nextId);
