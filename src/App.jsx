@@ -10685,6 +10685,23 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
         </span>
       </div>
 
+      {/* The names the WhatsApp invitation uses ("celebrate the wedding of …"),
+          kept apart from the cover so a design with its own name artwork
+          doesn't have to show them. */}
+      {integrations && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+          <div className="min-w-[200px] flex-1">
+            <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names in WhatsApp messages</div>
+            <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              Used in "…celebrate the wedding of <span style={{ color: GOLD_SOFT }}>{coupleTitle}</span>". Only in messages — it doesn't change your design.
+            </div>
+          </div>
+          <div className="w-full sm:w-72">
+            <TextInput value={integrations.messageNames || ""} onChange={(v) => updateIntegrations({ messageNames: v })} placeholder="e.g. Emma & Ahmad" />
+          </div>
+        </div>
+      )}
+
       <div className="mb-6 flex gap-2">
         <GhostButton active={subTab === "guests"} onClick={() => setSubTab("guests")}>Guest List</GhostButton>
         <GhostButton active={subTab === "seating"} onClick={() => setSubTab("seating")}>Table Seating</GhostButton>
@@ -17339,7 +17356,7 @@ export default function InvitationBuilder() {
             deleteVenueElement={deleteVenueElement}
             integrations={integrations}
             updateIntegrations={updateIntegrations}
-            coupleTitle={coupleNames || "the happy couple"}
+            coupleTitle={String(integrations.messageNames || "").trim() || coupleNames || "the happy couple"}
             slug={slug}
             siteDomain={siteDomain}
             og={og}
