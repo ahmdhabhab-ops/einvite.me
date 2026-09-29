@@ -863,6 +863,57 @@ async function kvWrite(key, value) {
   if (!res.ok) throw new Error(`kv write failed (${res.status}): ${(await res.text().catch(() => "")).slice(0, 200)}`);
 }
 
+// Photos, music and videos that older versions saved INSIDE an invitation
+// (as long base64 text) made some invitations several MB: the admin app
+// downloads every invitation, and the client and every guest download
+// theirs, so those few made the whole site slow. The Builder only ever
+// cleaned up the invitation that happened to be open, so the rest stayed
+// big. This moves every such file to Storage and leaves its link in its
+// place, once, a little after the server starts. The untouched original is
+// kept first under einvite:slim-backup-<key>, which nothing loads.
+const INLINE_MEDIA_RE = /"(data:(image|audio|video)\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]{20000,}))"/g;
+const INLINE_MEDIA_EXT = { jpeg: "jpg", jpg: "jpg", png: "png", gif: "gif", webp: "webp", mpeg: "mp3", mp3: "mp3", mp4: "mp4", "x-m4a": "m4a", aac: "aac", wav: "wav", "x-wav": "wav", ogg: "ogg", webm: "webm", quicktime: "mov" };
+async function slimSavedValue(key) {
+  const raw = await kvRead(key);
+  if (!raw || raw.length < 100000) return null;
+  const found = new Map();
+  for (const m of raw.matchAll(INLINE_MEDIA_RE)) found.set(m[1], { kind: m[2], sub: m[3].toLowerCase(), b64: m[4] });
+  if (!found.size) return { key, before: raw.length, after: raw.length, moved: 0 };
+  const links = new Map();
+  for (const [dataUri, f] of found) {
+    try {
+      const name = `${randomUUID()}.${INLINE_MEDIA_EXT[f.sub] || "bin"}`;
+      const bucket = f.kind === "image" ? "invitation-photos" : "custom-videos";
+      links.set(dataUri, await uploadToStorage(bucket, name, `${f.kind}/${f.sub}`, Buffer.from(f.b64, "base64")));
+    } catch (err) {
+      console.error(`slim: couldn't upload a file from ${key}:`, err.message);
+    }
+  }
+  if (!links.size) return { key, before: raw.length, after: raw.length, moved: 0 };
+  await kvWrite(`einvite:slim-backup-${key.slice("einvite:".length)}`, raw);
+  // Re-read right before writing, so an edit saved while the files were
+  // uploading isn't lost; only the embedded files themselves are swapped.
+  const fresh = (await kvRead(key)) || raw;
+  let next = fresh;
+  for (const [dataUri, link] of links) next = next.split(dataUri).join(link);
+  if (next !== fresh) await kvWrite(key, next);
+  return { key, before: fresh.length, after: next.length, moved: links.size };
+}
+async function slimAllSavedValues() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?select=key&key=like.${encodeURIComponent("einvite:invitation-*")}`, { headers: serviceHeaders });
+  if (!res.ok) throw new Error(`listing invitations failed (${res.status})`);
+  const keys = [...(await res.json()).map((r) => r.key), "einvite:draft-core", "einvite:shop-designs"];
+  for (const key of keys) {
+    try {
+      const r = await slimSavedValue(key);
+      if (r?.moved) console.log(`slim: ${key} ${Math.round(r.before / 1024)} kB -> ${Math.round(r.after / 1024)} kB (${r.moved} file(s) moved to Storage)`);
+    } catch (err) {
+      console.error(`slim: ${key} failed:`, err.message);
+    }
+  }
+}
+if (serviceHeaders) setTimeout(() => slimAllSavedValues().catch((err) => console.error("slim: stopped:", err.message)), 20000);
+
 // Read-modify-write of the users list in einvite:draft-core.
 async function updateDraftUsers(fn) {
   const raw = await kvRead(DRAFT_KEY);
