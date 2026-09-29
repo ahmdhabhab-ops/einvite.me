@@ -1050,8 +1050,13 @@ const whatsappHits = new Map(); // userId -> { count, since }
 // otherwise the one(s) the access token itself is granted.
 let wabaIdsCache = null;
 async function whatsappAccountIds() {
-  const fromEnv = (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "").trim();
+  // Read forgivingly: spaces around the name or value, quotes, or one of
+  // the other common names for it.
+  const WABA_NAMES = ["WHATSAPP_BUSINESS_ACCOUNT_ID", "WHATSAPP_WABA_ID", "WABA_ID", "META_WABA_ID", "META_WHATSAPP_BUSINESS_ACCOUNT_ID", "WHATSAPP_ACCOUNT_ID", "META_BUSINESS_ACCOUNT_ID"];
+  const envKey = Object.keys(process.env).find((k) => WABA_NAMES.includes(k.trim().toUpperCase()));
+  const fromEnv = envKey ? String(process.env[envKey]).replace(/[^0-9]/g, "") : "";
   if (fromEnv) return [fromEnv];
+  if (envKey) throw new Error(`${envKey.trim()} is set but has no number in it. Put the WhatsApp Business Account ID (digits only) after the "=".`);
   if (wabaIdsCache) return wabaIdsCache;
   const r = await fetch(`https://graph.facebook.com/v20.0/debug_token?input_token=${encodeURIComponent(WHATSAPP_TOKEN)}&access_token=${encodeURIComponent(WHATSAPP_TOKEN)}`);
   const data = await r.json().catch(() => ({}));
