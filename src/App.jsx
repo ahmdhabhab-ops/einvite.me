@@ -3125,6 +3125,68 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         </div>
       )}
 
+      {stepKey === "rsvp" && blockId === "heading" && (
+        <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <FieldLabel>Text under the heading</FieldLabel>
+            <SegmentedToggle
+              value={current.hideSubtitle ? "hide" : "show"}
+              onChange={(v) => onChangeStyle({ hideSubtitle: v === "hide" })}
+              options={[{ value: "show", label: "Show" }, { value: "hide", label: "Hide" }]}
+            />
+          </div>
+          {!current.hideSubtitle && (
+            <>
+              <TextInput value={current.subtitleText || ""} onChange={(v) => onChangeStyle({ subtitleText: v })} placeholder="Will you join us?" />
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Font</FieldLabel>
+                  <select
+                    value={FONT_OPTIONS.find((f) => f.value === current.subtitleFont)?.key || "auto"}
+                    onChange={(e) => onChangeStyle({ subtitleFont: fontValue(e.target.value) })}
+                    className="w-full rounded-lg px-3 py-2 text-[12.5px] outline-none"
+                    style={{ background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY }}
+                  >
+                    {FONT_OPTIONS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel>Size (px)</FieldLabel>
+                  <NumberStepper value={current.subtitleSize || 12} onChange={(v) => onChangeStyle({ subtitleSize: v })} min={8} max={40} />
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 items-end gap-3">
+                <ColorPickerField label="Color" value={current.subtitleColor} defaultValue="#B76E6E" onChange={(v) => onChangeStyle({ subtitleColor: v })} />
+                <div>
+                  <FieldLabel>Style</FieldLabel>
+                  <SegmentedToggle
+                    value={current.subtitleItalic === false ? "normal" : "italic"}
+                    onChange={(v) => onChangeStyle({ subtitleItalic: v === "italic" })}
+                    options={[{ value: "italic", label: "Italic" }, { value: "normal", label: "Normal" }]}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3" style={{ borderColor: INK_3 }}>
+            <FieldLabel>Line under the heading</FieldLabel>
+            <SegmentedToggle
+              value={current.hideLine ? "hide" : "show"}
+              onChange={(v) => onChangeStyle({ hideLine: v === "hide" })}
+              options={[{ value: "show", label: "Show" }, { value: "hide", label: "Hide" }]}
+            />
+          </div>
+          {!current.hideLine && (
+            <div className="mt-2">
+              <ColorPickerField label="Line color" value={current.lineColor} defaultValue="#C9A44C" onChange={(v) => onChangeStyle({ lineColor: v })} />
+            </div>
+          )}
+          <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            The heading itself: double-tap it on the phone to change its words; its font, size and color are further down. Leave the text empty to keep the standard wording in each language.
+          </p>
+        </div>
+      )}
+
       {stepKey === "registry" && blockId === "heading" && (
         <div className="mb-3 rounded-lg p-3" style={{ background: INK_2 }}>
           <div className="mb-3">
@@ -7333,8 +7395,12 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             ) : (
               <div className="text-center">
                 <div className="font-semibold" style={{ fontFamily: hs.fontFamily || fontDisplay, fontSize: hs.fontSize ? `${hs.fontSize}px` : 22, color: hs.color || (light ? PAPER : EMERALD) }}>{content.heading || "RSVP"}</div>
-                <div className="mx-auto my-1.5 h-px w-10" style={{ background: light ? GOLD_SOFT : GOLD }} />
-                <p className="italic" style={{ fontFamily: fontDisplay, fontSize: 12, color: light ? "rgba(244,237,228,0.85)" : ROSE }}>{t.rsvpHeading}</p>
+                {!hs.hideLine && <div className="mx-auto my-1.5 h-px w-10" style={{ background: hs.lineColor || (light ? GOLD_SOFT : GOLD) }} />}
+                {!hs.hideSubtitle && (
+                  <p style={{ fontFamily: hs.subtitleFont || fontDisplay, fontStyle: hs.subtitleItalic === false ? "normal" : "italic", fontSize: hs.subtitleSize || 12, color: hs.subtitleColor || (light ? "rgba(244,237,228,0.85)" : ROSE), marginTop: hs.hideLine ? 4 : 0 }}>
+                    {String(hs.subtitleText || "").trim() || t.rsvpHeading}
+                  </p>
+                )}
               </div>
             )}
             </div>
