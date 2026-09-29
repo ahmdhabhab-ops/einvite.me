@@ -7965,11 +7965,57 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
   );
 }
 
+// A page's fonts and pictures used to start downloading only once a guest
+// swiped to that page, so each new page sat blank for a moment (text came in
+// dot by dot as its font arrived, photos drew in from the top). This starts
+// all of them the moment the invitation is open, while the guest is still
+// on "tap to start", so every page is ready when they reach it.
+const warmedAssets = new Set();
+function useWarmInvitationAssets(data, lang, steps) {
+  useEffect(() => {
+    if (!data || typeof window === "undefined") return;
+    const fonts = new Set([FONT_DISPLAY, FONT_BODY, FONT_SCRIPT, lang === "ar" ? FONT_AR : null, lang === "hy" ? FONT_HY : null].filter(Boolean));
+    const images = new Set();
+    const collectFont = (f) => { if (typeof f === "string" && f.trim()) fonts.add(f); };
+    (steps || []).forEach(({ key }) => {
+      const bg = data.pageBackgrounds?.[key];
+      if (hasActiveCustomImage(bg)) images.add(bg.image);
+      (data.customBlocks?.[lang]?.[key] || []).forEach((b) => {
+        if (b.type === "image" && b.url) images.add(b.url);
+        collectFont(b.fontFamily);
+      });
+      Object.values(data.layouts?.[lang]?.[key] || {}).forEach((block) => collectFont(block?.fontFamily));
+    });
+    const sample = lang === "ar" ? "أبجد هوز حطي كلمن ٠١٢٣ abc" : lang === "hy" ? "Այբ բեն գիմ abc" : "Abc 123";
+    fonts.forEach((f) => {
+      [400, 700].forEach((weight) => {
+        const spec = `${weight} 16px ${f}`;
+        if (warmedAssets.has(spec) || !document.fonts?.load) return;
+        warmedAssets.add(spec);
+        // The Google Fonts stylesheet may still be on its way; until it is,
+        // load() finds no matching face, so try again shortly.
+        const attempt = (triesLeft) => document.fonts.load(spec, sample)
+          .then((faces) => { if (!faces.length && triesLeft > 0) setTimeout(() => attempt(triesLeft - 1), 1000); })
+          .catch(() => {});
+        attempt(4);
+      });
+    });
+    images.forEach((url) => {
+      if (warmedAssets.has(url)) return;
+      warmedAssets.add(url);
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+    });
+  }, [data, lang, steps]);
+}
+
 function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
+  useWarmInvitationAssets(data, lang, steps);
   // Design-space height of the canvas in fullscreen — normally exactly 600
   // (matching the Builder always, no width limit involved), but see the
   // fsScale effect below for when and why it moves off of that.
