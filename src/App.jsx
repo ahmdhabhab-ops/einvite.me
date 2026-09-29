@@ -9380,6 +9380,56 @@ function MessageNamesField({ integrations, updateIntegrations, highlight }) {
   );
 }
 
+// Which WhatsApp message the automatic send (✈) uses: the standard wedding
+// invitation, or the couple's own template approved in Meta's WhatsApp
+// Manager, where {{1}} is the guest's name and {{2}} their invitation link.
+function WhatsAppTemplateField({ integrations, updateIntegrations }) {
+  const wt = integrations?.waTemplate || {};
+  const set = (patch) => updateIntegrations({ waTemplate: { ...wt, ...patch } });
+  const selectStyle = { background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY };
+  return (
+    <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-[200px] flex-1">
+          <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>WhatsApp message</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>What the automatic send (✈) sends to each guest.</div>
+        </div>
+        <SegmentedToggle
+          value={wt.custom ? "custom" : "standard"}
+          onChange={(v) => set({ custom: v === "custom" })}
+          options={[{ value: "standard", label: "Standard wedding" }, { value: "custom", label: "My own template" }]}
+        />
+      </div>
+      {wt.custom && (
+        <div className="mt-3">
+          <div className="grid gap-3 sm:grid-cols-[1fr_150px_150px]">
+            <div>
+              <FieldLabel>Template name (from WhatsApp Manager)</FieldLabel>
+              <TextInput value={wt.name || ""} onChange={(v) => set({ name: v.toLowerCase().replace(/[^a-z0-9_]/g, "_") })} placeholder="e.g. beirut_book_invitation" />
+            </div>
+            <div>
+              <FieldLabel>Language</FieldLabel>
+              <select value={wt.lang || "ar"} onChange={(e) => set({ lang: e.target.value })} className="w-full rounded-lg px-3 py-2.5 text-[12.5px] outline-none" style={selectStyle}>
+                {[["ar", "Arabic"], ["en", "English"], ["en_US", "English (US)"], ["en_GB", "English (UK)"], ["fr", "French"], ["es", "Spanish"]].map(([v, l]) => <option key={v} value={v}>{l} ({v})</option>)}
+              </select>
+            </div>
+            <div>
+              <FieldLabel>Image at the top</FieldLabel>
+              <select value={wt.imageHeader === false ? "no" : "yes"} onChange={(e) => set({ imageHeader: e.target.value === "yes" })} className="w-full rounded-lg px-3 py-2.5 text-[12.5px] outline-none" style={selectStyle}>
+                <option value="yes">Yes (share photo)</option>
+                <option value="no">No image</option>
+              </select>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+            In the template, write <span style={{ color: GOLD_SOFT }}>{"{{1}}"}</span> where the guest's name goes and <span style={{ color: GOLD_SOFT }}>{"{{2}}"}</span> where their invitation link goes (Meta doesn't allow a variable as the very last thing, so add a word or line after it). The name and language must match the template exactly. With "Image at the top", the template needs an Image header; the Share preview photo is sent.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin }) {
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
@@ -10892,21 +10942,35 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
+  // A couple's own Meta-approved template (e.g. one written for their event)
+  // instead of the standard wedding one: {{1}} = the guest's name, {{2}} =
+  // their invitation link.
+  const waTemplate = integrations?.waTemplate || {};
+  const customTemplateName = waTemplate.custom ? String(waTemplate.name || "").trim() : "";
   const sendAutomatedWhatsApp = async (group) => {
-    if (!requireMessageNames()) return;
+    if (!customTemplateName && !requireMessageNames()) return;
     if (!group.phone) {
       setWhatsappResults((r) => ({ ...r, [group.id]: "error" }));
       return;
     }
     setSendingWhatsAppIds((s) => new Set(s).add(group.id));
     try {
-      await sendWhatsAppMessage({
-        to: group.phone,
-        templateName: WHATSAPP_TEMPLATE_NAME,
-        languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
-        variables: [guestGroupName(group) || group.members[0]?.name || "Guest", messageNames, guestLink(group)],
-        headerImageUrl: og?.image || null,
-      });
+      const guestName = guestGroupName(group) || group.members[0]?.name || "Guest";
+      await sendWhatsAppMessage(customTemplateName
+        ? {
+            to: group.phone,
+            templateName: customTemplateName,
+            languageCode: waTemplate.lang || "ar",
+            variables: [guestName, guestLink(group)],
+            headerImageUrl: waTemplate.imageHeader === false ? null : og?.image || null,
+          }
+        : {
+            to: group.phone,
+            templateName: WHATSAPP_TEMPLATE_NAME,
+            languageCode: WHATSAPP_TEMPLATE_LANGUAGE,
+            variables: [guestName, messageNames, guestLink(group)],
+            headerImageUrl: og?.image || null,
+          });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
       updateGuestGroup(group.id, { whatsappTemplateSentAt: Date.now() });
     } catch (err) {
@@ -10919,7 +10983,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   };
 
   const sendWhatsAppToSelected = async () => {
-    if (!requireMessageNames()) return;
+    if (!customTemplateName && !requireMessageNames()) return;
     const groups = guestGroups.filter((g) => selectedIds.has(g.id));
     // Sent one at a time with a short pause between each — Meta rate-limits
     // bursts of template sends, and this keeps each guest's row updating
@@ -11055,7 +11119,12 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
 
       {integrations && (
         <div className="mb-6">
-          <MessageNamesField integrations={integrations} updateIntegrations={updateIntegrations} highlight={namesNeeded} />
+          <WhatsAppTemplateField integrations={integrations} updateIntegrations={updateIntegrations} />
+          {!customTemplateName && (
+            <div className="mt-3">
+              <MessageNamesField integrations={integrations} updateIntegrations={updateIntegrations} highlight={namesNeeded} />
+            </div>
+          )}
         </div>
       )}
 

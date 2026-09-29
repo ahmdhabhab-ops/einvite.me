@@ -1064,9 +1064,12 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
   const variables = (Array.isArray(b.variables) ? b.variables : []).slice(0, 5).map((v) => String(v ?? "").slice(0, 500));
   const headerImageUrl = /^https:\/\/[^\s]{1,1000}$/.test(String(b.headerImageUrl || "")) ? b.headerImageUrl : null;
   if (to.length < 6 || to.length > 16) return res.status(400).json({ error: "That phone number doesn't look right." });
-  if (!WHATSAPP_TEMPLATES.has(templateName)) return res.status(400).json({ error: "Unknown message template." });
-  // Both templates read "…the wedding of {{2}}" — never send it without names.
-  if (!String(variables[1] || "").trim()) return res.status(400).json({ error: "Fill in \"Names in WhatsApp messages\" first." });
+  // The two standard templates, or a couple's own approved template (just
+  // a template name; Meta itself rejects one that isn't approved).
+  const standardTemplate = WHATSAPP_TEMPLATES.has(templateName);
+  if (!standardTemplate && !/^[a-z0-9_]{1,100}$/.test(templateName)) return res.status(400).json({ error: "Unknown message template." });
+  // The standard templates read "…the wedding of {{2}}" — never send them without names.
+  if (standardTemplate && !String(variables[1] || "").trim()) return res.status(400).json({ error: "Fill in \"Names in WhatsApp messages\" first." });
   const components = [];
   if (headerImageUrl) components.push({ type: "header", parameters: [{ type: "image", image: { link: headerImageUrl } }] });
   if (variables.length) components.push({ type: "body", parameters: variables.map((text) => ({ type: "text", text })) });
