@@ -1043,6 +1043,48 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || process.env.META_WHA
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.META_PHONE_NUMBER_ID || "";
 const WHATSAPP_TEMPLATES = new Set(["wedding_invitation", "wedding_invitation_reminder"]);
 const whatsappHits = new Map(); // userId -> { count, since }
+// The message templates this app's WhatsApp number can actually send (name,
+// language, status), straight from Meta, so the Dashboard can offer them to
+// pick from instead of a hand-typed name that might not match. The
+// WhatsApp Business Account is WHATSAPP_BUSINESS_ACCOUNT_ID when set,
+// otherwise the one(s) the access token itself is granted.
+let wabaIdsCache = null;
+async function whatsappAccountIds() {
+  const fromEnv = (process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || "").trim();
+  if (fromEnv) return [fromEnv];
+  if (wabaIdsCache) return wabaIdsCache;
+  const r = await fetch(`https://graph.facebook.com/v20.0/debug_token?input_token=${encodeURIComponent(WHATSAPP_TOKEN)}&access_token=${encodeURIComponent(WHATSAPP_TOKEN)}`);
+  const data = await r.json().catch(() => ({}));
+  const ids = new Set();
+  for (const s of data?.data?.granular_scopes || []) {
+    if (/whatsapp_business_(management|messaging)/.test(s.scope)) (s.target_ids || []).forEach((id) => ids.add(String(id)));
+  }
+  if (!ids.size) throw new Error(data?.error?.message || "Couldn't tell which WhatsApp Business Account this token belongs to. Set WHATSAPP_BUSINESS_ACCOUNT_ID on the app in Dokploy.");
+  wabaIdsCache = [...ids];
+  return wabaIdsCache;
+}
+app.get("/api/whatsapp/templates", async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  if (requestRole(req).role === "anon") return res.status(401).json({ error: "Please log in." });
+  if (!WHATSAPP_TOKEN) return res.status(503).json({ error: "WhatsApp sending isn't set up." });
+  try {
+    const templates = [];
+    for (const id of await whatsappAccountIds()) {
+      const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(id)}/message_templates?fields=name,language,status,components&limit=200`, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.error?.message || `Meta answered ${r.status}`);
+      for (const t of data.data || []) {
+        const body = (t.components || []).find((c) => c.type === "BODY")?.text || "";
+        const header = (t.components || []).find((c) => c.type === "HEADER");
+        templates.push({ name: t.name, language: t.language, status: t.status, variables: (body.match(/\{\{\d+\}\}/g) || []).length, imageHeader: header?.format === "IMAGE" });
+      }
+    }
+    res.set("cache-control", "no-store").json({ templates });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res) => {
   if (!authReady) return res.status(503).json({ error: "not ready" });
   const who = requestRole(req);

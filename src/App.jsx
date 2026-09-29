@@ -9386,6 +9386,23 @@ function MessageNamesField({ integrations, updateIntegrations, highlight }) {
 function WhatsAppTemplateField({ integrations, updateIntegrations }) {
   const wt = integrations?.waTemplate || {};
   const set = (patch) => updateIntegrations({ waTemplate: { ...wt, ...patch } });
+  // The templates Meta says this WhatsApp number can send, to pick from.
+  const [templates, setTemplates] = useState(null);
+  const [templatesError, setTemplatesError] = useState("");
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const loadTemplates = async () => {
+    setLoadingTemplates(true); setTemplatesError("");
+    try {
+      const res = await fetch("/api/whatsapp/templates", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Status ${res.status}`);
+      setTemplates(data.templates || []);
+    } catch (err) {
+      setTemplatesError(err.message);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
   const selectStyle = { background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY };
   return (
     <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
@@ -9423,7 +9440,7 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
             <div>
               <FieldLabel>Language</FieldLabel>
               <select value={wt.lang || "ar"} onChange={(e) => set({ lang: e.target.value })} className="w-full rounded-lg px-3 py-2.5 text-[12.5px] outline-none" style={selectStyle}>
-                {[["ar", "Arabic"], ["en", "English"], ["en_US", "English (US)"], ["en_GB", "English (UK)"], ["fr", "French"], ["es", "Spanish"]].map(([v, l]) => <option key={v} value={v}>{l} ({v})</option>)}
+                {[["ar", "Arabic"], ["en", "English"], ["en_US", "English (US)"], ["en_GB", "English (UK)"], ["fr", "French"], ["es", "Spanish"], ...(wt.lang && !["ar", "en", "en_US", "en_GB", "fr", "es"].includes(wt.lang) ? [[wt.lang, wt.lang]] : [])].map(([v, l]) => <option key={v} value={v}>{l} ({v})</option>)}
               </select>
             </div>
             <div>
@@ -9433,6 +9450,30 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
                 <option value="no">No image</option>
               </select>
             </div>
+          </div>
+          <div className="mt-3">
+            <GhostButton onClick={loadTemplates}>{loadingTemplates ? "Loading…" : "Load my templates from WhatsApp"}</GhostButton>
+            {templatesError && <p className="mt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{templatesError}</p>}
+            {templates && (
+              <div className="mt-2 overflow-hidden rounded-lg" style={{ border: `1px solid ${INK_3}` }}>
+                {templates.length === 0 && <p className="p-3 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>WhatsApp returned no templates for this number's account.</p>}
+                {templates.map((tp) => {
+                  const chosen = wt.name === tp.name && (wt.lang || "ar") === tp.language;
+                  const approved = tp.status === "APPROVED";
+                  return (
+                    <button
+                      key={`${tp.name}:${tp.language}`}
+                      onClick={() => set({ name: tp.name, lang: tp.language, imageHeader: tp.imageHeader })}
+                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[12px]"
+                      style={{ background: chosen ? "rgba(201,164,76,0.14)" : "transparent", borderBottom: `1px solid ${INK_3}`, color: IVORY, fontFamily: FONT_BODY }}
+                    >
+                      <span className="truncate"><strong>{tp.name}</strong> <span style={{ color: MUTED }}>· {tp.language} · {tp.variables} variable{tp.variables === 1 ? "" : "s"}{tp.imageHeader ? " · image" : ""}</span></span>
+                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: approved ? "rgba(143,191,163,0.2)" : "rgba(226,155,155,0.2)", color: approved ? "#8FBFA3" : "#E29B9B" }}>{tp.status}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <p className="mt-2 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
             In the template, write <span style={{ color: GOLD_SOFT }}>{"{{1}}"}</span> where the guest's name goes and <span style={{ color: GOLD_SOFT }}>{"{{2}}"}</span> where their invitation link goes (Meta doesn't allow a variable as the very last thing, so add a word or line after it). The name and language must match the template exactly. With "Image at the top", the template needs an Image header; the Share preview photo is sent.
