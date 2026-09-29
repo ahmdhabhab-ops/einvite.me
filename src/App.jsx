@@ -16074,6 +16074,16 @@ export default function InvitationBuilder() {
   const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks, rsvpSettings, totalAttending, integrations };
   const stepKey = steps[safeIndex].key;
   const c = content[activeLang];
+  // The couple's names for messages (the WhatsApp invitation, the dashboard
+  // header): the cover names in the language being edited, else the
+  // default language's, else any language that has them; one name alone
+  // (a birthday) is used as is, never "Sarah & ".
+  const coupleNames = [activeLang, defaultLang, ...LANGS].reduce((found, lang) => {
+    if (found) return found;
+    const cover = content[lang]?.cover;
+    const names = [cover?.name1, cover?.name2].map((n) => String(n || "").trim()).filter(Boolean);
+    return names.join(" & ");
+  }, "");
 
   const autoTitle = `${content.en.cover.name1} & ${content.en.cover.name2} — Wedding Invitation`;
   const autoDescription = content.en.cover.intro;
@@ -17329,7 +17339,7 @@ export default function InvitationBuilder() {
             deleteVenueElement={deleteVenueElement}
             integrations={integrations}
             updateIntegrations={updateIntegrations}
-            coupleTitle={`${c.cover.name1} & ${c.cover.name2}`}
+            coupleTitle={coupleNames || "the happy couple"}
             slug={slug}
             siteDomain={siteDomain}
             og={og}
