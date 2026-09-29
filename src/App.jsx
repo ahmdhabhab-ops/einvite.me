@@ -1771,6 +1771,44 @@ function qrCodeImageUrl(data, size = 220) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 }
 
+// Saves a guest's check-in QR code to their phone as a picture (with their
+// name under it), so they still have it at the door without reopening the
+// invitation. Falls back to opening the plain QR image, which can be
+// long-pressed and saved, if the picture can't be built.
+async function saveCheckinQr(url, caption) {
+  const qrUrl = qrCodeImageUrl(url, 600);
+  try {
+    const blob = await (await fetch(qrUrl, { mode: "cors" })).blob();
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(blob);
+    img.src = objectUrl;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 720; canvas.height = caption ? 860 : 780;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 60, 60, 600, 600);
+    URL.revokeObjectURL(objectUrl);
+    ctx.fillStyle = "#24463D"; ctx.textAlign = "center";
+    if (caption) { ctx.font = "600 34px 'Cairo', 'Inter', sans-serif"; ctx.fillText(caption, 360, 730, 640); }
+    ctx.font = "24px 'Inter', sans-serif"; ctx.fillStyle = "#777777";
+    ctx.fillText("einvite.me", 360, caption ? 800 : 720);
+    const png = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("no image"))), "image/png"));
+    const file = new File([png], "check-in-qr.png", { type: "image/png" });
+    // Phones: the share sheet has "Save image" / "Save to Photos".
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (err) { if (err?.name === "AbortError") return; }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(png);
+    a.download = "check-in-qr.png";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch {
+    window.open(qrUrl, "_blank", "noopener");
+  }
+}
+
 function hexToRgba(hex, alpha) {
   const h = hex.replace("#", "");
   const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
@@ -2289,11 +2327,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry", voiceTitle: "We'll Miss You", voiceSub: "Record a quick note so they know you're thinking of them.", voiceRecord: "Record", voiceStop: "Stop", voiceAgain: "Record Again", voiceSend: "Send", voiceSending: "Sending…", voiceSent: "Sent ✓", voiceSkip: "Skip", voiceMicError: "Couldn't access your microphone — please allow microphone access and try again.", voiceProcessError: "Couldn't process the recording — please try again.", thankYou: "Thank you for your response!", confirmedFor: "Confirmed for {n} {people}", person: "person", people: "people", saveQr: "Save this — show it at the door for quick check-in", submitRsvp: "Submit RSVP", rsvpClosed: "RSVP Closed", deadlinePassed: "The deadline to respond has passed.", fullyBooked: "Fully booked", yourName: "Your name", optionalTag: "(optional)", numAttending: "Number of attending", capacityReached: "We've reached capacity for confirmed guests.", confirmingN: "You're confirming {n} {guests}", guestWord: "guest", guestsWord: "guests", nameMissing: "Please enter your name.", nameEveryGuest: "Please name every guest." },
-  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة", voiceTitle: "سنفتقدكم", voiceSub: "سجّلوا رسالة صوتية قصيرة ليعرفوا أنكم تفكرون بهم.", voiceRecord: "تسجيل", voiceStop: "إيقاف", voiceAgain: "إعادة التسجيل", voiceSend: "إرسال", voiceSending: "جارٍ الإرسال…", voiceSent: "تم الإرسال ✓", voiceSkip: "تخطي", voiceMicError: "تعذّر الوصول إلى الميكروفون — الرجاء السماح بالوصول إليه والمحاولة مجدداً.", voiceProcessError: "تعذّرت معالجة التسجيل — الرجاء المحاولة مجدداً.", thankYou: "شكراً على ردّكم!", confirmedFor: "تم التأكيد لـ {n} {people}", person: "شخص", people: "أشخاص", saveQr: "احفظوا هذا الرمز — أظهروه عند الباب لتسجيل الدخول بسرعة", submitRsvp: "إرسال الرد", rsvpClosed: "انتهى تأكيد الحضور", deadlinePassed: "انتهت مهلة الرد.", fullyBooked: "اكتمل العدد", yourName: "اسمك", optionalTag: "(اختياري)", numAttending: "عدد الحضور", capacityReached: "اكتمل عدد الضيوف المؤكَّدين.", confirmingN: "أنت تؤكد حضور {n} {guests}", guestWord: "ضيف", guestsWord: "ضيوف", nameMissing: "الرجاء إدخال اسمك.", nameEveryGuest: "الرجاء كتابة اسم كل ضيف." },
-  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste", voiceTitle: "Vous allez nous manquer", voiceSub: "Enregistrez un petit message pour leur montrer que vous pensez à eux.", voiceRecord: "Enregistrer", voiceStop: "Arrêter", voiceAgain: "Recommencer", voiceSend: "Envoyer", voiceSending: "Envoi…", voiceSent: "Envoyé ✓", voiceSkip: "Passer", voiceMicError: "Impossible d'accéder au micro — autorisez l'accès au micro et réessayez.", voiceProcessError: "Impossible de traiter l'enregistrement — veuillez réessayer.", thankYou: "Merci pour votre réponse !", confirmedFor: "Confirmé pour {n} {people}", person: "personne", people: "personnes", saveQr: "Gardez ce code — montrez-le à l'entrée pour un accueil rapide", submitRsvp: "Envoyer ma réponse", rsvpClosed: "Réponses closes", deadlinePassed: "La date limite pour répondre est passée.", fullyBooked: "Complet", yourName: "Votre nom", optionalTag: "(facultatif)", numAttending: "Nombre de personnes", capacityReached: "Nous avons atteint le nombre maximum d'invités confirmés.", confirmingN: "Vous confirmez {n} {guests}", guestWord: "invité", guestsWord: "invités", nameMissing: "Veuillez indiquer votre nom.", nameEveryGuest: "Veuillez indiquer le nom de chaque invité." },
-  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista", voiceTitle: "Te extrañaremos", voiceSub: "Graba una nota corta para que sepan que piensas en ellos.", voiceRecord: "Grabar", voiceStop: "Detener", voiceAgain: "Grabar de nuevo", voiceSend: "Enviar", voiceSending: "Enviando…", voiceSent: "Enviado ✓", voiceSkip: "Omitir", voiceMicError: "No se pudo acceder al micrófono — permite el acceso e inténtalo de nuevo.", voiceProcessError: "No se pudo procesar la grabación — inténtalo de nuevo.", thankYou: "¡Gracias por tu respuesta!", confirmedFor: "Confirmado para {n} {people}", person: "persona", people: "personas", saveQr: "Guarda esto — muéstralo en la entrada para un registro rápido", submitRsvp: "Enviar respuesta", rsvpClosed: "Confirmaciones cerradas", deadlinePassed: "La fecha límite para responder ya pasó.", fullyBooked: "Completo", yourName: "Tu nombre", optionalTag: "(opcional)", numAttending: "Número de asistentes", capacityReached: "Hemos alcanzado el cupo de invitados confirmados.", confirmingN: "Estás confirmando {n} {guests}", guestWord: "invitado", guestsWord: "invitados", nameMissing: "Escribe tu nombre.", nameEveryGuest: "Escribe el nombre de cada invitado." },
-  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը", voiceTitle: "Մենք ձեզ կկարոտենք", voiceSub: "Ձայնագրեք կարճ ուղերձ, որ իմանան՝ մտածում եք նրանց մասին։", voiceRecord: "Ձայնագրել", voiceStop: "Կանգնեցնել", voiceAgain: "Կրկին ձայնագրել", voiceSend: "Ուղարկել", voiceSending: "Ուղարկվում է…", voiceSent: "Ուղարկված է ✓", voiceSkip: "Բաց թողնել", voiceMicError: "Չհաջողվեց միանալ խոսափողին — թույլատրեք խոսափողի օգտագործումը և փորձեք կրկին։", voiceProcessError: "Չհաջողվեց մշակել ձայնագրությունը — փորձեք կրկին։", thankYou: "Շնորհակալություն պատասխանի համար։", confirmedFor: "Հաստատված է {n} {people}", person: "հոգու համար", people: "հոգու համար", saveQr: "Պահեք սա — ցույց տվեք մուտքի մոտ արագ գրանցման համար", submitRsvp: "Ուղարկել պատասխանը", rsvpClosed: "Հաստատումը փակված է", deadlinePassed: "Պատասխանելու ժամկետն անցել է։", fullyBooked: "Տեղեր չկան", yourName: "Ձեր անունը", optionalTag: "(ըստ ցանկության)", numAttending: "Մասնակիցների թիվը", capacityReached: "Հաստատված հյուրերի տեղերը լրացել են։", confirmingN: "Դուք հաստատում եք {n} {guests}", guestWord: "հյուր", guestsWord: "հյուր", nameMissing: "Խնդրում ենք գրել ձեր անունը։", nameEveryGuest: "Խնդրում ենք գրել յուրաքանչյուր հյուրի անունը։" },
+  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry", voiceTitle: "We'll Miss You", voiceSub: "Record a quick note so they know you're thinking of them.", voiceRecord: "Record", voiceStop: "Stop", voiceAgain: "Record Again", voiceSend: "Send", voiceSending: "Sending…", voiceSent: "Sent ✓", voiceSkip: "Skip", voiceMicError: "Couldn't access your microphone — please allow microphone access and try again.", voiceProcessError: "Couldn't process the recording — please try again.", thankYou: "Thank you for your response!", confirmedFor: "Confirmed for {n} {people}", person: "person", people: "people", saveQr: "Save this — show it at the door for quick check-in", submitRsvp: "Submit RSVP", rsvpClosed: "RSVP Closed", deadlinePassed: "The deadline to respond has passed.", fullyBooked: "Fully booked", yourName: "Your name", optionalTag: "(optional)", numAttending: "Number of attending", capacityReached: "We've reached capacity for confirmed guests.", confirmingN: "You're confirming {n} {guests}", guestWord: "guest", guestsWord: "guests", nameMissing: "Please enter your name.", nameEveryGuest: "Please name every guest.", saveQrBtn: "Save QR code", savingQr: "Saving…" },
+  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة", voiceTitle: "سنفتقدكم", voiceSub: "سجّلوا رسالة صوتية قصيرة ليعرفوا أنكم تفكرون بهم.", voiceRecord: "تسجيل", voiceStop: "إيقاف", voiceAgain: "إعادة التسجيل", voiceSend: "إرسال", voiceSending: "جارٍ الإرسال…", voiceSent: "تم الإرسال ✓", voiceSkip: "تخطي", voiceMicError: "تعذّر الوصول إلى الميكروفون — الرجاء السماح بالوصول إليه والمحاولة مجدداً.", voiceProcessError: "تعذّرت معالجة التسجيل — الرجاء المحاولة مجدداً.", thankYou: "شكراً على ردّكم!", confirmedFor: "تم التأكيد لـ {n} {people}", person: "شخص", people: "أشخاص", saveQr: "احفظوا هذا الرمز — أظهروه عند الباب لتسجيل الدخول بسرعة", submitRsvp: "إرسال الرد", rsvpClosed: "انتهى تأكيد الحضور", deadlinePassed: "انتهت مهلة الرد.", fullyBooked: "اكتمل العدد", yourName: "اسمك", optionalTag: "(اختياري)", numAttending: "عدد الحضور", capacityReached: "اكتمل عدد الضيوف المؤكَّدين.", confirmingN: "أنت تؤكد حضور {n} {guests}", guestWord: "ضيف", guestsWord: "ضيوف", nameMissing: "الرجاء إدخال اسمك.", nameEveryGuest: "الرجاء كتابة اسم كل ضيف.", saveQrBtn: "حفظ رمز QR", savingQr: "جارٍ الحفظ…" },
+  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste", voiceTitle: "Vous allez nous manquer", voiceSub: "Enregistrez un petit message pour leur montrer que vous pensez à eux.", voiceRecord: "Enregistrer", voiceStop: "Arrêter", voiceAgain: "Recommencer", voiceSend: "Envoyer", voiceSending: "Envoi…", voiceSent: "Envoyé ✓", voiceSkip: "Passer", voiceMicError: "Impossible d'accéder au micro — autorisez l'accès au micro et réessayez.", voiceProcessError: "Impossible de traiter l'enregistrement — veuillez réessayer.", thankYou: "Merci pour votre réponse !", confirmedFor: "Confirmé pour {n} {people}", person: "personne", people: "personnes", saveQr: "Gardez ce code — montrez-le à l'entrée pour un accueil rapide", submitRsvp: "Envoyer ma réponse", rsvpClosed: "Réponses closes", deadlinePassed: "La date limite pour répondre est passée.", fullyBooked: "Complet", yourName: "Votre nom", optionalTag: "(facultatif)", numAttending: "Nombre de personnes", capacityReached: "Nous avons atteint le nombre maximum d'invités confirmés.", confirmingN: "Vous confirmez {n} {guests}", guestWord: "invité", guestsWord: "invités", nameMissing: "Veuillez indiquer votre nom.", nameEveryGuest: "Veuillez indiquer le nom de chaque invité.", saveQrBtn: "Enregistrer le QR code", savingQr: "Enregistrement…" },
+  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista", voiceTitle: "Te extrañaremos", voiceSub: "Graba una nota corta para que sepan que piensas en ellos.", voiceRecord: "Grabar", voiceStop: "Detener", voiceAgain: "Grabar de nuevo", voiceSend: "Enviar", voiceSending: "Enviando…", voiceSent: "Enviado ✓", voiceSkip: "Omitir", voiceMicError: "No se pudo acceder al micrófono — permite el acceso e inténtalo de nuevo.", voiceProcessError: "No se pudo procesar la grabación — inténtalo de nuevo.", thankYou: "¡Gracias por tu respuesta!", confirmedFor: "Confirmado para {n} {people}", person: "persona", people: "personas", saveQr: "Guarda esto — muéstralo en la entrada para un registro rápido", submitRsvp: "Enviar respuesta", rsvpClosed: "Confirmaciones cerradas", deadlinePassed: "La fecha límite para responder ya pasó.", fullyBooked: "Completo", yourName: "Tu nombre", optionalTag: "(opcional)", numAttending: "Número de asistentes", capacityReached: "Hemos alcanzado el cupo de invitados confirmados.", confirmingN: "Estás confirmando {n} {guests}", guestWord: "invitado", guestsWord: "invitados", nameMissing: "Escribe tu nombre.", nameEveryGuest: "Escribe el nombre de cada invitado.", saveQrBtn: "Guardar el código QR", savingQr: "Guardando…" },
+  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը", voiceTitle: "Մենք ձեզ կկարոտենք", voiceSub: "Ձայնագրեք կարճ ուղերձ, որ իմանան՝ մտածում եք նրանց մասին։", voiceRecord: "Ձայնագրել", voiceStop: "Կանգնեցնել", voiceAgain: "Կրկին ձայնագրել", voiceSend: "Ուղարկել", voiceSending: "Ուղարկվում է…", voiceSent: "Ուղարկված է ✓", voiceSkip: "Բաց թողնել", voiceMicError: "Չհաջողվեց միանալ խոսափողին — թույլատրեք խոսափողի օգտագործումը և փորձեք կրկին։", voiceProcessError: "Չհաջողվեց մշակել ձայնագրությունը — փորձեք կրկին։", thankYou: "Շնորհակալություն պատասխանի համար։", confirmedFor: "Հաստատված է {n} {people}", person: "հոգու համար", people: "հոգու համար", saveQr: "Պահեք սա — ցույց տվեք մուտքի մոտ արագ գրանցման համար", submitRsvp: "Ուղարկել պատասխանը", rsvpClosed: "Հաստատումը փակված է", deadlinePassed: "Պատասխանելու ժամկետն անցել է։", fullyBooked: "Տեղեր չկան", yourName: "Ձեր անունը", optionalTag: "(ըստ ցանկության)", numAttending: "Մասնակիցների թիվը", capacityReached: "Հաստատված հյուրերի տեղերը լրացել են։", confirmingN: "Դուք հաստատում եք {n} {guests}", guestWord: "հյուր", guestsWord: "հյուր", nameMissing: "Խնդրում ենք գրել ձեր անունը։", nameEveryGuest: "Խնդրում ենք գրել յուրաքանչյուր հյուրի անունը։", saveQrBtn: "Պահել QR կոդը", savingQr: "Պահվում է…" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -7233,7 +7271,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // No real token exists until an actual submission — this placeholder
   // lets the QR section (position, size, colors around it) be previewed
   // and styled too, without needing a real check-in token.
-  const effectiveCheckinToken = editMode && editPreviewState > 0 ? (checkinToken || "preview") : checkinToken;
+  // The couple can turn the check-in QR code off in Settings → RSVP.
+  const showCheckinQr = rsvpSettings.showCheckinQr !== false;
+  const effectiveCheckinToken = !showCheckinQr ? null : editMode && editPreviewState > 0 ? (checkinToken || "preview") : checkinToken;
+  const [savingQr, setSavingQr] = useState(false);
 
   const shownPartySize = editMode ? (editPreviewState === 1 ? partySize || 2 : 0) : choice === "yes" ? partySize : 0;
   const thankYou = (light) => (
@@ -7255,6 +7296,17 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           <p className="mt-2 text-[10px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, maxWidth: 200, margin: "6px auto 0" }}>
             {t.saveQr}
           </p>
+          <button
+            onClick={async () => {
+              if (editMode || savingQr) return;
+              setSavingQr(true);
+              try { await saveCheckinQr(`https://${siteDomain}/checkin/${effectiveCheckinToken}`, personal ? invitedHeading : name.trim()); } finally { setSavingQr(false); }
+            }}
+            className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[10.5px] font-bold"
+            style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), fontFamily: FONT_BODY, opacity: savingQr ? 0.6 : 1 }}
+          >
+            <Download size={12} /> {savingQr ? t.savingQr : t.saveQrBtn}
+          </button>
         </div>
       )}
     </div>
@@ -9451,6 +9503,20 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
         <SegmentedToggle
           value={rsvpSettings.enableGuestVoiceRecorder}
           onChange={(v) => updateRsvpSettings({ enableGuestVoiceRecorder: v })}
+          options={[{ value: false, label: "Off" }, { value: true, label: "On" }]}
+        />
+      </div>
+
+      <Divider />
+
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Check-in QR code</div>
+          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Shown to guests who reply "Attending", to scan at the door. Guests can save it to their phone.</div>
+        </div>
+        <SegmentedToggle
+          value={rsvpSettings.showCheckinQr !== false}
+          onChange={(v) => updateRsvpSettings({ showCheckinQr: v })}
           options={[{ value: false, label: "Off" }, { value: true, label: "On" }]}
         />
       </div>
@@ -14093,7 +14159,7 @@ function QuickRsvpPage({ slug }) {
           {c.intro || "We'd love for you to join us — will you be attending?"}
         </p>
 
-        {choice === "yes" && checkinToken ? (
+        {choice === "yes" && checkinToken && state.snapshot.rsvpSettings?.showCheckinQr !== false ? (
           <div>
             <CheckCircle2 size={36} color={CHART_COLORS.yes} style={{ margin: "0 auto 10px" }} />
             <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14, marginBottom: 16 }}>You're confirmed — see you there!</p>
@@ -14101,6 +14167,14 @@ function QuickRsvpPage({ slug }) {
               <img src={qrCodeImageUrl(`https://${window.location.host}/checkin/${checkinToken}`, 160)} alt="Check-in QR code" style={{ display: "block" }} />
             </div>
             <p style={{ color: MUTED, fontFamily: FONT_BODY, fontSize: 10.5, marginTop: 10 }}>Show this code at the entrance</p>
+            <button onClick={() => saveCheckinQr(`https://${window.location.host}/checkin/${checkinToken}`, name.trim())} className="mt-3 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
+              <Download size={13} /> Save QR code
+            </button>
+          </div>
+        ) : choice === "yes" && checkinToken ? (
+          <div>
+            <CheckCircle2 size={36} color={CHART_COLORS.yes} style={{ margin: "0 auto 10px" }} />
+            <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14 }}>You're confirmed — see you there!</p>
           </div>
         ) : choice === "no" ? (
           <div>
