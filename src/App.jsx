@@ -6041,6 +6041,28 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
     </div>
   );
 
+  // A full-screen image/video fills the whole page, often underneath the
+  // page's own text, so there may be nowhere left to click it. This small
+  // tag stays on top in the builder: tap it to select the image (then delete
+  // it, or turn Full screen off, from its toolbar or the side panel).
+  const fullScreenHandle = block.fullScreen && (
+    <button
+      type="button"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onSelect?.(); }}
+      className="absolute left-2 flex items-center gap-1 rounded-full px-2 py-1 text-[9.5px] font-semibold"
+      style={{ bottom: 64 + (layerIndex || 0) * 26, zIndex: 600, background: selected ? GOLD : "rgba(20,26,23,0.85)", color: selected ? INK : GOLD_SOFT, border: `1px solid ${GOLD}`, fontFamily: FONT_BODY }}
+      title="Select this full-screen element to edit or delete it"
+    >
+      {block.type === "video" ? <Film size={10} /> : <ImagePlus size={10} />} {block.type === "video" ? "Full-screen video" : "Full-screen image"}
+      {selected && (
+        <span role="button" title="Delete" onClick={(e) => { e.stopPropagation(); onDelete?.(); }} className="ml-1 flex items-center" style={{ color: "#8B2E2E" }}>
+          <Trash2 size={11} />
+        </span>
+      )}
+    </button>
+  );
+
   if (block.type === "image") {
     const imgOpacity = 1 - (block.transparency ?? 0) / 100;
     const img = (
@@ -6064,6 +6086,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         <>
           <div
             style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: "transparent" }}
+            onPointerDown={editMode ? (e) => e.stopPropagation() : undefined}
             onClick={editMode ? (e) => { e.stopPropagation(); onSelect?.(); } : undefined}
           >
             <img
@@ -6078,6 +6101,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
               {toolbar}
             </div>
           )}
+          {editMode && fullScreenHandle}
         </>
       );
     }
@@ -6107,6 +6131,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         <>
           <div
             style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden", background: "transparent" }}
+            onPointerDown={editMode ? (e) => e.stopPropagation() : undefined}
             onClick={editMode ? (e) => { e.stopPropagation(); onSelect?.(); } : undefined}
           >
             <video
@@ -6124,6 +6149,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
               {toolbar}
             </div>
           )}
+          {editMode && fullScreenHandle}
         </>
       );
     }
