@@ -7971,22 +7971,27 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
 // all of them the moment the invitation is open, while the guest is still
 // on "tap to start", so every page is ready when they reach it.
 const warmedAssets = new Set();
-function useWarmInvitationAssets(data, lang, steps) {
+function useWarmInvitationAssets(data, lang, steps, enabled) {
+  const startedRef = useRef(false);
   useEffect(() => {
-    if (!data || typeof window === "undefined") return;
+    // Only on the guest's invitation (never the builder, where it competed
+    // with the editor itself), and only once per page load.
+    if (!enabled || startedRef.current || !data || typeof window === "undefined") return;
+    startedRef.current = true;
     const fonts = new Set([FONT_DISPLAY, FONT_BODY, FONT_SCRIPT, lang === "ar" ? FONT_AR : null, lang === "hy" ? FONT_HY : null].filter(Boolean));
-    const images = new Set();
+    const images = []; // in page order, so the next page's pictures come first
     const collectFont = (f) => { if (typeof f === "string" && f.trim()) fonts.add(f); };
     (steps || []).forEach(({ key }) => {
       const bg = data.pageBackgrounds?.[key];
-      if (hasActiveCustomImage(bg)) images.add(bg.image);
+      if (hasActiveCustomImage(bg)) images.push(bg.image);
       (data.customBlocks?.[lang]?.[key] || []).forEach((b) => {
-        if (b.type === "image" && b.url) images.add(b.url);
+        if (b.type === "image" && b.url) images.push(b.url);
         collectFont(b.fontFamily);
       });
       Object.values(data.layouts?.[lang]?.[key] || {}).forEach((block) => collectFont(block?.fontFamily));
     });
     const sample = lang === "ar" ? "أبجد هوز حطي كلمن ٠١٢٣ abc" : lang === "hy" ? "Այբ բեն գիմ abc" : "Abc 123";
+    // Fonts are small: start them right away.
     fonts.forEach((f) => {
       [400, 700].forEach((weight) => {
         const spec = `${weight} 16px ${f}`;
@@ -8000,14 +8005,21 @@ function useWarmInvitationAssets(data, lang, steps) {
         attempt(4);
       });
     });
-    images.forEach((url) => {
-      if (warmedAssets.has(url)) return;
-      warmedAssets.add(url);
+    // Pictures: two at a time, after the first page has had its turn, so
+    // they never slow down what the guest is looking at right now.
+    const queue = [...new Set(images)].filter((url) => !warmedAssets.has(url));
+    queue.forEach((url) => warmedAssets.add(url));
+    // (No cleanup: it runs once per page load, and finishing a download
+    // after this component re-renders or unmounts does no harm.)
+    const next = () => {
+      if (!queue.length) return;
       const img = new Image();
       img.decoding = "async";
-      img.src = url;
-    });
-  }, [data, lang, steps]);
+      img.onload = img.onerror = next;
+      img.src = queue.shift();
+    };
+    setTimeout(() => { next(); next(); }, 1200);
+  }, [data, lang, steps, enabled]);
 }
 
 function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
@@ -8015,7 +8027,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
   const [fsScale, setFsScale] = useState(1);
-  useWarmInvitationAssets(data, lang, steps);
+  useWarmInvitationAssets(data, lang, steps, !!fullscreen && !layoutEditMode);
   // Design-space height of the canvas in fullscreen — normally exactly 600
   // (matching the Builder always, no width limit involved), but see the
   // fsScale effect below for when and why it moves off of that.
