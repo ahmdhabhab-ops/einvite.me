@@ -14990,7 +14990,10 @@ export default function InvitationBuilder() {
     ? { ...i, [field]: value }
     : { ...i, texts: { ...(i.texts || {}), [lang]: { ...(i.texts?.[lang] || {}), [field]: value } } }));
   const [users, setUsers] = useState(seedUsers);
-  const [siteDomain, setSiteDomain] = useState("core.einvite.me");
+  // Every link the app hands out (guest links, share links, check-in QR
+  // codes) uses the domain the site is actually open on, so moving the site
+  // to a new domain doesn't leave links pointing at the old one.
+  const [siteDomain, setSiteDomain] = useState(() => (typeof window !== "undefined" && window.location.host) || "cores.einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
   const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
   const [coreDataLoaded, setCoreDataLoaded] = useState(false);
@@ -15464,9 +15467,9 @@ export default function InvitationBuilder() {
         // see SHOP_DESIGNS_KEY — since /shop (a completely separate page
         // mount) needs to fetch the exact same data independently, without
         // loading this whole draft.
-        // siteDomain is intentionally no longer loaded from saved data —
-        // it's fixed to core.einvite.me (set in useState above) so an old
-        // save from before that was the default can't override it.
+        // siteDomain is intentionally not loaded from saved data — it's the
+        // domain this page is open on (set in useState above), so an old
+        // saved value can't override it.
         if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
         if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
         if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
