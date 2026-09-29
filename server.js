@@ -1082,7 +1082,17 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       console.error("WhatsApp send failed:", r.status, JSON.stringify(data?.error || data).slice(0, 500));
-      return res.status(502).json({ error: data?.error?.message || "Meta didn't accept the message." });
+      // Plain-language reasons for Meta's most common template errors.
+      const code = data?.error?.code;
+      const hint = {
+        132001: `WhatsApp has no approved template "${templateName}" in language "${languageCode}". Check that it's Active (not "In review") in WhatsApp Manager, and that the name and language here match it exactly.`,
+        132000: "The number of variables sent doesn't match the template. Check the template has exactly the {{…}} variables this message fills in.",
+        132012: "The template's header doesn't match: turn \"Image at the top\" on if the template has an image header, or off if it doesn't (and make sure the Share preview has a photo).",
+        131026: "This number can't receive WhatsApp messages (it may not be on WhatsApp).",
+        132015: "This template is paused by WhatsApp because of low quality. Check it in WhatsApp Manager.",
+        132016: "This template was disabled by WhatsApp. Check it in WhatsApp Manager.",
+      }[code];
+      return res.status(502).json({ error: hint ? `${hint} (${data?.error?.message || code})` : data?.error?.message || "Meta didn't accept the message." });
     }
     res.json({ sent: true, messageId: data?.messages?.[0]?.id || null });
   } catch (err) {
