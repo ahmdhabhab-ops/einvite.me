@@ -15212,10 +15212,15 @@ export default function InvitationBuilder() {
         const res = await persistentStorage.get(DRAFT_KEY, false);
         if (cancelled || !res?.value) return;
         const d = JSON.parse(res.value);
-        // Which invitation opens first: the admin's current one in the admin
-        // app; a logged-in client's own everywhere else (none before login).
+        // Which invitation opens first: the client being worked on (the admin
+        // "logged in as" them, or the client themselves), otherwise, in the
+        // admin app, the admin's own. Not the draft's saved activeInvitationId:
+        // a save made from a client's page by someone also logged in as the
+        // admin stored the client's id there, so /admin opened the client's
+        // invitation instead of the admin's.
         const onAdminPage = /^\/admin(\/|$)/.test(window.location.pathname);
-        const loadId = onAdminPage ? d.activeInvitationId : (lsGet("einvite:acting-as-user-id") || null);
+        const actingId = lsGet("einvite:acting-as-user-id") || null;
+        const loadId = actingId || (onAdminPage ? OWNER_SLOT : null);
         if (d.content) setContent(mergeContentWithDefaults(d.content));
         if (d.timeline) setTimeline(d.timeline);
         if (d.locations) setLocations(d.locations);
@@ -15434,9 +15439,11 @@ export default function InvitationBuilder() {
     // current users list right before saving, and only reconciling this
     // browser's own known edits onto it, is what actually prevents that.
     let usersToSave = users;
+    let latestDraft = null;
     try {
       const res = await persistentStorage.get(DRAFT_KEY, false);
-      const latestUsers = res?.value ? JSON.parse(res.value).users : null;
+      latestDraft = res?.value ? JSON.parse(res.value) : null;
+      const latestUsers = latestDraft ? latestDraft.users : null;
       if (Array.isArray(latestUsers)) {
         const localById = new Map(users.map((u) => [u.id, u]));
         const merged = latestUsers.map((u) => localById.get(u.id) || u); // this browser's own edits to a known user win; anything server-only stays
@@ -15458,7 +15465,8 @@ export default function InvitationBuilder() {
     }
     usersToSave = await usersWithoutPasswords(usersToSave);
     const invitationIds = Object.keys({ ...invitationsStore, [activeInvitationId]: true });
-    const corePayload = {
+    const onAdminPage = /^\/admin(\/|$)/.test(window.location.pathname);
+    const adminCorePayload = {
       content, timeline, locations, registry, enabledSteps, pageOrder, rsvpSchedule, defaultLang, enabledLanguages, layouts,
       guestGroups, tables, rsvpSettings, users: usersToSave, integrations, siteDomain, swipeDirection, tornPhotoEdges, viewStyle, introMediaLibrary,
       invitationIds, activeInvitationId, // the actual snapshots are saved separately below, one key per client
@@ -15466,6 +15474,15 @@ export default function InvitationBuilder() {
       intro: { type: intro.type, icon: intro.icon, animationStyle: intro.animationStyle, sealDesign: intro.sealDesign, introMediaChoiceId: intro.introMediaChoiceId, revealHoldMs: intro.revealHoldMs }, // media (image or video) saved separately below via introBgKey
       musicMeta: { enabled: music.enabled, name: music.name }, // url saved separately below — see MUSIC_AUDIO_KEY
     };
+    // Outside the admin app (a client's own page) the draft only ever gains
+    // this client's user record and invitation id; everything else in it is
+    // the admin's. The server already does this for a client, but not when
+    // the same browser is also logged in as the admin, and a save from a
+    // client's page then replaced the admin's draft (and which invitation
+    // /admin opens) with the client's.
+    const corePayload = onAdminPage || !latestDraft
+      ? adminCorePayload
+      : { ...latestDraft, users: usersToSave, invitationIds: [...new Set([...(latestDraft.invitationIds || []), ...invitationIds])] };
     // The shared bg-* / introbg-* / og-image / music-audio keys belong to the
     // admin's own invitation only. A client's (or the admin acting as a
     // client) saving them overwrote the admin's images, which then leaked
