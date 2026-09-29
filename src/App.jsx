@@ -15566,9 +15566,16 @@ export default function InvitationBuilder() {
         // siteDomain is intentionally not loaded from saved data — it's the
         // domain this page is open on (set in useState above), so an old
         // saved value can't override it.
-        if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
-        if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
-        if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
+        // The draft's own copies of these are only a fallback for an old
+        // draft with no saved invitation. Applied on top of the invitation
+        // that was just loaded, they reset its tap-to-start icon, intro
+        // settings, share text and music on every refresh (a client's page
+        // never updates the draft, so it always put back old values).
+        if (!activeSnapshotAppliedRef.current) {
+          if (d.ogText) setOg((o) => ({ ...o, title: d.ogText.title, description: d.ogText.description }));
+          if (d.intro) setIntro((i) => ({ ...i, ...d.intro }));
+          if (d.musicMeta) setMusic((m) => ({ ...m, enabled: d.musicMeta.enabled, name: d.musicMeta.name }));
+        }
       } catch {
         // No saved draft yet — start fresh with the defaults.
       } finally {
