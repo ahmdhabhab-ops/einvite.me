@@ -3636,12 +3636,27 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
         <div className="mb-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
           <div>
             <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Full screen</div>
-            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Covers the entire phone screen instead of a positioned block, showing the whole {current.type} with no cropping</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Covers the entire phone screen instead of a positioned block</div>
           </div>
           <SegmentedToggle
             value={current.fullScreen ? "on" : "off"}
-            onChange={(v) => onChangeStyle({ fullScreen: v === "on", noCrop: v === "on" })}
+            onChange={(v) => onChangeStyle({ fullScreen: v === "on", noCrop: false })}
             options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+          />
+        </div>
+      )}
+      {(current.type === "video" || current.type === "image") && current.fullScreen && (
+        <div className="-mt-1 mb-3 flex items-center justify-between gap-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div>
+            <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>How it fills the screen</div>
+            <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+              {current.noCrop ? `The whole ${current.type} shows; the page background fills any space left around it.` : `Fills the whole screen edge to edge; a little of its sides or top/bottom may be cut off.`}
+            </div>
+          </div>
+          <SegmentedToggle
+            value={current.noCrop ? "fit" : "fill"}
+            onChange={(v) => onChangeStyle({ noCrop: v === "fit" })}
+            options={[{ value: "fill", label: "Fill" }, { value: "fit", label: "Fit" }]}
           />
         </div>
       )}
