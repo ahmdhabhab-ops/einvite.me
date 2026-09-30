@@ -4117,8 +4117,13 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
       <Select
         value={intro.type}
         onChange={(v) => updateIntro({ type: v })}
-        options={[{ value: "button", label: "Tap to start button" }, { value: "animation", label: "Animation" }, { value: "seal", label: "Wax seal envelope" }]}
+        options={[{ value: "button", label: "Tap to start button" }, { value: "animation", label: "Animation" }, { value: "seal", label: "Wax seal envelope" }, { value: "none", label: "No intro — open the invitation directly" }]}
       />
+      {intro.type === "none" && (
+        <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          Guests land straight on the first page. Music (if on) starts at their first tap or swipe, since phones don't allow sound before that.
+        </p>
+      )}
 
       {intro.type === "seal" && (
         <div className="mt-3">
@@ -4169,6 +4174,8 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
         </div>
       )}
 
+      {/* Nothing below applies without an intro screen. */}
+      {intro.type !== "none" && (<>
       <div className="mt-4">
         <FieldLabel>Tap to start text ({LANG_META[activeLang].short})</FieldLabel>
         <TextInput value={c.tapText} onChange={(v) => updateContent({ tapText: v })} placeholder="TAP TO START" />
@@ -4272,6 +4279,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
           )}
         </div>
       </div>
+      </>)}
     </div>
 
   );
@@ -8214,7 +8222,10 @@ function useWarmInvitationAssets(data, lang, steps, enabled) {
   }, [data, lang, steps, enabled]);
 }
 
-function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
+function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMode, onMoveBlock, started: startedProp, onStart, selectedBlockId, onSelectBlock, onMoveCustomBlock, onRemoveCustomBlock, onDuplicateCustomBlock, onMoveLocation, onSubmitRsvp, fullscreen, slug, siteDomain, prefilledGuestName, prefilledRsvpStatus, guestGroupId, invitedNames, invitedTitle, invitedExtra, onUpdateRsvpContent, swipeDirection = "vertical", sliderDragging = false }) {
+  // "No intro" (Cover & Intro): the invitation is open from the start.
+  const noIntro = data.intro?.type === "none";
+  const started = startedProp || noIntro;
   const [playing, setPlaying] = useState(false);
   const cardRef = useRef(null);
   const wrapRef = useRef(null);
@@ -8382,6 +8393,15 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
     audioRef.current.play().catch(() => {});
     setPlaying(true);
   };
+  // "No intro": the invitation is open from the start. With no tap to hang
+  // the music on, it starts at the guest's first touch instead.
+  useEffect(() => {
+    if (!noIntro || !fullscreen) return;
+    const start = () => { startMusicOnTap(); remove(); };
+    const remove = () => ["pointerdown", "keydown", "touchstart"].forEach((ev) => window.removeEventListener(ev, start));
+    ["pointerdown", "keydown", "touchstart"].forEach((ev) => window.addEventListener(ev, start, { once: true }));
+    return remove;
+  }, [noIntro, fullscreen, data.music.enabled, data.music.url]);
 
   const introMedia = data.intro.media[lang];
   // Admin-adjustable via the "Transition speed" control in CoverStep — how
