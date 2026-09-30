@@ -22,13 +22,31 @@ import { LANDING_TEXT, LANDING_LANGS, LANDING_LANG_NAMES, LANDING_EDITORIAL } fr
 /* Tokens                                                                  */
 /* ---------------------------------------------------------------------- */
 
-const INK = "#161F1B";
-const INK_2 = "#1E2B25";
-const INK_3 = "#28382F";
+// The app's own screens (builder, dashboard, login) read these through CSS
+// variables: dark by default, switched to the light home-page look while
+// the builder is open (LightUiScope), and set back to dark on the phone
+// preview (UI_DARK) so an invitation always looks exactly as guests see it.
+const UI_DARK = { "--ui-ink": "#161F1B", "--ui-ink-2": "#1E2B25", "--ui-ink-3": "#28382F", "--ui-ivory": "#F4EDE4", "--ui-muted": "#93A69B", "--ui-gold-soft": "#E4CE95", "--ui-error": "#E29B9B", "--ui-ok": "#8FBFA3" };
+const UI_LIGHT = { "--ui-ink": "#F5F0E7", "--ui-ink-2": "#FFFFFF", "--ui-ink-3": "#EEE6D8", "--ui-ivory": "#1C3B33", "--ui-muted": "#5F6D65", "--ui-gold-soft": "#9C7433", "--ui-error": "#B04848", "--ui-ok": "#2F7A55" };
+const INK = "var(--ui-ink, #161F1B)";
+const INK_2 = "var(--ui-ink-2, #1E2B25)";
+const INK_3 = "var(--ui-ink-3, #28382F)";
 const GOLD = "#C9A44C";
-const GOLD_SOFT = "#E4CE95";
-const IVORY = "#F4EDE4";
-const MUTED = "#93A69B";
+const GOLD_SOFT = "var(--ui-gold-soft, #E4CE95)";
+const IVORY = "var(--ui-ivory, #F4EDE4)";
+const MUTED = "var(--ui-muted, #93A69B)";
+const UI_ERROR = "var(--ui-error, #E29B9B)";
+const UI_OK = "var(--ui-ok, #8FBFA3)";
+// Switches the page to the light look while mounted (on the root, so
+// pop-ups rendered outside the builder's own box follow it too).
+function LightUiScope() {
+  React.useLayoutEffect(() => {
+    const root = document.documentElement;
+    Object.entries(UI_LIGHT).forEach(([k, v]) => root.style.setProperty(k, v));
+    return () => Object.keys(UI_LIGHT).forEach((k) => root.style.removeProperty(k));
+  }, []);
+  return null;
+}
 const PAPER = "#FBF1E7";
 const PAPER_2 = "#F1E2D2";
 const EMERALD = "#24463D";
@@ -2571,7 +2589,7 @@ const groupIsConfirmed = (group) => group.members.some((m) => m.status === "yes"
 
 const USER_ROLES = {
   owner: { label: "Owner", color: GOLD },
-  couple: { label: "Couple", color: "#8FBFA3" },
+  couple: { label: "Couple", color: UI_OK },
   normal: { label: "Normal", color: MUTED },
 };
 
@@ -2668,7 +2686,7 @@ function GhostButton({ children, onClick, danger, active }) {
       onClick={onClick}
       className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors"
       style={{
-        color: danger ? "#E29B9B" : active ? INK : GOLD_SOFT,
+        color: danger ? UI_ERROR : active ? INK : GOLD_SOFT,
         background: active ? GOLD : "transparent",
         border: `1px solid ${danger ? "rgba(226,155,155,0.35)" : "rgba(201,164,76,0.35)"}`,
         fontFamily: FONT_BODY,
@@ -4030,7 +4048,7 @@ function MusicLinkImport({ onImport }) {
           Getting the song and converting it to MP3 — this can take up to a minute.
         </p>
       )}
-      {error && <p className="mt-1.5 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+      {error && <p className="mt-1.5 text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Works with most music and video sites. Spotify, Anghami and Apple Music protect their songs, so they can't be converted. Only use music you're allowed to use.
       </p>
@@ -4103,7 +4121,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
           {music.name && (
             <span className="flex items-center gap-1 text-xs" style={{ color: MUTED, fontFamily: FONT_BODY }}>
               <Music2 size={12} /> {music.name}
-              <button onClick={onRemoveAudio} className="ml-1" style={{ color: "#E29B9B" }}>
+              <button onClick={onRemoveAudio} className="ml-1" style={{ color: UI_ERROR }}>
                 <X size={12} />
               </button>
             </span>
@@ -4279,7 +4297,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
                   {item.type === "video" && <Film size={16} style={{ color: GOLD_SOFT }} />}
                   {picked && (
                     <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full" style={{ background: GOLD }}>
-                      <Check size={10} color={INK} />
+                      <Check size={10} style={{ color: INK }} />
                     </div>
                   )}
                 </button>
@@ -4290,7 +4308,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
                     style={{ background: INK, border: `1px solid rgba(226,155,155,0.6)` }}
                     title="Remove from library"
                   >
-                    <X size={10} color="#E29B9B" />
+                    <X size={10} style={{ color: UI_ERROR }} />
                   </button>
                 )}
               </div>
@@ -4435,7 +4453,7 @@ function TimelineStep({ items, update, activeLang, bg, setBg }) {
                   </button>
                 ))}
               </div>
-              <button onClick={() => removeItem(item.id)} style={{ color: "#E29B9B" }}>
+              <button onClick={() => removeItem(item.id)} style={{ color: UI_ERROR }}>
                 <Trash2 size={15} />
               </button>
             </div>
@@ -4484,7 +4502,7 @@ function LocationsStep({ items, update, activeLang, bg, setBg }) {
               <button onClick={() => duplicateItem(item.id)} title="Duplicate" style={{ color: GOLD_SOFT }}>
                 <Copy size={15} />
               </button>
-              <button onClick={() => removeItem(item.id)} style={{ color: "#E29B9B" }}>
+              <button onClick={() => removeItem(item.id)} style={{ color: UI_ERROR }}>
                 <Trash2 size={15} />
               </button>
             </div>
@@ -4517,7 +4535,7 @@ function LocationsStep({ items, update, activeLang, bg, setBg }) {
               </div>
             )}
             {item.invisible && !String(item.address || "").trim() && (
-              <p className="mt-1.5 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Add the address above, so tapping it opens the map.</p>
+              <p className="mt-1.5 text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Add the address above, so tapping it opens the map.</p>
             )}
           </div>
         ))}
@@ -4871,14 +4889,14 @@ function HiddenStreamVideoSetter({ slug }) {
     <div className="rounded-lg p-3" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
       <FieldLabel>Real stream link (kept hidden from guests' page source)</FieldLabel>
       {savedInfo?.videoId ? (
-        <p className="mb-2 text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>
+        <p className="mb-2 text-[10.5px]" style={{ color: UI_OK, fontFamily: FONT_BODY }}>
           Currently saved — a {savedInfo.provider === "vimeo" ? "Vimeo" : "YouTube"} video is set.
         </p>
       ) : status !== "loading" ? (
         <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Nothing saved yet.</p>
       ) : null}
       <TextInput value={videoUrl} onChange={setVideoUrl} placeholder="https://youtube.com/watch?v=… or a Vimeo link" />
-      {error && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+      {error && <p className="mt-2 text-[10.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
       <div className="mt-2">
         <GhostButton onClick={save} active={status === "saved"}>
           {status === "saving" ? "Saving…" : status === "saved" ? "Saved ✓" : "Save hidden link"}
@@ -5081,7 +5099,7 @@ function RegistryStep({ items, update, activeLang, defaultLang, bg, setBg }) {
               <div className="flex-1">
                 <TextInput value={registryLabel(item, activeLang) || ""} onChange={(v) => setLabel(item, v)} placeholder="Registry name" />
               </div>
-              <button onClick={() => removeItem(item.id)} style={{ color: "#E29B9B" }}>
+              <button onClick={() => removeItem(item.id)} style={{ color: UI_ERROR }}>
                 <Trash2 size={15} />
               </button>
             </div>
@@ -5737,7 +5755,7 @@ function ImageEditModal({ url, tool, onClose, onSave }) {
           <button onClick={onClose} disabled={saving} style={{ color: MUTED }}><X size={16} /></button>
         </div>
         {error ? (
-          <p className="py-10 text-center text-[13px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>
+          <p className="py-10 text-center text-[13px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>
         ) : !loaded ? (
           <p className="py-10 text-center text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Opening the image…</p>
         ) : tool === "crop" ? (
@@ -6226,7 +6244,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
       <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
       <button onClick={onDuplicate} title="Duplicate" style={{ color: GOLD_SOFT }}><Copy size={11} /></button>
       <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.25)" }} />
-      <button onClick={onDelete} title="Delete" style={{ color: "#E29B9B" }}><Trash2 size={12} /></button>
+      <button onClick={onDelete} title="Delete" style={{ color: UI_ERROR }}><Trash2 size={12} /></button>
     </div>
   );
 
@@ -7009,11 +7027,11 @@ function VoiceMessageRecorder({ rsvpStatus, guestName, slug, guestGroupId, onDon
               </div>
             )}
             {status === "uploading" && <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{texts.voiceSending}</p>}
-            {status === "sent" && <p className="mt-2 text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>{texts.voiceSent}</p>}
+            {status === "sent" && <p className="mt-2 text-[10.5px]" style={{ color: UI_OK, fontFamily: FONT_BODY }}>{texts.voiceSent}</p>}
           </div>
         )}
 
-        {error && <p className="mt-2 text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        {error && <p className="mt-2 text-[10px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
 
         {status !== "uploading" && status !== "sent" && (
           <button onClick={onSkip} className="mt-3 block w-full text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
@@ -7283,7 +7301,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             </div>
           )}
           {extras && extrasCounted.length > 0 && summary}
-          {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
+          {error && <p className="mt-1 text-center text-[10px]" style={{ color: UI_ERROR, fontFamily: formFont }}>{error}</p>}
           {submitButton(light, submitPersonal, !!choice, "mt-3")}
         </div>
       );
@@ -7312,7 +7330,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           {extraRows(light, text, line, true)}
         </div>
         {summary}
-        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
+        {error && <p className="mt-1 text-center text-[10px]" style={{ color: UI_ERROR, fontFamily: formFont }}>{error}</p>}
         {submitButton(light, submitPersonal, true, "mt-2")}
       </div>
     );
@@ -7455,7 +7473,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             )}
           </>
         )}
-        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
+        {error && <p className="mt-1 text-center text-[10px]" style={{ color: UI_ERROR, fontFamily: formFont }}>{error}</p>}
         {submitButton(light, submitCount, !!choice)}
       </div>
     );
@@ -7660,7 +7678,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       ))}
                     </div>
                   )}
-                  {error && <p className="mt-2 text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
+                  {error && <p className="mt-2 text-center text-[10.5px]" style={{ color: UI_ERROR, fontFamily: formFont }}>{error}</p>}
                   {submitButton(light, submit, !!choice)}
                 </>
               )}
@@ -7833,7 +7851,7 @@ function DjRequestSlide({ heading, subtitle, formText, slug, bg, fontDisplay, la
       <input className="dj-field" dir="auto" value={songName} onChange={(e) => setSongName(e.target.value)} placeholder={formText.song} disabled={editMode} style={inputStyle(light)} />
       <input className="dj-field" dir="auto" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder={formText.artist} disabled={editMode} style={inputStyle(light)} />
       <input className="dj-field" dir="auto" value={requesterName} onChange={(e) => setRequesterName(e.target.value)} placeholder={formText.name} disabled={editMode} style={inputStyle(light)} />
-      {error && <p style={{ color: "#E29B9B", fontSize: 10.5, marginBottom: 6, fontFamily: FONT_BODY }}>{error}</p>}
+      {error && <p style={{ color: UI_ERROR, fontSize: 10.5, marginBottom: 6, fontFamily: FONT_BODY }}>{error}</p>}
       <button
         onClick={submit}
         disabled={submitting || editMode}
@@ -8936,7 +8954,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         @keyframes eqBar { from { height: 3px; } to { height: 9px; } }
         @keyframes gateFloat { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-620px) rotate(25deg); opacity: 0; } }
       `}</style>
-    <div ref={wrapRef} className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { width: "100%", minHeight: "100dvh", background: INK } : undefined}>
+    <div ref={wrapRef} className={fullscreen ? "flex flex-col items-center justify-center" : "relative inline-flex flex-col items-center"} style={fullscreen ? { ...UI_DARK, width: "100%", minHeight: "100dvh", background: INK } : undefined}>
       {/* Temporary: ?debug=1 on a guest link shows the live scale numbers
           this device actually computed, to verify the compression math
           against a real report without guessing. Safe to remove once the
@@ -8951,8 +8969,8 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
         className={fullscreen ? "relative" : "relative flex-shrink-0"}
         style={
           fullscreen
-            ? { width: fsScale * 292, height: fsScale * canvasDesignHeight, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
-            : { width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden" }
+            ? { ...UI_DARK, width: fsScale * 292, height: fsScale * canvasDesignHeight, margin: "0 auto", background: PAPER, padding: 0, boxShadow: "none", overflow: "hidden" }
+            : { ...UI_DARK, width: 292, height: 600, background: "#000", borderRadius: 26, padding: 6, overflow: "hidden" }
         }
       >
         <div
@@ -9079,11 +9097,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                   style={{ bottom: "calc(100% + 8px)", background: INK, border: `1px solid ${GOLD}` }}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <Move size={10} color={GOLD_SOFT} />
+                  <Move size={10} style={{ color: GOLD_SOFT }} />
                   <span className="text-[10px] font-semibold" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>{groupSelectedIds.length} selected</span>
 
                   {groupHasDeletable && (
-                    <button onClick={deleteGroupSelection} title="Delete the custom elements in this selection" style={{ color: "#E29B9B" }}>
+                    <button onClick={deleteGroupSelection} title="Delete the custom elements in this selection" style={{ color: UI_ERROR }}>
                       <Trash2 size={12} />
                     </button>
                   )}
@@ -9505,12 +9523,12 @@ function MessageNamesField({ integrations, updateIntegrations, highlight }) {
   return (
     <div id="message-names-field" className="flex flex-wrap items-center gap-3 rounded-2xl p-4" style={{ background: INK_2, border: missing && highlight ? "1px solid #E29B9B" : `1px solid rgba(201,164,76,0.12)` }}>
       <div className="min-w-[200px] flex-1">
-        <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names in WhatsApp messages <span style={{ color: "#E29B9B" }}>*</span></div>
+        <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Names in WhatsApp messages <span style={{ color: UI_ERROR }}>*</span></div>
         <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
           Used in "…celebrate the wedding of <span style={{ color: GOLD_SOFT }}>{String(value).trim() || "…"}</span>". Only in messages — it doesn't change your design.
         </div>
         {missing && (
-          <div className="mt-1 text-[11px]" style={{ color: highlight ? "#E29B9B" : "#E4CE95", fontFamily: FONT_BODY }}>
+          <div className="mt-1 text-[11px]" style={{ color: highlight ? UI_ERROR : GOLD_SOFT, fontFamily: FONT_BODY }}>
             Required — WhatsApp messages can't be sent until you fill this in.
           </div>
         )}
@@ -9605,7 +9623,7 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
           </div>
           <div className="mt-3">
             <GhostButton onClick={loadTemplates}>{loadingTemplates ? "Loading…" : "Load my templates from WhatsApp"}</GhostButton>
-            {templatesError && <p className="mt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{templatesError}</p>}
+            {templatesError && <p className="mt-2 text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{templatesError}</p>}
             {templates && (
               <div className="mt-2 overflow-hidden rounded-lg" style={{ border: `1px solid ${INK_3}` }}>
                 {templates.length === 0 && <p className="p-3 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>WhatsApp returned no templates for this number's account.</p>}
@@ -9620,7 +9638,7 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
                       style={{ background: chosen ? "rgba(201,164,76,0.14)" : "transparent", borderBottom: `1px solid ${INK_3}`, color: IVORY, fontFamily: FONT_BODY }}
                     >
                       <span className="truncate"><strong>{tp.name}</strong> <span style={{ color: MUTED }}>· {tp.language} · {tp.variables} variable{tp.variables === 1 ? "" : "s"}{tp.imageHeader ? " · image" : ""}{tp.urlButton ? " · link button" : ""}</span></span>
-                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: approved ? "rgba(143,191,163,0.2)" : "rgba(226,155,155,0.2)", color: approved ? "#8FBFA3" : "#E29B9B" }}>{tp.status}</span>
+                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold" style={{ background: approved ? "rgba(143,191,163,0.2)" : "rgba(226,155,155,0.2)", color: approved ? UI_OK : UI_ERROR }}>{tp.status}</span>
                     </button>
                   );
                 })}
@@ -9652,12 +9670,12 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
                 </div>
               )}
               {wt.urlButton && (
-                <p className="mt-2 text-[11px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+                <p className="mt-2 text-[11px]" style={{ color: UI_OK, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
                   The link button opens each guest's own invitation ({wt.urlButton.base}…).
                 </p>
               )}
               {!wt.urlButton && !waTemplateVars(wt).includes("link") && (
-                <p className="mt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+                <p className="mt-2 text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
                   Guests won't get their invitation link with this template. In WhatsApp Manager, add a variable for it in the text, or a "Visit website" button with a dynamic URL like https://cores.einvite.me/{"{{1}}"}.
                 </p>
               )}
@@ -9794,7 +9812,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }}>
             <ImagePlus size={13} /> {ogUploading ? "Uploading…" : og.image ? "Replace image" : "Upload image"}
           </span>
-          {ogUploadError && <span className="text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{ogUploadError}</span>}
+          {ogUploadError && <span className="text-[10.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{ogUploadError}</span>}
           {og.image && (
             <button onClick={(e) => { e.preventDefault(); setOg((o) => ({ ...o, image: null })); }} className="text-left text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
               Remove image
@@ -9817,7 +9835,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
       <FieldLabel>Shareable link</FieldLabel>
       <div className="flex items-center gap-2">
         <div className="flex flex-1 items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: INK_3 }}>
-          <Link2 size={13} color={MUTED} />
+          <Link2 size={13} style={{ color: MUTED }} />
           <span className="select-all text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{link}</span>
         </div>
         <GhostButton onClick={copyLink}>
@@ -9825,7 +9843,7 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
         </GhostButton>
       </div>
       {copyState === "failed" && (
-        <p className="mt-1.5 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+        <p className="mt-1.5 text-[10.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>
           Couldn't copy automatically — tap the link above to select it, then copy manually.
         </p>
       )}
@@ -9834,10 +9852,10 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
           <p className="text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
             This link doesn't match the couple's current names. It would become <span style={{ color: GOLD_SOFT }}>https://{siteDomain}/e/{nameBasedSlugPreview}</span> instead.
           </p>
-          <p className="mt-1 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+          <p className="mt-1 text-[10.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>
             Updating breaks any link already sent to guests — only do this before sending invitations out.
           </p>
-          <p className="mt-1 text-[10.5px] font-semibold" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+          <p className="mt-1 text-[10.5px] font-semibold" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>
             Make sure the couple's names on the Cover page are saved first — this button only updates the link itself, not the names it's based on.
           </p>
           <button
@@ -10162,7 +10180,7 @@ function VoiceMessagesPanel({ slug }) {
                   <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{m.guest_name}</span>
                   <span
                     className="rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase"
-                    style={m.rsvp_status === "yes" ? { background: "rgba(143,191,163,0.18)", color: CHART_COLORS.yes } : { background: "rgba(224,155,155,0.18)", color: "#E29B9B" }}
+                    style={m.rsvp_status === "yes" ? { background: "rgba(143,191,163,0.18)", color: CHART_COLORS.yes } : { background: "rgba(224,155,155,0.18)", color: UI_ERROR }}
                   >
                     {m.rsvp_status === "yes" ? "Attending" : "Not Attending"}
                   </span>
@@ -10300,14 +10318,14 @@ function CheckinPanel({ slug, siteDomain }) {
         </div>
       </div>
 
-      {loadError && <p className="mb-4 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{loadError}</p>}
+      {loadError && <p className="mb-4 text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{loadError}</p>}
 
       {/* The video/canvas are always mounted (just hidden via CSS when idle) rather than
           conditionally rendered — otherwise videoRef.current is still null the moment
           startCamera() tries to attach the just-granted camera stream to it, since React
           hasn't committed the <video> node yet at that point in the async flow. */}
       <div className="mb-5 rounded-xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.2)`, display: (scanning || scanResult || cameraError) ? "block" : "none" }}>
-        {cameraError && <p className="text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{cameraError}</p>}
+        {cameraError && <p className="text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{cameraError}</p>}
         <div style={{ display: scanning ? "block" : "none" }}>
           <div style={{ position: "relative", width: "100%", maxWidth: 320, margin: "0 auto", borderRadius: 12, overflow: "hidden", background: "#000" }}>
             <video ref={videoRef} playsInline muted style={{ width: "100%", display: "block" }} />
@@ -10322,7 +10340,7 @@ function CheckinPanel({ slug, siteDomain }) {
           <div className="text-center">
             {scanResult.status === "invalid" ? (
               <>
-                <XCircle size={32} color="#E29B9B" style={{ margin: "0 auto 8px" }} />
+                <XCircle size={32} style={{ color: UI_ERROR, margin: "0 auto 8px" }} />
                 <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Not a valid check-in code</p>
               </>
             ) : scanResult.status === "already" ? (
@@ -10334,7 +10352,7 @@ function CheckinPanel({ slug, siteDomain }) {
               </>
             ) : (
               <>
-                <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 8px" }} />
+                <CheckCircle2 size={32} style={{ color: UI_OK, margin: "0 auto 8px" }} />
                 <p className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Checked in</p>
                 <p className="mt-1 text-[15px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 600 }}>{scanResult.name}</p>
               </>
@@ -10364,7 +10382,7 @@ function CheckinPanel({ slug, siteDomain }) {
                   <span className="text-[12.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{r.guest_names}</span>
                   <div className="flex items-center gap-2">
                     {r.checked_in_at ? (
-                      <span className="text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Checked in · {new Date(r.checked_in_at).toLocaleString()}</span>
+                      <span className="text-[10.5px]" style={{ color: UI_OK, fontFamily: FONT_BODY }}>Checked in · {new Date(r.checked_in_at).toLocaleString()}</span>
                     ) : (
                       <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Not arrived yet</span>
                     )}
@@ -10386,7 +10404,7 @@ function CheckinPanel({ slug, siteDomain }) {
                     <button
                       onClick={async () => { const ok = await copyToClipboard(checkinLink); setCopiedQrId(ok ? r.id : null); setTimeout(() => setCopiedQrId(null), 2000); }}
                       className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold"
-                      style={{ background: INK_3, color: copiedQrId === r.id ? "#8FBFA3" : IVORY, fontFamily: FONT_BODY }}
+                      style={{ background: INK_3, color: copiedQrId === r.id ? UI_OK : IVORY, fontFamily: FONT_BODY }}
                     >
                       <Copy size={11} /> {copiedQrId === r.id ? "Copied!" : "Copy link"}
                     </button>
@@ -10485,7 +10503,7 @@ function PublishPaywallModal({ userId, invitationSlug, currentPackageTier, onClo
                 </button>
               ))}
             </div>
-            {error && <p className="mt-4 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+            {error && <p className="mt-4 text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
             <button
               onClick={startPayment}
               disabled={paying || selectedTier === currentPackageTier}
@@ -10589,7 +10607,7 @@ function NetworkingApprovalPanel({ slug }) {
                   className="rounded-full px-2.5 py-1 text-[9.5px] font-bold uppercase"
                   style={
                     c.status === "accepted" ? { background: "rgba(143,191,163,0.18)", color: CHART_COLORS.yes }
-                    : c.status === "declined" ? { background: "rgba(224,155,155,0.18)", color: "#E29B9B" }
+                    : c.status === "declined" ? { background: "rgba(224,155,155,0.18)", color: UI_ERROR }
                     : { background: "rgba(201,164,76,0.18)", color: GOLD_SOFT }
                   }
                 >
@@ -10883,7 +10901,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
                   cursor: "grab", userSelect: "none",
                 }}
               >
-                <Icon size={16} color={MUTED} />
+                <Icon size={16} style={{ color: MUTED }} />
                 <span className="text-[9.5px] font-medium uppercase" style={{ color: MUTED, letterSpacing: "0.05em", fontFamily: FONT_BODY }}>{el.label}</span>
                 {isSel && (
                   <div
@@ -10915,12 +10933,12 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
                   style={{
                     borderRadius: t.shape === "round" ? "50%" : 8,
                     background: isSel ? "rgba(201,164,76,0.28)" : INK_2,
-                    border: `2px solid ${isSel ? GOLD : over ? "#E29B9B" : "rgba(201,164,76,0.35)"}`,
+                    border: `2px solid ${isSel ? GOLD : over ? UI_ERROR : "rgba(201,164,76,0.35)"}`,
                     cursor: "grab", userSelect: "none", padding: 4, boxShadow: "0 4px 10px -4px rgba(0,0,0,0.4)",
                   }}
                 >
                   <span className="truncate text-[10.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY, maxWidth: size.width - 10 }}>{t.name}</span>
-                  <span className="text-[9px]" style={{ color: over ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>{count}/{t.capacity}</span>
+                  <span className="text-[9px]" style={{ color: over ? UI_ERROR : MUTED, fontFamily: FONT_BODY }}>{count}/{t.capacity}</span>
                 </div>
                 {isSel && (
                   <div
@@ -10985,7 +11003,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
                     seatedAt(selectedTable.id).map((g) => (
                       <div key={g.id} className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5" style={{ background: INK_3 }}>
                         <span className="truncate text-[11.5px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>{guestLabel(g)}</span>
-                        <button onClick={() => onAssignGuest(g.id, null)} title="Remove from this table" style={{ color: "#E29B9B", flexShrink: 0 }}><X size={12} /></button>
+                        <button onClick={() => onAssignGuest(g.id, null)} title="Remove from this table" style={{ color: UI_ERROR, flexShrink: 0 }}><X size={12} /></button>
                       </div>
                     ))
                   )}
@@ -11038,7 +11056,7 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
                     {assignedTable ? (
                       <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "rgba(143,191,163,0.15)", color: CHART_COLORS.yes, fontFamily: FONT_BODY }}>{assignedTable.name}</span>
                     ) : (
-                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "rgba(226,155,155,0.15)", color: "#E29B9B", fontFamily: FONT_BODY }}>Unassigned</span>
+                      <span className="flex-shrink-0 rounded-full px-2 py-0.5 text-[9.5px]" style={{ background: "rgba(226,155,155,0.15)", color: UI_ERROR, fontFamily: FONT_BODY }}>Unassigned</span>
                     )}
                   </div>
                 );
@@ -11352,11 +11370,11 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
   return (
     <div className="mx-auto max-w-6xl">
       {/* Hero banner */}
-      <div className="mb-6 overflow-hidden rounded-2xl p-8 text-center" style={{ background: "linear-gradient(150deg, #1B2440 0%, #202C52 55%, #12182E 100%)", border: `1px solid rgba(201,164,76,0.2)` }}>
-        <Users size={22} color={ROSE} style={{ margin: "0 auto 8px" }} />
-        <h2 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Guests</h2>
+      <div className="mb-6 overflow-hidden rounded-2xl p-8 text-center" style={{ background: "linear-gradient(150deg, #24473E 0%, #1C3B33 55%, #162E28 100%)", border: `1px solid rgba(201,164,76,0.2)` }}>
+        <Users size={22} color={GOLD} style={{ margin: "0 auto 8px" }} />
+        <h2 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: "#F5F0E7" }}>Guests</h2>
         <p className="mt-1 text-[12px]" style={{ color: "rgba(244,237,228,0.7)", fontFamily: FONT_BODY }}>Manage your guest list and track RSVPs — {coupleTitle}</p>
-        <span className="mt-3 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "rgba(226,155,183,0.15)", color: "#E8A9C8", fontFamily: FONT_BODY }}>
+        <span className="mt-3 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: "rgba(201,164,76,0.18)", color: "#E8D5B0", fontFamily: FONT_BODY }}>
           {totalInvited} guests
         </span>
       </div>
@@ -11444,7 +11462,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                 const ok = await copyToClipboard(link); setCopiedCheckinStaffLink(ok); setTimeout(() => setCopiedCheckinStaffLink(false), 2000);
               }}
               className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[11.5px] font-semibold"
-              style={{ background: copiedCheckinStaffLink ? "rgba(143,191,163,0.18)" : GOLD, color: copiedCheckinStaffLink ? "#8FBFA3" : INK, fontFamily: FONT_BODY }}
+              style={{ background: copiedCheckinStaffLink ? "rgba(143,191,163,0.18)" : GOLD, color: copiedCheckinStaffLink ? UI_OK : INK, fontFamily: FONT_BODY }}
             >
               <Copy size={12} /> {copiedCheckinStaffLink ? "Copied!" : "Copy staff link"}
             </button>
@@ -11486,7 +11504,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
             </div>
           </div>
           <TextInput value={phone} onChange={setPhone} placeholder="Phone (required)" />
-          {addGuestError && <p className="text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{addGuestError}</p>}
+          {addGuestError && <p className="text-[10.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{addGuestError}</p>}
           <GoldButton onClick={submitAddGuest}><Plus size={14} /> Add guest</GoldButton>
         </div>
       </div>
@@ -11521,7 +11539,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                 <div key={link.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg p-2.5" style={{ background: INK_3 }}>
                   <div>
                     <div className="text-[12.5px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>{link.label}</div>
-                    <div className="text-[10.5px]" style={{ color: full ? "#E29B9B" : MUTED, fontFamily: FONT_BODY }}>
+                    <div className="text-[10.5px]" style={{ color: full ? UI_ERROR : MUTED, fontFamily: FONT_BODY }}>
                       {count} / {link.maxGuests || "∞"} confirmed{full ? " — full" : ""}
                     </div>
                   </div>
@@ -11529,7 +11547,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                     <GhostButton onClick={() => copyBatchLink(link)}>
                       <Copy size={11} /> {copiedBatchId === link.id ? "Copied!" : "Copy link"}
                     </GhostButton>
-                    <button onClick={() => deleteOpenInviteLink(link.id)} title="Delete this link" className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "#E29B9B" }}>
+                    <button onClick={() => deleteOpenInviteLink(link.id)} title="Delete this link" className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: UI_ERROR }}>
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -11580,7 +11598,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
 
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg px-3 py-1.5" style={{ background: INK_3, flex: 1, minWidth: 160 }}>
-            <Search size={12} color={MUTED} />
+            <Search size={12} style={{ color: MUTED }} />
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Search by name" className="w-full bg-transparent text-[12px] outline-none" style={{ color: IVORY, fontFamily: FONT_BODY }} />
           </div>
           {["all", "yes", "no", "pending"].map((f) => (
@@ -11636,7 +11654,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                     <tr key={g.id} className="border-b" style={{ borderColor: "rgba(147,166,155,0.08)" }}>
                       <td colSpan={10} className="px-2 py-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Delete {groupFullName(g) || "this guest"}?</span>
+                          <span className="text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Delete {groupFullName(g) || "this guest"}?</span>
                           <GhostButton danger onClick={() => { deleteGuestGroup(g.id); setConfirmDeleteId(null); }}>Yes, delete</GhostButton>
                           <GhostButton onClick={() => setConfirmDeleteId(null)}>Cancel</GhostButton>
                         </div>
@@ -11681,7 +11699,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                         onChange={(e) => updateGuestGroup(g.id, { phone: e.target.value })}
                         placeholder="Phone"
                         className="w-full rounded-md bg-transparent px-1 py-0.5 text-[12px] outline-none"
-                        style={{ color: g.phone ? IVORY : "#E29B9B", fontFamily: FONT_BODY }}
+                        style={{ color: g.phone ? IVORY : UI_ERROR, fontFamily: FONT_BODY }}
                       />
                     </td>
                     <td className="px-2 py-0.5 text-center">
@@ -11729,7 +11747,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                             className="flex h-5 w-5 items-center justify-center rounded"
                             style={{
                               background: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "rgba(143,191,163,0.2)" : whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
-                              color: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? CHART_COLORS.yes : whatsappResults[g.id] === "error" ? "#E29B9B" : GOLD_SOFT,
+                              color: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? CHART_COLORS.yes : whatsappResults[g.id] === "error" ? UI_ERROR : GOLD_SOFT,
                               opacity: sendingWhatsAppIds.has(g.id) ? 0.5 : 1,
                             }}
                           >
@@ -11744,7 +11762,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                               whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? "Failed to deliver" : "Sent"
                             }
                             className="flex h-5 w-5 items-center justify-center"
-                            style={{ color: whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "#53BDEB" : whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? "#E29B9B" : "rgba(147,166,155,0.7)" }}
+                            style={{ color: whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "#53BDEB" : whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? UI_ERROR : "rgba(147,166,155,0.7)" }}
                           >
                             {whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? <XCircle size={12} /> :
                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "sent" ? <Check size={12} /> : <CheckCheck size={12} />}
@@ -11800,7 +11818,7 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
               <div className="-mt-2 mb-3"><NonRefundableNote /></div>
               </>
             ) : (
-              <p className="mb-3 text-[12px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>No payment link has been set up yet — contact support.</p>
+              <p className="mb-3 text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>No payment link has been set up yet — contact support.</p>
             )}
             <button onClick={() => setShowReminderUnlockModal(false)} className="mb-4 w-full text-center text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Cancel</button>
             <div className="flex items-center gap-2">
@@ -11831,7 +11849,7 @@ function OverviewStatCard({ icon: Icon, iconBg, value, label }) {
   return (
     <div className="flex items-center gap-3 rounded-xl p-3.5" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
       <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: iconBg }}>
-        <Icon size={16} color={IVORY} />
+        <Icon size={16} style={{ color: IVORY }} />
       </div>
       <div>
         <div className="text-lg font-semibold" style={{ color: IVORY, fontFamily: FONT_DISPLAY }}>{value}</div>
@@ -11963,7 +11981,7 @@ function EventOverviewView({
             <ImagePlus size={13} /> {ogUploading ? "Uploading…" : "Upload photo"}
           </GhostUploadButton>
         </div>
-        {ogUploadError && <p className="mt-2 text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{ogUploadError}</p>}
+        {ogUploadError && <p className="mt-2 text-[10.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{ogUploadError}</p>}
         <div className="mt-3">
           <FieldLabel>Share description</FieldLabel>
           <TextArea value={og.description} onChange={(v) => setOg((o) => ({ ...o, description: v }))} rows={2} placeholder="A short line guests see when the link is shared" />
@@ -12083,7 +12101,7 @@ function UsersView({ users, invitationsStore, onDelete, onToggleStatus, onCreate
 
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
         <div className="flex flex-1 items-center gap-2 rounded-lg px-3 py-2" style={{ background: INK_3, minWidth: 180 }}>
-          <Search size={13} color={MUTED} />
+          <Search size={13} style={{ color: MUTED }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or email" className="w-full bg-transparent text-sm outline-none" style={{ color: IVORY, fontFamily: FONT_BODY }} />
         </div>
         {["all", "owner", "couple", "normal"].map((r) => (
@@ -12174,7 +12192,7 @@ function UsersView({ users, invitationsStore, onDelete, onToggleStatus, onCreate
 
               {confirming ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Delete {u.name}?</span>
+                  <span className="text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Delete {u.name}?</span>
                   <GhostButton danger onClick={() => { onDelete(u.id); setConfirmDeleteId(null); }}>Yes, delete</GhostButton>
                   <GhostButton onClick={() => setConfirmDeleteId(null)}>Cancel</GhostButton>
                 </div>
@@ -12231,7 +12249,7 @@ function EventTypePicker({ onChoose, onCancel }) {
             className="flex flex-col items-center gap-2.5 rounded-2xl py-7 transition-transform hover:scale-[1.03]"
             style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}
           >
-            <et.icon size={26} color={GOLD_SOFT} />
+            <et.icon size={26} style={{ color: GOLD_SOFT }} />
             <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{et.name}</span>
           </button>
         ))}
@@ -12373,7 +12391,7 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
                       <button onClick={() => startEdit(d)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: MUTED }} title="Edit name/price">
                         <Settings size={13} />
                       </button>
-                      <button onClick={() => onDeleteDesign(d.id)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: "#E29B9B" }} title="Delete">
+                      <button onClick={() => onDeleteDesign(d.id)} className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: UI_ERROR }} title="Delete">
                         <X size={13} />
                       </button>
                     </div>
@@ -12386,7 +12404,7 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
 
         {done ? (
           <div className="text-center">
-            <CheckCircle2 size={32} color="#8FBFA3" style={{ margin: "0 auto 10px" }} />
+            <CheckCircle2 size={32} style={{ color: UI_OK, margin: "0 auto 10px" }} />
             <p className="text-[13px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>Saved — it's live on /shop now.</p>
             <button onClick={onClose} className="mt-4 rounded-full px-5 py-2 text-[12px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>Done</button>
           </div>
@@ -12560,7 +12578,7 @@ function TemplateShopPage({ mode = "canva" }) {
     return (
       <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ textAlign: "center", maxWidth: 360 }}>
-          <CheckCircle2 size={40} color="#8FBFA3" style={{ margin: "0 auto 14px" }} />
+          <CheckCircle2 size={40} style={{ color: UI_OK, margin: "0 auto 14px" }} />
           <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>Payment confirmed!</h1>
           <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
             {isEditOnWebsite ? "Create your free account to start customizing this design on the website." : "Your design is ready to customize in Canva."}
@@ -12585,7 +12603,7 @@ function TemplateShopPage({ mode = "canva" }) {
         <div style={{ textAlign: "center" }}>
           <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 13 }}>Waiting for payment to complete…</p>
           <p className="mt-2 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>This updates automatically once payment is confirmed — no need to refresh.</p>
-          {error && <p className="mt-3 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+          {error && <p className="mt-3 text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
         </div>
       </div>
     );
@@ -12641,7 +12659,7 @@ function TemplateShopPage({ mode = "canva" }) {
                 <p className="mb-4 text-[13px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY, fontWeight: 700 }}>${selectedTemplate.price}</p>
                 <FieldLabel>Your email (for your purchase confirmation)</FieldLabel>
                 <TextInput type="email" value={buyerEmail} onChange={setBuyerEmail} placeholder="you@example.com" />
-                {error && <p className="mt-2 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+                {error && <p className="mt-2 text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
                 <p className="mb-1.5 mt-4 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Choose how to pay:</p>
                 <button
                   onClick={startPurchase}
@@ -12764,7 +12782,7 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
         >
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
             <div className="flex items-center gap-2">
-              <Sparkles size={16} color={GOLD_SOFT} />
+              <Sparkles size={16} style={{ color: GOLD_SOFT }} />
               <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Ask us anything</span>
             </div>
             <button onClick={() => setOpen(false)} style={{ color: MUTED }}><X size={16} /></button>
@@ -12815,7 +12833,7 @@ function ChatSupportWidget({ context = "shop", onFillForm } = {}) {
         className="flex h-14 w-14 items-center justify-center rounded-full"
         style={{ background: GOLD, boxShadow: "0 10px 30px -8px rgba(201,164,76,0.5)", marginLeft: "auto" }}
       >
-        {open ? <X size={22} color={INK} /> : <Sparkles size={22} color={INK} />}
+        {open ? <X size={22} style={{ color: INK }} /> : <Sparkles size={22} style={{ color: INK }} />}
       </button>
     </div>
   );
@@ -12975,7 +12993,7 @@ function LiveChatWidget({ page, defaultName = "", bottom = 20 }) {
               />
             </div>
           )}
-          {error && <p className="px-4 pt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+          {error && <p className="px-4 pt-2 text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
           <div className="flex items-center gap-2 p-3" style={{ borderTop: conversationId ? `1px solid rgba(201,164,76,0.15)` : "none" }}>
             <input
               value={input}
@@ -13003,7 +13021,7 @@ function LiveChatWidget({ page, defaultName = "", bottom = 20 }) {
         style={{ background: IVORY, boxShadow: "0 10px 30px -8px rgba(0,0,0,0.5)", marginLeft: "auto" }}
         aria-label={open ? "Close chat" : "Chat with us"}
       >
-        {open ? <X size={22} color={INK} /> : <MessageCircle size={24} color={INK} />}
+        {open ? <X size={22} style={{ color: INK }} /> : <MessageCircle size={24} style={{ color: INK }} />}
         {unread && <span className="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full" style={{ background: "#E25B5B", border: `2px solid ${IVORY}` }} />}
       </button>
     </div>
@@ -13151,7 +13169,7 @@ function LiveChatInbox({ chat }) {
           <button onClick={() => saveKey("")} className="text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>Lock</button>
         </div>
         {status === "error" && (
-          <p className="px-4 py-3 text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>
+          <p className="px-4 py-3 text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>
             Couldn't load chats — check that live_chat.sql has been run on the database.
           </p>
         )}
@@ -13208,7 +13226,7 @@ function LiveChatInbox({ chat }) {
                 <ChatBubble key={m.id} mine={m.sender === "admin"} body={m.body} time={formatChatTime(m.created_at)} />
               ))}
             </div>
-            {error && <p className="px-4 pt-2 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+            {error && <p className="px-4 pt-2 text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
             <div className="flex items-center gap-2 p-3" style={{ borderTop: `1px solid rgba(201,164,76,0.15)` }}>
               <input
                 value={reply}
@@ -13456,7 +13474,7 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
                   </button>
                 </div>
               </div>
-              {error && <p className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+              {error && <p className="text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
               <GoldButton type="submit" onClick={submitSignUp}>
                 <UserPlus size={14} /> Sign up
               </GoldButton>
@@ -13510,7 +13528,7 @@ function AuthPreview({ users, onSignUp, onExit, onEnterBuilderAs, dataLoaded, pr
                 <FieldLabel>Password</FieldLabel>
                 <TextInput type="password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} placeholder="••••••••" />
               </div>
-              {error && <p className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+              {error && <p className="text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
               <GoldButton type="submit" onClick={submitLogin}>
                 <LogIn size={14} /> Log in
               </GoldButton>
@@ -13921,7 +13939,7 @@ function SiteContactEditor() {
                 </div>
               </div>
               {value.trim() && (
-                <div className="mt-1 pl-11 text-[10.5px]" style={{ color: url ? MUTED : "#E29B9B", fontFamily: FONT_BODY, wordBreak: "break-all" }}>
+                <div className="mt-1 pl-11 text-[10.5px]" style={{ color: url ? MUTED : UI_ERROR, fontFamily: FONT_BODY, wordBreak: "break-all" }}>
                   {url ? <>Opens: <a href={url} target="_blank" rel="noreferrer" className="underline">{url}</a></> : "That doesn't look right — check it again."}
                 </div>
               )}
@@ -13934,8 +13952,8 @@ function SiteContactEditor() {
           <Check size={14} /> {status === "saving" ? "Saving…" : "Save contact details"}
         </GoldButton>
         {status === "saved" && <span className="text-[11.5px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Saved ✓ — live on the home page</span>}
-        {status === "error" && <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
-        {status === "loadError" && <span className="text-[11.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't load the saved links — refresh the page before editing</span>}
+        {status === "error" && <span className="text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
+        {status === "loadError" && <span className="text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Couldn't load the saved links — refresh the page before editing</span>}
       </div>
     </div>
   );
@@ -14711,7 +14729,7 @@ function QuickRsvpPage({ slug }) {
           </div>
         ) : choice === "no" ? (
           <div>
-            <XCircle size={36} color="#E29B9B" style={{ margin: "0 auto 10px" }} />
+            <XCircle size={36} style={{ color: UI_ERROR, margin: "0 auto 10px" }} />
             <p style={{ color: IVORY, fontFamily: FONT_BODY, fontSize: 14 }}>Thanks for letting us know — you'll be missed!</p>
           </div>
         ) : isPastDeadline ? (
@@ -14723,12 +14741,12 @@ function QuickRsvpPage({ slug }) {
         ) : (
           <>
             <TextInput value={name} onChange={setName} placeholder="Your name" />
-            {error && <p style={{ color: "#E29B9B", fontFamily: FONT_BODY, fontSize: 11.5, marginTop: 8 }}>{error}</p>}
+            {error && <p style={{ color: UI_ERROR, fontFamily: FONT_BODY, fontSize: 11.5, marginTop: 8 }}>{error}</p>}
             <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
               <button
                 onClick={() => submit("no")}
                 disabled={submitting}
-                style={{ flex: 1, padding: "12px 0", borderRadius: 999, border: `1.5px solid rgba(226,155,155,0.5)`, color: "#E29B9B", fontFamily: FONT_BODY, fontWeight: 600, background: "transparent", opacity: submitting ? 0.6 : 1 }}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 999, border: `1.5px solid rgba(226,155,155,0.5)`, color: UI_ERROR, fontFamily: FONT_BODY, fontWeight: 600, background: "transparent", opacity: submitting ? 0.6 : 1 }}
               >
                 Not Attending
               </button>
@@ -14785,7 +14803,7 @@ function CheckinPage({ token }) {
     return (
       <div style={{ minHeight: "100vh", background: INK, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <div style={{ textAlign: "center", maxWidth: 300 }}>
-          <XCircle size={40} color="#E29B9B" style={{ margin: "0 auto 14px" }} />
+          <XCircle size={40} style={{ color: UI_ERROR, margin: "0 auto 14px" }} />
           <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 20, color: IVORY }}>Invalid Code</h1>
           <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>This check-in code doesn't match any guest.</p>
         </div>
@@ -14813,7 +14831,7 @@ function CheckinPage({ token }) {
           </>
         ) : (
           <>
-            <CheckCircle2 size={48} color="#8FBFA3" style={{ margin: "0 auto 14px" }} />
+            <CheckCircle2 size={48} style={{ color: UI_OK, margin: "0 auto 14px" }} />
             <h1 style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: IVORY }}>{checkin.guest_names}</h1>
             <p className="mt-2 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Not checked in yet. Tap below only once this guest has actually arrived.</p>
             <button
@@ -14949,7 +14967,7 @@ function NetworkingRegisterForm({ slug, onRegistered }) {
         <input value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="Interests, comma-separated (e.g. hiking, wine, travel)" style={inputStyle} />
         <input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="LinkedIn (optional)" style={inputStyle} />
         <input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="Instagram (optional)" style={inputStyle} />
-        {error && <p style={{ color: "#E29B9B", fontSize: 12, marginBottom: 10, fontFamily: FONT_BODY }}>{error}</p>}
+        {error && <p style={{ color: UI_ERROR, fontSize: 12, marginBottom: 10, fontFamily: FONT_BODY }}>{error}</p>}
         <button
           onClick={submit}
           disabled={submitting}
@@ -15019,7 +15037,7 @@ function NetworkingDiscoverList({ slug, me }) {
             </div>
             <div className="flex-shrink-0">
               {status === "accepted" ? (
-                <span className="text-[10.5px]" style={{ color: "#8FBFA3", fontFamily: FONT_BODY }}>Connected</span>
+                <span className="text-[10.5px]" style={{ color: UI_OK, fontFamily: FONT_BODY }}>Connected</span>
               ) : status === "pending" ? (
                 <span className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Pending</span>
               ) : status === "declined" ? (
@@ -17656,6 +17674,7 @@ export default function InvitationBuilder() {
   if (pendingNewUser && !chosenEventType) {
     return (
       <div className="min-h-screen" style={{ background: INK }}>
+      <LightUiScope />
         <EventTypePicker
           onChoose={(eventType) => {
             // In-app template/design selection has been removed — designs
@@ -17688,6 +17707,7 @@ export default function InvitationBuilder() {
     }
     return (
       <div className="flex min-h-screen items-center justify-center px-6 py-10" style={{ background: INK, fontFamily: FONT_BODY }}>
+      <LightUiScope />
         <AuthPreview
           key={authFromLanding || "direct"}
           users={users} onSignUp={signUpUser}
@@ -17703,6 +17723,7 @@ export default function InvitationBuilder() {
 
   return (
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
+      <LightUiScope />
       <style>{`
         @keyframes slideUpIn { from { transform: translateY(24px); } to { transform: translateY(0); } }
         @keyframes slideDownIn { from { transform: translateY(-24px); } to { transform: translateY(0); } }
@@ -17728,10 +17749,10 @@ export default function InvitationBuilder() {
           </div>
           <div className="flex items-center gap-2">
             {saveStatus === "saved" && <span className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Saved ✓</span>}
-            {saveStatus === "error" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
-            {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
-            {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
-            {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
+            {saveStatus === "error" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
+            {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
+            {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
+            {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
             <GoldButton onClick={saveDraft}>
               <Check size={14} /> {saveStatus === "saving" ? "Saving…" : "Save invitation"}
             </GoldButton>
@@ -17874,7 +17895,7 @@ export default function InvitationBuilder() {
                                       onClick={() => deleteGlobalAsset(asset.id)}
                                       title="Remove from library"
                                       className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full"
-                                      style={{ background: INK, color: "#E29B9B", border: `1px solid rgba(226,155,155,0.4)` }}
+                                      style={{ background: INK, color: UI_ERROR, border: `1px solid rgba(226,155,155,0.4)` }}
                                     >
                                       <X size={10} />
                                     </button>
@@ -18174,10 +18195,10 @@ export default function InvitationBuilder() {
                 </GhostButton>
                 <div className="flex items-center gap-3">
                   {saveStatus === "saved" && <span className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Saved ✓</span>}
-                  {saveStatus === "error" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
-                  {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
-                  {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
-                  {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
+                  {saveStatus === "error" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
+                  {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
+                  {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
+                  {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
                   {activeIndex < steps.length - 1 ? (
                     <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
                   ) : (
