@@ -13693,6 +13693,8 @@ const LP = {
   onGreen: "#F5F0E7",
   onGreen2: "rgba(245,240,231,0.72)",
   greenLine: "rgba(245,240,231,0.16)",
+  goldBand: "#E8D5B0", // the "Ready when you are" band
+  footer: "#162E28",
 };
 
 // Icons for the home page's feature cards, in the same order as
@@ -13994,31 +13996,37 @@ const SITE_ADDRESS = "Office 305, Tower 44, Dekweneh, Beirut, Lebanon";
 const SITE_MAP_QUERY = encodeURIComponent("Tower 44, Dekweneh, Beirut, Lebanon");
 
 function LandingFaqSection() {
-  const { t, heading } = useLanding();
+  const { t, heading, fonts, lang } = useLanding();
+  const ed = LANDING_EDITORIAL[lang] || LANDING_EDITORIAL.en;
   return (
-    <section id="faq" className="relative px-4 py-20 sm:px-6">
-      <div className="mx-auto max-w-3xl">
-        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.faq.title}</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.faq.body}</p>
-        <style>{`
-          .faq-item summary { list-style: none; cursor: pointer; }
-          .faq-item summary::-webkit-details-marker { display: none; }
-          .faq-item .faq-chevron { transition: transform .25s; }
-          .faq-item[open] .faq-chevron { transform: rotate(180deg); }
-        `}</style>
-        <div className="mt-10 space-y-3">
-          {t.faq.items.map(({ q, a, privacy, privacyLink, privacyAfter }) => (
-            <details key={q} className="faq-item rounded-2xl" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
-              <summary className="flex items-center justify-between gap-4 px-5 py-4 text-[15px] font-semibold" style={{ color: LP.text }}>
-                {q}
-                <ChevronDown size={18} color={LP.gold} className="faq-chevron flex-shrink-0" />
-              </summary>
-              <p className="px-5 pb-5 text-[14px]" style={{ color: LP.text2, lineHeight: 1.7 }}>
-                {a}
-                {privacy && <> <a href="/privacy" className="underline" style={{ color: LP.goldSoft }}>{privacyLink}</a>{privacyAfter}</>}
-              </p>
-            </details>
-          ))}
+    <section id="faq" className="relative px-4 py-24 sm:px-6">
+      <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-[1fr_1.3fr]">
+        <div className="md:sticky md:top-28 md:self-start">
+          <div className="mb-5 text-[12px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: lang === "ar" || lang === "hy" ? 0 : "0.16em" }}>{ed.faqEyebrow}</div>
+          <h2 style={heading("clamp(36px, 4.8vw, 64px)")}><LandingAccent text={t.faq.title} /></h2>
+          <p className="mt-6 max-w-sm text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.faq.body}</p>
+        </div>
+        <div>
+          <style>{`
+            .faq-item summary { list-style: none; cursor: pointer; }
+            .faq-item summary::-webkit-details-marker { display: none; }
+            .faq-item .faq-plus { transition: transform .3s; }
+            .faq-item[open] .faq-plus { transform: rotate(45deg); }
+          `}</style>
+          <div style={{ borderTop: `1px solid ${LP.line}` }}>
+            {t.faq.items.map(({ q, a, privacy, privacyLink, privacyAfter }) => (
+              <details key={q} className="faq-item" style={{ borderBottom: `1px solid ${LP.line}` }}>
+                <summary className="flex items-center justify-between gap-4 py-6" style={{ color: LP.text, fontFamily: fonts.display, fontSize: "clamp(18px, 1.9vw, 23px)", lineHeight: 1.35 }}>
+                  {q}
+                  <Plus size={18} color={LP.gold} strokeWidth={1.6} className="faq-plus flex-shrink-0" />
+                </summary>
+                <p className="pb-6 text-[15px]" style={{ color: LP.text2, lineHeight: 1.75 }}>
+                  {a}
+                  {privacy && <> <a href="/privacy" className="underline" style={{ color: LP.goldSoft }}>{privacyLink}</a>{privacyAfter}</>}
+                </p>
+              </details>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -14173,27 +14181,15 @@ function PrivacyPolicyPage() {
 // Which cost calculator page each home-page occasion opens (see CostCalculator.jsx).
 const CALCULATOR_SLUGS = { wedding: "wedding", birthday: "birthday", quinceanera: "quinceanera", baptism: "baptism", babyShower: "baby-shower", any: "party" };
 
-// The hero's envelope: a gold disc behind a sealed envelope that lifts its
-// flap on hover. Tapping it scrolls down to the live sample invitation.
-function LandingEnvelope({ ed, onOpen }) {
-  const { fonts, lang } = useLanding();
+// The hero's live sample invitation: the phone in front of a gold disc,
+// with the sparkles around it.
+function LandingHeroPhone() {
   return (
-    <div className="relative mx-auto flex w-full max-w-[460px] flex-col items-center">
-      <div className="relative w-full" style={{ aspectRatio: "460 / 380" }}>
-        <div aria-hidden="true" className="absolute rounded-full" style={{ width: "78%", aspectRatio: "1", right: 0, top: "50%", transform: "translateY(-50%)", background: "#E8D3A2" }} />
-        <LandingSparkle size={30} style={{ position: "absolute", left: "6%", top: "6%" }} />
-        <LandingSparkle size={44} style={{ position: "absolute", right: "-2%", bottom: "4%" }} />
-        <button onClick={onOpen} aria-label={ed.tapToOpen} className="landing-envelope absolute left-0 top-1/2 w-[86%] -translate-y-1/2" style={{ aspectRatio: "390 / 250", filter: "drop-shadow(0 24px 30px rgba(28,59,51,0.18))" }}>
-          <div className="absolute inset-0" style={{ background: "#F3E9DA" }} />
-          <div className="landing-envelope-flap absolute inset-x-0 top-0" style={{ height: "62%", background: "#D8C09B", clipPath: "polygon(0 0, 100% 0, 50% 100%)", transformOrigin: "top" }} />
-          <div className="absolute left-1/2 flex items-center justify-center rounded-full" style={{ top: "62%", width: "13%", aspectRatio: "1", transform: "translate(-50%, -50%)", background: LP.gold, color: "#FFF", fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: "clamp(16px, 2.4vw, 22px)" }}>E</div>
-          <div className="absolute inset-x-0 text-center" style={{ bottom: "12%", color: LP.text }}>
-            <div dir="auto" style={{ fontFamily: fonts.display, fontSize: "clamp(12px, 1.7vw, 15px)", letterSpacing: lang === "ar" || lang === "hy" ? 0 : "0.12em", textTransform: "uppercase", fontWeight: 600 }}>{ed.envelopeNames}</div>
-            <div dir="auto" style={{ fontFamily: fonts.display, fontSize: "clamp(11px, 1.3vw, 12.5px)", marginTop: 2 }}>{ed.envelopeLine}</div>
-          </div>
-        </button>
-      </div>
-      <button onClick={onOpen} className="mt-2 text-[12.5px]" style={{ color: LP.text, letterSpacing: lang === "ar" ? 0 : "0.14em" }}>{ed.tapToOpen}</button>
+    <div className="relative flex justify-center">
+      <div aria-hidden="true" className="absolute rounded-full" style={{ width: "min(460px, 94vw)", aspectRatio: "1", left: "50%", top: "46%", transform: "translate(-50%, -50%)", background: "#E8D3A2" }} />
+      <LandingSparkle size={30} style={{ position: "absolute", left: "4%", top: "8%" }} />
+      <LandingSparkle size={44} style={{ position: "absolute", right: "2%", bottom: "18%" }} />
+      <LandingPhone />
     </div>
   );
 }
@@ -14228,7 +14224,6 @@ function LandingPage({ onSignUp, onLogIn }) {
   }, [lang]);
   const t = LANDING_TEXT[lang] || LANDING_TEXT.en;
   const ed = LANDING_EDITORIAL[lang] || LANDING_EDITORIAL.en;
-  const toExperience = () => document.getElementById("experience")?.scrollIntoView({ behavior: "smooth" });
   const fonts = landingFonts(lang);
   // The Blog link only appears once the blog has been made public
   // (BLOG_PUBLIC on the server); until then it's a private preview.
@@ -14262,16 +14257,16 @@ function LandingPage({ onSignUp, onLogIn }) {
         }
       `}</style>
       <style>{`
-        .landing-envelope-flap { transition: transform .5s cubic-bezier(.2,.7,.2,1); }
-        .landing-envelope:hover .landing-envelope-flap { transform: translateY(-3px) scaleY(0.94); }
         .landing-underline { border-bottom: 1px solid currentColor; padding-bottom: 6px; }
         .landing-row { transition: background-color .25s; }
         .landing-row:hover { background: rgba(245,240,231,0.04); }
+        .occasion-tile { transition: filter .25s, box-shadow .25s; }
+        .occasion-tile:hover { filter: brightness(1.06); box-shadow: 0 18px 30px -18px rgba(28,59,51,0.45); }
       `}</style>
 
       <div className="px-4 py-2.5 text-center text-[12.5px] sm:px-6" style={{ background: LP.green, color: LP.onGreen }}>
         {ed.announce} <span className="mx-2" style={{ color: LP.gold }}>—</span>
-        <button onClick={toExperience} className="underline underline-offset-4">{ed.announceLink}</button>
+        <a href={LANDING_DEMO_PATH} target="_blank" rel="noreferrer" className="underline underline-offset-4">{ed.announceLink}</a>
       </div>
 
       <header className="sticky top-0 z-50" style={{ background: "rgba(245,240,231,0.86)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
@@ -14312,7 +14307,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             <LandingSparkle size={13} color={LP.gold} /> {t.hero.note}
           </p>
         </div>
-        <LandingEnvelope ed={ed} onOpen={toExperience} />
+        <LandingHeroPhone />
       </section>
 
       <section className="px-4 py-16 sm:px-6" style={{ background: LP.green }}>
@@ -14334,28 +14329,30 @@ function LandingPage({ onSignUp, onLogIn }) {
             </a>
           </div>
         </div>
-        <div className="mt-16 flex justify-center">
-          <LandingPhone />
-        </div>
       </section>
 
-      <section id="occasions" className="relative mx-auto max-w-6xl px-4 pb-24 pt-4 sm:px-6">
-        <h2 className="text-center" style={heading("clamp(30px, 3.8vw, 46px)")}><LandingAccent text={t.occasions.title} /></h2>
-        <p className="mx-auto mt-5 max-w-xl text-center text-[15.5px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.occasions.body}</p>
-        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {[...EVENT_TYPES.map((et) => ({ key: et.id, name: t.occasions.names[et.id] || et.name, icon: et.icon })), { key: "any", name: t.occasions.names.any, icon: CalendarDays }].map(({ key, name, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={onSignUp}
-              className="landing-card flex flex-col items-center gap-3 rounded-2xl px-4 py-7 text-center"
-              style={{ background: LP.cardHi, border: `1px solid ${LP.line}` }}
-            >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(191,145,74,0.12)" }}>
-                <Icon size={21} color={LP.gold} strokeWidth={1.6} />
-              </span>
-              <span className="text-[14.5px] font-medium" style={{ color: LP.text }}>{name}</span>
-            </button>
-          ))}
+      <section id="occasions" className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pb-24 pt-8 sm:px-6 md:grid-cols-[1fr_1.25fr]">
+        <div>
+          <div className="mb-5 text-[12px] font-semibold uppercase" style={eyebrow}>{ed.occasionsEyebrow}</div>
+          <h2 style={heading("clamp(36px, 4.8vw, 64px)")}><LandingAccent text={t.occasions.title} /></h2>
+          <p className="mt-6 max-w-md text-[15.5px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.occasions.body}</p>
+        </div>
+        {/* Colored tiles, the middle column set a little higher. */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {[...EVENT_TYPES.map((et) => ({ key: et.id, name: t.occasions.names[et.id] || et.name, icon: et.icon })), { key: "any", name: t.occasions.names.any, icon: CalendarDays }].map(({ key, name, icon: Icon }, i) => {
+            const [bg, fg] = [["#24473E", "#F5F0E7"], ["#CFAA6E", "#FFFFFF"], ["#D8B7A2", "#1C3B33"], ["#E8D5B0", "#1C3B33"], ["#1C3B33", "#F5F0E7"], ["#B9C4B0", "#1C3B33"]][i % 6];
+            return (
+              <button
+                key={key}
+                onClick={onSignUp}
+                className={`occasion-tile flex flex-col justify-between p-5 text-start ${i % 3 === 1 ? "sm:-translate-y-6" : ""}`}
+                style={{ background: bg, color: fg, minHeight: 190 }}
+              >
+                <Icon size={20} strokeWidth={1.5} />
+                <span style={{ fontFamily: fonts.display, fontSize: "clamp(20px, 2vw, 26px)", lineHeight: 1.15 }}>{name}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -14484,9 +14481,7 @@ function LandingPage({ onSignUp, onLogIn }) {
         </div>
       </section>
 
-      <LandingFaqSection />
-
-      <div className="relative">
+      <div className="relative overflow-hidden" style={{ background: LP.goldBand }}>
       <LandingSparkle size={34} style={{ position: "absolute", left: "12%", top: "22%" }} />
       <LandingSparkle size={22} color={LP.gold} style={{ position: "absolute", right: "14%", bottom: "24%" }} />
       <section className="relative mx-auto max-w-3xl px-4 py-28 text-center sm:px-6">
@@ -14499,25 +14494,38 @@ function LandingPage({ onSignUp, onLogIn }) {
       </section>
       </div>
 
+      <LandingFaqSection />
+
       <LandingAboutSection />
 
       <LandingContactSection contact={contact} />
 
-      <footer className="relative px-4 py-8 sm:px-6" style={{ borderTop: `1px solid ${LP.line}` }}>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-[12px]" style={{ color: LP.text2 }}>
+      <footer className="relative px-4 pb-10 pt-16 sm:px-6" style={{ background: LP.footer, color: LP.onGreen }}>
+        <style>{`.footer-link { color: ${LP.onGreen2}; transition: color .2s; } .footer-link:hover { color: ${LP.onGreen}; }`}</style>
+        <div className="mx-auto grid max-w-6xl items-center gap-8 md:grid-cols-3">
+          <div dir="ltr" className="text-center md:text-start" style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, letterSpacing: "-0.02em" }}>
+            eInvite<span style={{ color: LP.gold, fontStyle: "italic" }}>.me</span>
+          </div>
+          <p className="text-center md:text-start" style={{ fontFamily: fonts.display, fontSize: 22, lineHeight: 1.3, color: LP.onGreen2 }}>{ed.footerTagline}</p>
+          <div className="text-center md:text-end">
+            <button onClick={onSignUp} className="rounded-full px-7 py-4 text-[14.5px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: "0 14px 30px -14px rgba(0,0,0,0.5)" }}>{ed.footerCta}</button>
+          </div>
+        </div>
+        <div className="mx-auto mt-12 flex max-w-6xl flex-wrap items-start justify-between gap-6 pt-6 text-[12.5px]" style={{ borderTop: `1px solid ${LP.greenLine}`, color: LP.onGreen2 }}>
           <div>
             <div>© {new Date().getFullYear()} eInvite.me</div>
             <div className="mt-1" style={{ opacity: 0.8 }}>{t.about.address}</div>
           </div>
+          <div style={{ fontFamily: fonts.display, fontStyle: fonts.headingStyle === "normal" && lang !== "ar" && lang !== "hy" ? "italic" : "normal" }}>{ed.footerMade}</div>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <a href="#faq" className="landing-link">{t.nav.faq}</a>
-            <a href="#about" className="landing-link">{t.nav.about}</a>
-            {hasContact && <a href="#contact" className="landing-link">{t.nav.contact}</a>}
-            <a href="/shop" className="landing-link">{t.nav.designs}</a>
-            {blogPublic && <a href={`/blog/${lang}`} className="landing-link">{t.nav.blog}</a>}
-            <a href="/cost-calculator" className="landing-link">{t.calculator.nav}</a>
-            <a href="/privacy" className="landing-link">{t.footer.privacy}</a>
-            <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
+            <a href="#faq" className="footer-link">{t.nav.faq}</a>
+            <a href="#about" className="footer-link">{t.nav.about}</a>
+            {hasContact && <a href="#contact" className="footer-link">{t.nav.contact}</a>}
+            <a href="/shop" className="footer-link">{t.nav.designs}</a>
+            {blogPublic && <a href={`/blog/${lang}`} className="footer-link">{t.nav.blog}</a>}
+            <a href="/cost-calculator" className="footer-link">{t.calculator.nav}</a>
+            <a href="/privacy" className="footer-link">{t.footer.privacy}</a>
+            <button onClick={onLogIn} className="footer-link">{t.nav.logIn}</button>
           </div>
         </div>
       </footer>
