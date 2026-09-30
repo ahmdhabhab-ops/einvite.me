@@ -4001,8 +4001,8 @@ function StepRail({ steps, activeIndex, visited, onSelect }) {
 
 function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
   return (
-    <div className="mb-6 rounded-xl p-3" style={{ background: INK_3 }}>
-      <div className="mb-2 text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
+    <div className="rounded-xl p-3" style={{ background: INK_3 }}>
+      <div className="mb-2 whitespace-nowrap text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
         Pages in this invitation
       </div>
       <div className="flex flex-col gap-1.5">
@@ -4016,7 +4016,7 @@ function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
               className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
               style={{ background: isOn ? "rgba(201,164,76,0.1)" : "transparent", border: `1px solid ${isOn ? "rgba(201,164,76,0.3)" : "rgba(147,166,155,0.2)"}`, opacity: isRequired ? 0.85 : 1 }}
             >
-              <div className="flex flex-col">
+              <div className="flex flex-shrink-0 flex-col">
                 <button onClick={() => onMove(step.key, -1)} disabled={isRequired || i <= 1} title="Move earlier" style={{ color: isRequired || i <= 1 ? "rgba(147,166,155,0.3)" : MUTED }}>
                   <ChevronUp size={12} />
                 </button>
@@ -4024,15 +4024,15 @@ function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
                   <ChevronDown size={12} />
                 </button>
               </div>
-              <Icon size={13} color={isOn ? GOLD_SOFT : MUTED} />
-              <span className="flex-1 text-[12px] font-medium" style={{ color: isOn ? IVORY : MUTED, fontFamily: FONT_BODY }}>{step.label}</span>
+              <Icon size={13} className="flex-shrink-0" style={{ color: isOn ? GOLD_SOFT : MUTED }} />
+              <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[12px] font-medium" title={step.label} style={{ color: isOn ? IVORY : MUTED, fontFamily: FONT_BODY }}>{step.label}</span>
               {isRequired ? (
-                <span className="text-[10px] italic" style={{ color: MUTED, fontFamily: FONT_BODY }}>Always first</span>
+                <span className="flex-shrink-0 whitespace-nowrap text-[10px] italic" style={{ color: MUTED, fontFamily: FONT_BODY }}>Always first</span>
               ) : (
                 <button
                   onClick={() => onToggle(step.key)}
                   title={isOn ? "Hide this page" : "Show this page"}
-                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                  className="flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
                   style={{ color: isOn ? GOLD_SOFT : MUTED, fontFamily: FONT_BODY }}
                 >
                   {isOn ? <Eye size={12} /> : <EyeOff size={12} />}
@@ -17857,8 +17857,8 @@ export default function InvitationBuilder() {
         )}
 
         {view === "builder" && (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr_320px]">
-            <div className="rounded-2xl p-6 md:sticky md:top-10 md:self-start" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[250px_1fr_320px]">
+            <div className="rounded-2xl p-3 md:sticky md:top-10 md:self-start" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               <PagesManager orderedAllSteps={orderedAllSteps} enabledSteps={enabledSteps} onToggle={toggleStepVisibility} onMove={moveStepOrder} />
             </div>
             <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
