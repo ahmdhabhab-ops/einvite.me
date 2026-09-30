@@ -4501,6 +4501,26 @@ function LocationsStep({ items, update, activeLang, bg, setBg }) {
                 <Navigation2 size={10} /> Opens in Google Maps
               </p>
             )}
+            <div className="mt-2.5 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Invisible (tap area only)</div>
+                <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Nothing shows; tapping that spot opens the map. Place it over the location written on your background.</div>
+              </div>
+              <SegmentedToggle
+                value={item.invisible ? "on" : "off"}
+                onChange={(v) => setItem(item.id, { invisible: v === "on" })}
+                options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
+              />
+            </div>
+            {item.invisible && (
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Tap area height (px) — drag its corners on the phone for the width</span>
+                <div className="w-28"><NumberStepper value={item.tapHeight || 44} onChange={(v) => setItem(item.id, { tapHeight: v })} min={20} max={300} /></div>
+              </div>
+            )}
+            {item.invisible && !String(item.address || "").trim() && (
+              <p className="mt-1.5 text-[11px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>Add the address above, so tapping it opens the map.</p>
+            )}
           </div>
         ))}
       </div>
@@ -6713,6 +6733,38 @@ function LocationsSlide({ items, lang, bg, fontDisplay, t, layout, editMode, onM
           {items.map((loc, index) => {
             const pos = locationPos(loc, index);
             const blockId = `loc:${loc.id}`;
+            const mapUrl = loc.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}` : null;
+            // "Invisible": no card, just a tap area over the location
+            // written on the background (outlined only while editing).
+            if (loc.invisible) {
+              return (
+                <DraggableBlock
+                  key={loc.id}
+                  id={blockId}
+                  pos={pos}
+                  editMode={editMode}
+                  onMove={(p) => onMoveLocation(loc.id, p)}
+                  onResizeWidth={(w) => onMoveLocation(loc.id, { tapWidth: w })}
+                  widthPercent={loc.tapWidth || 60}
+                  noMaxWidth
+                  label="Location (invisible)"
+                  light={light}
+                  selected={selectedBlock === blockId}
+                  onSelect={() => onSelectBlock(blockId)}
+                >
+                  <a
+                    href={mapUrl || undefined}
+                    target="_blank" rel="noreferrer"
+                    onClick={(e) => { if (editMode || !mapUrl) e.preventDefault(); }}
+                    aria-label={loc.title[lang] || loc.title.en || t.directions}
+                    className="flex w-full items-center justify-center"
+                    style={{ height: loc.tapHeight || 44, cursor: mapUrl ? "pointer" : "default", ...(editMode ? { border: `1.5px dashed ${GOLD}`, borderRadius: 8, background: "rgba(201,164,76,0.12)" } : {}) }}
+                  >
+                    {editMode && <span className="text-[9px] font-semibold uppercase" style={{ color: GOLD, fontFamily: FONT_BODY, letterSpacing: "0.08em" }}>Map tap area</span>}
+                  </a>
+                </DraggableBlock>
+              );
+            }
             return (
               <DraggableBlock
                 key={loc.id}
