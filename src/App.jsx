@@ -1984,7 +1984,21 @@ async function compressToTarget(file, maxDim, quality, targetBytes = 800 * 1024)
  * setup as the "template-images" bucket used for template designs
  * (Dashboard -> Storage -> create bucket -> toggle Public).
  */
+// Clients whose photos are uploaded at full clarity (bigger files, slower
+// to load) instead of the usual size cap — a per-client exception.
+const HIGH_QUALITY_UPLOAD_EMAILS = ["test@gmail.com"];
+let highQualityUploads = false; // set while the builder is open for one of them
+function setHighQualityUploadsFor(email) {
+  highQualityUploads = HIGH_QUALITY_UPLOAD_EMAILS.includes(String(email || "").trim().toLowerCase());
+}
+
 async function uploadImageToStorage(file, bucket = "og-images", maxDim = 1200, quality = 0.82, targetBytes) {
+  // The share-preview image (og-images) keeps its size cap for WhatsApp.
+  if (highQualityUploads && bucket !== "og-images") {
+    maxDim = Math.max(maxDim, 3200);
+    quality = 0.95;
+    targetBytes = Math.max(targetBytes || 0, 5 * 1024 * 1024);
+  }
   // readImageCompressed below draws the file onto a canvas to re-encode it,
   // which only captures a single frame — fine for a still photo, but it
   // silently flattens an animated GIF into a static picture. Upload the raw
@@ -15371,6 +15385,7 @@ export default function InvitationBuilder() {
   // to a new domain doesn't leave links pointing at the old one.
   const [siteDomain, setSiteDomain] = useState(() => (typeof window !== "undefined" && window.location.host) || "cores.einvite.me");
   const [actingAsUser, setActingAsUser] = useState(null);
+  useEffect(() => { setHighQualityUploadsFor(actingAsUser?.email); }, [actingAsUser?.email]);
   const [sessionCheckResolved, setSessionCheckResolved] = useState(false);
   const [coreDataLoaded, setCoreDataLoaded] = useState(false);
   // Separate from coreDataLoaded, which the 12s fallback below can also set
