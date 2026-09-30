@@ -2330,11 +2330,11 @@ const LANG_META = {
 };
 
 const PREVIEW_T = {
-  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", swipeRight: "Swipe right", swipeDown: "Swipe down", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry", voiceTitle: "We'll Miss You", voiceSub: "Record a quick note so they know you're thinking of them.", voiceRecord: "Record", voiceStop: "Stop", voiceAgain: "Record Again", voiceSend: "Send", voiceSending: "Sending…", voiceSent: "Sent ✓", voiceSkip: "Skip", voiceMicError: "Couldn't access your microphone — please allow microphone access and try again.", voiceProcessError: "Couldn't process the recording — please try again.", thankYou: "Thank you for your response!", confirmedFor: "Confirmed for {n} {people}", person: "person", people: "people", saveQr: "Save this — show it at the door for quick check-in", submitRsvp: "Submit RSVP", rsvpClosed: "RSVP Closed", deadlinePassed: "The deadline to respond has passed.", fullyBooked: "Fully booked", yourName: "Your name", optionalTag: "(optional)", numAttending: "Number of attending", capacityReached: "We've reached capacity for confirmed guests.", confirmingN: "You're confirming {n} {guests}", guestWord: "guest", guestsWord: "guests", nameMissing: "Please enter your name.", nameEveryGuest: "Please name every guest.", saveQrBtn: "Save QR code", savingQr: "Saving…" },
-  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", swipeRight: "اسحب لليمين", swipeDown: "اسحب للأسفل", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة", voiceTitle: "سنفتقدكم", voiceSub: "سجّلوا رسالة صوتية قصيرة ليعرفوا أنكم تفكرون بهم.", voiceRecord: "تسجيل", voiceStop: "إيقاف", voiceAgain: "إعادة التسجيل", voiceSend: "إرسال", voiceSending: "جارٍ الإرسال…", voiceSent: "تم الإرسال ✓", voiceSkip: "تخطي", voiceMicError: "تعذّر الوصول إلى الميكروفون — الرجاء السماح بالوصول إليه والمحاولة مجدداً.", voiceProcessError: "تعذّرت معالجة التسجيل — الرجاء المحاولة مجدداً.", thankYou: "شكراً على ردّكم!", confirmedFor: "تم التأكيد لـ {n} {people}", person: "شخص", people: "أشخاص", saveQr: "احفظوا هذا الرمز — أظهروه عند الباب لتسجيل الدخول بسرعة", submitRsvp: "إرسال الرد", rsvpClosed: "انتهى تأكيد الحضور", deadlinePassed: "انتهت مهلة الرد.", fullyBooked: "اكتمل العدد", yourName: "اسمك", optionalTag: "(اختياري)", numAttending: "عدد الحضور", capacityReached: "اكتمل عدد الضيوف المؤكَّدين.", confirmingN: "أنت تؤكد حضور {n} {guests}", guestWord: "ضيف", guestsWord: "ضيوف", nameMissing: "الرجاء إدخال اسمك.", nameEveryGuest: "الرجاء كتابة اسم كل ضيف.", saveQrBtn: "حفظ رمز QR", savingQr: "جارٍ الحفظ…" },
-  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", swipeRight: "Glissez vers la droite", swipeDown: "Glissez vers le bas", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste", voiceTitle: "Vous allez nous manquer", voiceSub: "Enregistrez un petit message pour leur montrer que vous pensez à eux.", voiceRecord: "Enregistrer", voiceStop: "Arrêter", voiceAgain: "Recommencer", voiceSend: "Envoyer", voiceSending: "Envoi…", voiceSent: "Envoyé ✓", voiceSkip: "Passer", voiceMicError: "Impossible d'accéder au micro — autorisez l'accès au micro et réessayez.", voiceProcessError: "Impossible de traiter l'enregistrement — veuillez réessayer.", thankYou: "Merci pour votre réponse !", confirmedFor: "Confirmé pour {n} {people}", person: "personne", people: "personnes", saveQr: "Gardez ce code — montrez-le à l'entrée pour un accueil rapide", submitRsvp: "Envoyer ma réponse", rsvpClosed: "Réponses closes", deadlinePassed: "La date limite pour répondre est passée.", fullyBooked: "Complet", yourName: "Votre nom", optionalTag: "(facultatif)", numAttending: "Nombre de personnes", capacityReached: "Nous avons atteint le nombre maximum d'invités confirmés.", confirmingN: "Vous confirmez {n} {guests}", guestWord: "invité", guestsWord: "invités", nameMissing: "Veuillez indiquer votre nom.", nameEveryGuest: "Veuillez indiquer le nom de chaque invité.", saveQrBtn: "Enregistrer le QR code", savingQr: "Enregistrement…" },
-  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", swipeRight: "Desliza hacia la derecha", swipeDown: "Desliza hacia abajo", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista", voiceTitle: "Te extrañaremos", voiceSub: "Graba una nota corta para que sepan que piensas en ellos.", voiceRecord: "Grabar", voiceStop: "Detener", voiceAgain: "Grabar de nuevo", voiceSend: "Enviar", voiceSending: "Enviando…", voiceSent: "Enviado ✓", voiceSkip: "Omitir", voiceMicError: "No se pudo acceder al micrófono — permite el acceso e inténtalo de nuevo.", voiceProcessError: "No se pudo procesar la grabación — inténtalo de nuevo.", thankYou: "¡Gracias por tu respuesta!", confirmedFor: "Confirmado para {n} {people}", person: "persona", people: "personas", saveQr: "Guarda esto — muéstralo en la entrada para un registro rápido", submitRsvp: "Enviar respuesta", rsvpClosed: "Confirmaciones cerradas", deadlinePassed: "La fecha límite para responder ya pasó.", fullyBooked: "Completo", yourName: "Tu nombre", optionalTag: "(opcional)", numAttending: "Número de asistentes", capacityReached: "Hemos alcanzado el cupo de invitados confirmados.", confirmingN: "Estás confirmando {n} {guests}", guestWord: "invitado", guestsWord: "invitados", nameMissing: "Escribe tu nombre.", nameEveryGuest: "Escribe el nombre de cada invitado.", saveQrBtn: "Guardar el código QR", savingQr: "Guardando…" },
-  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", swipeRight: "Սահեցրեք աջ", swipeDown: "Սահեցրեք ներքև", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը", voiceTitle: "Մենք ձեզ կկարոտենք", voiceSub: "Ձայնագրեք կարճ ուղերձ, որ իմանան՝ մտածում եք նրանց մասին։", voiceRecord: "Ձայնագրել", voiceStop: "Կանգնեցնել", voiceAgain: "Կրկին ձայնագրել", voiceSend: "Ուղարկել", voiceSending: "Ուղարկվում է…", voiceSent: "Ուղարկված է ✓", voiceSkip: "Բաց թողնել", voiceMicError: "Չհաջողվեց միանալ խոսափողին — թույլատրեք խոսափողի օգտագործումը և փորձեք կրկին։", voiceProcessError: "Չհաջողվեց մշակել ձայնագրությունը — փորձեք կրկին։", thankYou: "Շնորհակալություն պատասխանի համար։", confirmedFor: "Հաստատված է {n} {people}", person: "հոգու համար", people: "հոգու համար", saveQr: "Պահեք սա — ցույց տվեք մուտքի մոտ արագ գրանցման համար", submitRsvp: "Ուղարկել պատասխանը", rsvpClosed: "Հաստատումը փակված է", deadlinePassed: "Պատասխանելու ժամկետն անցել է։", fullyBooked: "Տեղեր չկան", yourName: "Ձեր անունը", optionalTag: "(ըստ ցանկության)", numAttending: "Մասնակիցների թիվը", capacityReached: "Հաստատված հյուրերի տեղերը լրացել են։", confirmingN: "Դուք հաստատում եք {n} {guests}", guestWord: "հյուր", guestsWord: "հյուր", nameMissing: "Խնդրում ենք գրել ձեր անունը։", nameEveryGuest: "Խնդրում ենք գրել յուրաքանչյուր հյուրի անունը։", saveQrBtn: "Պահել QR կոդը", savingQr: "Պահվում է…" },
+  en: { familyNamePh: "Family name", familyNameMissing: "Please enter your family name.", pickCount: "Please choose how many of you are coming.", numGuests: "Number of guests", addGuest: "Add a guest", guestNamePh: "Guest's name", personalYes: "Yes", personalNo: "No", orderOfDay: "Order of the day", celebration: "The Celebration", countingDownTo: "Counting down to", celebrationWord: "the celebration", celebrationBegun: "The celebration has begun!", days: "days", hrs: "hrs", min: "min", sec: "sec", swipeUp: "Swipe up", swipeLeft: "Swipe left", swipeRight: "Swipe right", swipeDown: "Swipe down", directions: "Get Directions", tapToStart: "Tap to start", rsvpHeading: "Will you join us?", giftRegistry: "Gift Registry", registryIntro: "Your presence is the greatest gift — but if you'd like to spoil us anyway:", viewRegistry: "View registry", voiceTitle: "We'll Miss You", voiceSub: "Record a quick note so they know you're thinking of them.", voiceRecord: "Record", voiceStop: "Stop", voiceAgain: "Record Again", voiceSend: "Send", voiceSending: "Sending…", voiceSent: "Sent ✓", voiceSkip: "Skip", voiceMicError: "Couldn't access your microphone — please allow microphone access and try again.", voiceProcessError: "Couldn't process the recording — please try again.", thankYou: "Thank you for your response!", confirmedFor: "Confirmed for {n} {people}", person: "person", people: "people", saveQr: "Save this — show it at the door for quick check-in", submitRsvp: "Submit RSVP", rsvpClosed: "RSVP Closed", deadlinePassed: "The deadline to respond has passed.", fullyBooked: "Fully booked", yourName: "Your name", optionalTag: "(optional)", numAttending: "Number of attending", capacityReached: "We've reached capacity for confirmed guests.", confirmingN: "You're confirming {n} {guests}", guestWord: "guest", guestsWord: "guests", nameMissing: "Please enter your name.", nameEveryGuest: "Please name every guest.", saveQrBtn: "Save QR code", savingQr: "Saving…", noneComing: "None of you can make it" },
+  ar: { familyNamePh: "اسم العائلة", familyNameMissing: "الرجاء إدخال اسم العائلة.", pickCount: "الرجاء اختيار عدد الحضور.", numGuests: "عدد الضيوف", addGuest: "أضف ضيفاً", guestNamePh: "اسم الضيف", personalYes: "نعم", personalNo: "لا", orderOfDay: "برنامج اليوم", celebration: "مراسم الاحتفال", countingDownTo: "العد التنازلي لـ", celebrationWord: "الاحتفال", celebrationBegun: "لقد بدأ الاحتفال!", days: "يوم", hrs: "ساعة", min: "دقيقة", sec: "ثانية", swipeUp: "اسحب لأعلى", swipeLeft: "اسحب لليسار", swipeRight: "اسحب لليمين", swipeDown: "اسحب للأسفل", directions: "احصل على الاتجاهات", tapToStart: "اضغط للبدء", rsvpHeading: "هل ستكونون معنا؟", giftRegistry: "قائمة الهدايا", registryIntro: "حضوركم هو أجمل هدية — وإن أردتم تدليلنا أكثر:", viewRegistry: "عرض القائمة", voiceTitle: "سنفتقدكم", voiceSub: "سجّلوا رسالة صوتية قصيرة ليعرفوا أنكم تفكرون بهم.", voiceRecord: "تسجيل", voiceStop: "إيقاف", voiceAgain: "إعادة التسجيل", voiceSend: "إرسال", voiceSending: "جارٍ الإرسال…", voiceSent: "تم الإرسال ✓", voiceSkip: "تخطي", voiceMicError: "تعذّر الوصول إلى الميكروفون — الرجاء السماح بالوصول إليه والمحاولة مجدداً.", voiceProcessError: "تعذّرت معالجة التسجيل — الرجاء المحاولة مجدداً.", thankYou: "شكراً على ردّكم!", confirmedFor: "تم التأكيد لـ {n} {people}", person: "شخص", people: "أشخاص", saveQr: "احفظوا هذا الرمز — أظهروه عند الباب لتسجيل الدخول بسرعة", submitRsvp: "إرسال الرد", rsvpClosed: "انتهى تأكيد الحضور", deadlinePassed: "انتهت مهلة الرد.", fullyBooked: "اكتمل العدد", yourName: "اسمك", optionalTag: "(اختياري)", numAttending: "عدد الحضور", capacityReached: "اكتمل عدد الضيوف المؤكَّدين.", confirmingN: "أنت تؤكد حضور {n} {guests}", guestWord: "ضيف", guestsWord: "ضيوف", nameMissing: "الرجاء إدخال اسمك.", nameEveryGuest: "الرجاء كتابة اسم كل ضيف.", saveQrBtn: "حفظ رمز QR", savingQr: "جارٍ الحفظ…", noneComing: "لن يتمكّن أحد منكم من الحضور" },
+  fr: { familyNamePh: "Nom de famille", familyNameMissing: "Veuillez indiquer votre nom de famille.", pickCount: "Veuillez choisir combien vous serez.", numGuests: "Nombre d'invités", addGuest: "Ajouter un invité", guestNamePh: "Nom de l'invité", personalYes: "Oui", personalNo: "Non", orderOfDay: "Déroulé de la journée", celebration: "La Célébration", countingDownTo: "Compte à rebours vers", celebrationWord: "la célébration", celebrationBegun: "La célébration a commencé !", days: "jours", hrs: "h", min: "min", sec: "s", swipeUp: "Glissez vers le haut", swipeLeft: "Glissez vers la gauche", swipeRight: "Glissez vers la droite", swipeDown: "Glissez vers le bas", directions: "Itinéraire", tapToStart: "Touchez pour commencer", rsvpHeading: "Serez-vous des nôtres ?", giftRegistry: "Liste de mariage", registryIntro: "Votre présence est le plus beau des cadeaux — mais si vous souhaitez nous gâter :", viewRegistry: "Voir la liste", voiceTitle: "Vous allez nous manquer", voiceSub: "Enregistrez un petit message pour leur montrer que vous pensez à eux.", voiceRecord: "Enregistrer", voiceStop: "Arrêter", voiceAgain: "Recommencer", voiceSend: "Envoyer", voiceSending: "Envoi…", voiceSent: "Envoyé ✓", voiceSkip: "Passer", voiceMicError: "Impossible d'accéder au micro — autorisez l'accès au micro et réessayez.", voiceProcessError: "Impossible de traiter l'enregistrement — veuillez réessayer.", thankYou: "Merci pour votre réponse !", confirmedFor: "Confirmé pour {n} {people}", person: "personne", people: "personnes", saveQr: "Gardez ce code — montrez-le à l'entrée pour un accueil rapide", submitRsvp: "Envoyer ma réponse", rsvpClosed: "Réponses closes", deadlinePassed: "La date limite pour répondre est passée.", fullyBooked: "Complet", yourName: "Votre nom", optionalTag: "(facultatif)", numAttending: "Nombre de personnes", capacityReached: "Nous avons atteint le nombre maximum d'invités confirmés.", confirmingN: "Vous confirmez {n} {guests}", guestWord: "invité", guestsWord: "invités", nameMissing: "Veuillez indiquer votre nom.", nameEveryGuest: "Veuillez indiquer le nom de chaque invité.", saveQrBtn: "Enregistrer le QR code", savingQr: "Enregistrement…", noneComing: "Aucun de vous ne pourra venir" },
+  es: { familyNamePh: "Apellido de la familia", familyNameMissing: "Escribe el nombre de tu familia.", pickCount: "Elige cuántos vendrán.", numGuests: "Número de invitados", addGuest: "Añadir un invitado", guestNamePh: "Nombre del invitado", personalYes: "Sí", personalNo: "No", orderOfDay: "Orden del día", celebration: "La Celebración", countingDownTo: "Cuenta atrás para", celebrationWord: "la celebración", celebrationBegun: "¡La celebración ha comenzado!", days: "días", hrs: "h", min: "min", sec: "s", swipeUp: "Desliza hacia arriba", swipeLeft: "Desliza hacia la izquierda", swipeRight: "Desliza hacia la derecha", swipeDown: "Desliza hacia abajo", directions: "Cómo llegar", tapToStart: "Toca para comenzar", rsvpHeading: "¿Nos acompañarás?", giftRegistry: "Lista de regalos", registryIntro: "Su presencia es el mejor regalo — pero si desean consentirnos:", viewRegistry: "Ver la lista", voiceTitle: "Te extrañaremos", voiceSub: "Graba una nota corta para que sepan que piensas en ellos.", voiceRecord: "Grabar", voiceStop: "Detener", voiceAgain: "Grabar de nuevo", voiceSend: "Enviar", voiceSending: "Enviando…", voiceSent: "Enviado ✓", voiceSkip: "Omitir", voiceMicError: "No se pudo acceder al micrófono — permite el acceso e inténtalo de nuevo.", voiceProcessError: "No se pudo procesar la grabación — inténtalo de nuevo.", thankYou: "¡Gracias por tu respuesta!", confirmedFor: "Confirmado para {n} {people}", person: "persona", people: "personas", saveQr: "Guarda esto — muéstralo en la entrada para un registro rápido", submitRsvp: "Enviar respuesta", rsvpClosed: "Confirmaciones cerradas", deadlinePassed: "La fecha límite para responder ya pasó.", fullyBooked: "Completo", yourName: "Tu nombre", optionalTag: "(opcional)", numAttending: "Número de asistentes", capacityReached: "Hemos alcanzado el cupo de invitados confirmados.", confirmingN: "Estás confirmando {n} {guests}", guestWord: "invitado", guestsWord: "invitados", nameMissing: "Escribe tu nombre.", nameEveryGuest: "Escribe el nombre de cada invitado.", saveQrBtn: "Guardar el código QR", savingQr: "Guardando…", noneComing: "Ninguno de ustedes podrá venir" },
+  hy: { familyNamePh: "Ընտանիքի անունը", familyNameMissing: "Խնդրում ենք գրել ընտանիքի անունը։", pickCount: "Խնդրում ենք ընտրել, թե քանիսով կգաք։", numGuests: "Հյուրերի քանակը", addGuest: "Ավելացնել հյուր", guestNamePh: "Հյուրի անունը", personalYes: "Այո", personalNo: "Ոչ", orderOfDay: "Օրվա ծրագիրը", celebration: "Տոնակատարությունը", countingDownTo: "Հաշվարկը մինչև", celebrationWord: "տոնակատարությունը", celebrationBegun: "Տոնակատարությունը սկսվել է:", days: "օր", hrs: "ժ", min: "ր", sec: "վ", swipeUp: "Սահեցրեք վերև", swipeLeft: "Սահեցրեք ձախ", swipeRight: "Սահեցրեք աջ", swipeDown: "Սահեցրեք ներքև", directions: "Երթուղի ստանալ", tapToStart: "Հպեք՝ սկսելու համար", rsvpHeading: "Կմիանա՞ք մեզ", giftRegistry: "Նվերների ցանկ", registryIntro: "Ձեր ներկայությունը մեզ համար ամենամեծ նվերն է, սակայն եթե ցանկանում եք մեզ ուրախացնել.", viewRegistry: "Դիտել ցանկը", voiceTitle: "Մենք ձեզ կկարոտենք", voiceSub: "Ձայնագրեք կարճ ուղերձ, որ իմանան՝ մտածում եք նրանց մասին։", voiceRecord: "Ձայնագրել", voiceStop: "Կանգնեցնել", voiceAgain: "Կրկին ձայնագրել", voiceSend: "Ուղարկել", voiceSending: "Ուղարկվում է…", voiceSent: "Ուղարկված է ✓", voiceSkip: "Բաց թողնել", voiceMicError: "Չհաջողվեց միանալ խոսափողին — թույլատրեք խոսափողի օգտագործումը և փորձեք կրկին։", voiceProcessError: "Չհաջողվեց մշակել ձայնագրությունը — փորձեք կրկին։", thankYou: "Շնորհակալություն պատասխանի համար։", confirmedFor: "Հաստատված է {n} {people}", person: "հոգու համար", people: "հոգու համար", saveQr: "Պահեք սա — ցույց տվեք մուտքի մոտ արագ գրանցման համար", submitRsvp: "Ուղարկել պատասխանը", rsvpClosed: "Հաստատումը փակված է", deadlinePassed: "Պատասխանելու ժամկետն անցել է։", fullyBooked: "Տեղեր չկան", yourName: "Ձեր անունը", optionalTag: "(ըստ ցանկության)", numAttending: "Մասնակիցների թիվը", capacityReached: "Հաստատված հյուրերի տեղերը լրացել են։", confirmingN: "Դուք հաստատում եք {n} {guests}", guestWord: "հյուր", guestsWord: "հյուր", nameMissing: "Խնդրում ենք գրել ձեր անունը։", nameEveryGuest: "Խնդրում ենք գրել յուրաքանչյուր հյուրի անունը։", saveQrBtn: "Պահել QR կոդը", savingQr: "Պահվում է…", noneComing: "Ձեզանից ոչ ոք չի կարող գալ" },
 };
 
 /* ---------------------------------------------------------------------- */
@@ -6955,6 +6955,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   // named) or "count" (just how many are coming).
   const countMode = rsvpSettings.personalMode === "count";
   const hs = layout.heading, bs = layout.buttons;
+  // The "Font" picked for the RSVP form block (its panel) sets the form's text.
+  const formFont = bs.fontFamily || FONT_BODY;
   const style = rsvpSettings.style || "classic";
   // The RSVP form's look: classic (side-by-side buttons), stacked (two big
   // buttons), card (everything in a frosted card with a Yes/No switch) or
@@ -6964,16 +6966,16 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     ? "w-full bg-transparent px-1 py-2 text-center text-[12px] outline-none"
     : "w-full rounded-full px-3 py-2 text-center text-[12px] outline-none";
   const fieldLook = (light) => (skin === "elegant"
-    ? { color: bs.fieldText || (light ? PAPER : EMERALD), borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}`, fontFamily: FONT_BODY }
-    : { background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY });
+    ? { color: bs.fieldText || (light ? PAPER : EMERALD), borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}`, fontFamily: formFont }
+    : { background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: formFont });
   const submitButton = (light, onClick, enabled = true, extraClass = "mt-3") => (
     <button
       onClick={onClick}
       disabled={!enabled}
       className={`${extraClass} w-full rounded-full py-2.5 text-[10.5px] font-bold uppercase`}
       style={skin === "elegant"
-        ? { background: "transparent", color: bs.submitText || (light ? PAPER : EMERALD), border: `1px solid ${bs.submitBg || (light ? "rgba(244,237,228,0.7)" : EMERALD)}`, letterSpacing: "0.22em", fontFamily: FONT_BODY, opacity: enabled ? 1 : 0.5 }
-        : { background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: FONT_BODY, opacity: enabled ? 1 : 0.5 }}
+        ? { background: "transparent", color: bs.submitText || (light ? PAPER : EMERALD), border: `1px solid ${bs.submitBg || (light ? "rgba(244,237,228,0.7)" : EMERALD)}`, letterSpacing: "0.22em", fontFamily: formFont, opacity: enabled ? 1 : 0.5 }
+        : { background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), letterSpacing: "0.12em", fontFamily: formFont, opacity: enabled ? 1 : 0.5 }}
     >
       {t.submitRsvp}
     </button>
@@ -7003,6 +7005,12 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const [otherNames, setOtherNames] = useState([]); // names of the 2nd, 3rd… person on the open link
   const [notComing, setNotComing] = useState(() => new Set()); // invited names the guest un-ticked
   const comingNames = invited.filter((n) => !notComing.has(n));
+  // A personal link for just one person uses the same Yes / No as the open
+  // link (the look chosen in the editor): that choice is their answer.
+  const singleInvited = invited.length === 1;
+  useEffect(() => {
+    if (singleInvited) setNotComing(choice === "no" ? new Set(invited) : new Set());
+  }, [singleInvited, choice, invited[0]]);
   // Extra people the family may bring (the dashboard's "+ Guests"), each
   // with an optional name; only while someone from the family is coming.
   const extraAllowed = Math.max(0, Number(invitedExtra) || 0);
@@ -7118,6 +7126,38 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   };
 
 
+  // Extra guests ("+ Add a guest") on a personal link.
+  const extraRows = (text, line, topBorder) => (
+    <>
+          {comingNames.length > 0 && extraGuests.map((g, i) => (
+            <div key={`extra-${i}`} className="flex items-center gap-2 px-2.5 py-1.5" style={{ borderTop: topBorder || i ? `1px solid ${line}` : "none" }}>
+              <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text }}>
+                <Plus size={11} />
+              </span>
+              <input
+                value={g}
+                onChange={(e) => setExtraGuests((list) => list.map((x, j) => (j === i ? e.target.value : x)))}
+                placeholder={`${t.guestNamePh || "Guest's name"}${extraNamesRequired ? " *" : ""}`}
+                className="min-w-0 flex-1 bg-transparent text-[11.5px] outline-none"
+                style={{ color: text, fontFamily: formFont, borderBottom: `1px dashed ${line}` }}
+              />
+              <button onClick={() => setExtraGuests((list) => list.filter((_, j) => j !== i))} className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full" style={{ color: text, opacity: 0.6 }} title="Remove">
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          {comingNames.length > 0 && extraGuests.length < extraAllowed && (
+            <button
+              onClick={() => setExtraGuests((list) => [...list, ""])}
+              className="flex w-full items-center justify-center gap-1 px-2.5 py-1.5 text-[10.5px] font-semibold"
+              style={{ borderTop: topBorder || extraGuests.length ? `1px solid ${line}` : "none", color: text, fontFamily: formFont, opacity: 0.85 }}
+            >
+              <Plus size={11} /> {t.addGuest || "Add a guest"} <span style={{ opacity: 0.6, fontWeight: 400 }}>({extraAllowed - extraGuests.length})</span>
+            </button>
+          )}
+    </>
+  );
+
   // Personal link: one compact card, a row per invited person — initial,
   // name, ✓ / ✕ — then the count and Submit.
   const personalForm = (light) => {
@@ -7131,58 +7171,56 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     const words = rsvpSettings.personalSwitch === "text";
     const yesWord = (content.personalYes || "").trim() || t.personalYes || "Yes";
     const noWord = (content.personalNo || "").trim() || t.personalNo || "No";
+    const elegant = skin === "elegant";
+    const guestsCount = comingNames.length + extrasCounted.length;
+    const summary = (
+      <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: formFont, opacity: 0.85, letterSpacing: "0.02em" }}>
+        {comingNames.length > 0
+          ? t.confirmingN.replace("{n}", guestsCount).replace("{guests}", guestsCount === 1 ? t.guestWord : t.guestsWord)
+          : t.noneComing}
+      </p>
+    );
+    if (singleInvited) {
+      const extras = choice === "yes" && extraAllowed > 0;
+      return (
+        <div className="flex flex-col items-stretch">
+          {acceptDecline(light, false)}
+          {extras && (
+            <div className={`mt-3 overflow-hidden ${elegant ? "" : "rounded-2xl"}`} style={elegant ? {} : { background: cardBg, border: `1px solid ${line}` }}>
+              {extraRows(text, line, false)}
+            </div>
+          )}
+          {extras && extrasCounted.length > 0 && summary}
+          {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
+          {submitButton(light, submitPersonal, !!choice, "mt-3")}
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-stretch">
-        <div className="overflow-hidden rounded-2xl" style={{ background: cardBg, border: `1px solid ${line}`, backdropFilter: light ? "blur(6px)" : undefined }}>
+        <div className={`overflow-hidden ${elegant ? "" : "rounded-2xl"}`} style={elegant ? {} : { background: cardBg, border: `1px solid ${line}`, backdropFilter: light ? "blur(6px)" : undefined }}>
           {invited.map((n, i) => {
             const coming = !notComing.has(n);
             const set = (yes) => setNotComing((s) => { const next = new Set(s); if (yes) next.delete(n); else next.add(n); return next; });
             return (
-              <div key={n} className="flex items-center gap-2 px-2.5 py-1.5" style={{ borderTop: i ? `1px solid ${line}` : "none" }}>
-                <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text, fontFamily: FONT_BODY }}>
-                  {n.trim().charAt(0).toUpperCase()}
-                </span>
-                <span className="min-w-0 flex-1 break-words text-[11.5px] leading-tight" style={{ color: text, fontFamily: FONT_BODY, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through" }}>{n}</span>
+              <div key={n} className={`flex items-center gap-2 ${elegant ? "px-1 py-2" : "px-2.5 py-1.5"}`} style={elegant ? { borderBottom: `1px solid ${line}` } : { borderTop: i ? `1px solid ${line}` : "none" }}>
+                {!elegant && (
+                  <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text, fontFamily: formFont }}>
+                    {n.trim().charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 break-words leading-tight" style={{ color: text, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through", ...(elegant ? { fontFamily: bs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: 15 } : { fontFamily: formFont, fontSize: 11.5 }) }}>{n}</span>
                 <div className="flex flex-shrink-0 gap-0.5 rounded-full p-0.5" style={{ border: `1px solid ${line}` }}>
-                  <button onClick={() => set(true)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? onYes : off), fontFamily: FONT_BODY }} title="Coming">{words ? yesWord : <Check size={12} />}</button>
-                  <button onClick={() => set(false)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? off : onNo), fontFamily: FONT_BODY }} title="Can't make it">{words ? noWord : <X size={12} />}</button>
+                  <button onClick={() => set(true)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? onYes : off), fontFamily: formFont }} title="Coming">{words ? yesWord : <Check size={12} />}</button>
+                  <button onClick={() => set(false)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? off : onNo), fontFamily: formFont }} title="Can't make it">{words ? noWord : <X size={12} />}</button>
                 </div>
               </div>
             );
           })}
-          {comingNames.length > 0 && extraGuests.map((g, i) => (
-            <div key={`extra-${i}`} className="flex items-center gap-2 px-2.5 py-1.5" style={{ borderTop: `1px solid ${line}` }}>
-              <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full" style={{ background: light ? "rgba(255,255,255,0.16)" : "rgba(36,70,61,0.1)", color: text }}>
-                <Plus size={11} />
-              </span>
-              <input
-                value={g}
-                onChange={(e) => setExtraGuests((list) => list.map((x, j) => (j === i ? e.target.value : x)))}
-                placeholder={`${t.guestNamePh || "Guest's name"}${extraNamesRequired ? " *" : ""}`}
-                className="min-w-0 flex-1 bg-transparent text-[11.5px] outline-none"
-                style={{ color: text, fontFamily: FONT_BODY, borderBottom: `1px dashed ${line}` }}
-              />
-              <button onClick={() => setExtraGuests((list) => list.filter((_, j) => j !== i))} className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full" style={{ color: text, opacity: 0.6 }} title="Remove">
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-          {comingNames.length > 0 && extraGuests.length < extraAllowed && (
-            <button
-              onClick={() => setExtraGuests((list) => [...list, ""])}
-              className="flex w-full items-center justify-center gap-1 px-2.5 py-1.5 text-[10.5px] font-semibold"
-              style={{ borderTop: `1px solid ${line}`, color: text, fontFamily: FONT_BODY, opacity: 0.85 }}
-            >
-              <Plus size={11} /> {t.addGuest || "Add a guest"} <span style={{ opacity: 0.6, fontWeight: 400 }}>({extraAllowed - extraGuests.length})</span>
-            </button>
-          )}
+          {extraRows(text, line, true)}
         </div>
-        <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85, letterSpacing: "0.02em" }}>
-          {comingNames.length > 0
-            ? `You're confirming ${comingNames.length + extrasCounted.length} guest${comingNames.length + extrasCounted.length !== 1 ? "s" : ""}`
-            : "None of you can make it"}
-        </p>
-        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        {summary}
+        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
         {submitButton(light, submitPersonal, true, "mt-2")}
       </div>
     );
@@ -7196,14 +7234,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         onClick={() => !blockYes && setChoice("yes")}
         disabled={blockYes}
         className="flex-1 rounded-full px-2 py-2 text-[11px] font-semibold leading-tight"
-        style={{ ...(choice === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: FONT_BODY, opacity: blockYes ? 0.4 : 1 }}
+        style={{ ...(choice === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: formFont, opacity: blockYes ? 0.4 : 1 }}
       >
         {blockYes ? t.fullyBooked : content.yesLabel}
       </button>
       <button
         onClick={() => setChoice("no")}
         className="flex-1 rounded-full px-2 py-2 text-[11px] font-semibold leading-tight"
-        style={{ ...(choice === "no" ? { background: noBg || ROSE, color: noText || PAPER } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: FONT_BODY }}
+        style={{ ...(choice === "no" ? { background: noBg || ROSE, color: noText || PAPER } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: formFont }}
       >
         {content.noLabel}
       </button>
@@ -7224,7 +7262,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full" style={{ border: `1px solid ${on ? accent : "currentColor"}` }}>
               {on && <span className="h-2 w-2 rounded-full" style={{ background: accent }} />}
             </span>
-            <span style={{ fontFamily: fontDisplay, fontStyle: "italic", fontSize: 15 }}>{blocked ? t.fullyBooked : label}</span>
+            <span style={{ fontFamily: bs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: 15 }}>{blocked ? t.fullyBooked : label}</span>
           </button>
         );
       })}
@@ -7237,10 +7275,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         className="rounded-full py-2.5 text-[12px] font-semibold"
         style={
           blockYes
-            ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: FONT_BODY }
+            ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: formFont }
             : (editMode || choice === "yes")
-            ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), fontFamily: FONT_BODY }
-            : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: FONT_BODY }
+            ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), fontFamily: formFont }
+            : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: formFont }
         }
       >
         {blockYes ? t.fullyBooked : content.yesLabel}
@@ -7248,7 +7286,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       <button
         onClick={() => setChoice("no")}
         className="rounded-full py-2.5 text-[12px] font-semibold"
-        style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, fontFamily: FONT_BODY } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: FONT_BODY }}
+        style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, fontFamily: formFont } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: formFont }}
       >
         {content.noLabel}
       </button>
@@ -7263,7 +7301,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           background: yesBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
           border: `1.5px solid ${blockYes ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
           color: blockYes ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : yesText || (light ? PAPER : EMERALD),
-          fontFamily: FONT_BODY,
+          fontFamily: formFont,
         }}
       >
         <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
@@ -7278,7 +7316,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           background: noBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
           border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
           color: noText || (light ? PAPER : EMERALD),
-          fontFamily: FONT_BODY,
+          fontFamily: formFont,
         }}
       >
         <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
@@ -7304,28 +7342,28 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           />
         )}
         {acceptDecline(light, !personal && isFull)}
-        {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: FONT_BODY }}>{t.capacityReached}</p>}
+        {!personal && isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: text, opacity: 0.7, fontFamily: formFont }}>{t.capacityReached}</p>}
         {choice === "yes" && (
           <>
-            <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.8 }}>{(String(content.numGuestsLabel || "").trim() || (t.numGuests || "Number of guests"))}</label>
+            <label className="mt-3 mb-1 text-[9.5px] font-semibold" style={{ color: text, fontFamily: formFont, opacity: 0.8 }}>{(String(content.numGuestsLabel || "").trim() || (t.numGuests || "Number of guests"))}</label>
             <select
               value={Math.min(countMax, countPick)}
               onChange={(e) => { setCountPick(Number(e.target.value)); setError(""); }}
               className={skin === "elegant" ? "w-full bg-transparent px-1 py-1.5 text-center text-[12px] font-semibold outline-none" : "w-full rounded-full px-3 py-1.5 text-center text-[12px] font-semibold outline-none"}
               style={skin === "elegant"
-                ? { color: text, borderBottom: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }
-                : { background: fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2), color: text, border: `1px solid ${line}`, fontFamily: FONT_BODY, textAlignLast: "center" }}
+                ? { color: text, borderBottom: `1px solid ${line}`, fontFamily: formFont, textAlignLast: "center" }
+                : { background: fieldBg || (light ? "rgba(15,20,18,0.35)" : PAPER_2), color: text, border: `1px solid ${line}`, fontFamily: formFont, textAlignLast: "center" }}
             >
               {Array.from({ length: countMax + 1 }, (_, i) => i).map((n) => <option key={n} value={n} style={{ color: "#111" }}>{n}</option>)}
             </select>
             {countPick > 0 && (
-              <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: FONT_BODY, opacity: 0.85 }}>
+              <p className="mt-2 text-center text-[10px]" style={{ color: text, fontFamily: formFont, opacity: 0.85 }}>
                 {t.confirmingN.replace("{n}", Math.min(countMax, countPick)).replace("{guests}", Math.min(countMax, countPick) === 1 ? t.guestWord : t.guestsWord)}
               </p>
             )}
           </>
         )}
-        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+        {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
         {submitButton(light, submitCount, !!choice)}
       </div>
     );
@@ -7333,10 +7371,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
 
   const guestStepper = (light) => (
     <div className={skin === "elegant" ? "flex items-center justify-between px-1 py-1.5" : "flex items-center justify-between rounded-full px-3 py-1.5"} style={skin === "elegant" ? { borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}` } : { background: fieldBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2) }}>
-      <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: FONT_BODY }}>{(String(content.numAttendingLabel || "").trim() || t.numAttending)}</span>
+      <span className="text-[10.5px]" style={{ color: bs.fieldText || (light ? "rgba(244,237,228,0.8)" : ROSE), fontFamily: formFont }}>{(String(content.numAttendingLabel || "").trim() || t.numAttending)}</span>
       <div className="flex items-center gap-2">
         <button onClick={() => setGuestCount((c) => Math.max(1, c - 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronDown size={13} /></button>
-        <span className="text-[12px] font-semibold" style={{ color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: FONT_BODY }}>{guestCount}</span>
+        <span className="text-[12px] font-semibold" style={{ color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: formFont }}>{guestCount}</span>
         <button onClick={() => setGuestCount((c) => Math.min(rsvpSettings.maxGuestsOpenInvite, c + 1))} style={{ color: bs.fieldText || (light ? PAPER : EMERALD) }}><ChevronUp size={13} /></button>
       </div>
     </div>
@@ -7378,7 +7416,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       <CheckCircle2 size={22} color={bs.thankYouText || (light ? PAPER : EMERALD)} style={{ margin: "0 auto 6px" }} />
       <p style={{ color: bs.thankYouText || (light ? PAPER : EMERALD), fontFamily: fontDisplay, fontStyle: "italic", fontSize: 14 }}>{t.thankYou}</p>
       {shownPartySize > 0 && (
-        <p className="mt-2 text-[11.5px]" style={{ color: bs.thankYouSub || (light ? GOLD_SOFT : ROSE), fontFamily: FONT_BODY }}>
+        <p className="mt-2 text-[11.5px]" style={{ color: bs.thankYouSub || (light ? GOLD_SOFT : ROSE), fontFamily: formFont }}>
           {t.confirmedFor.replace("{n}", shownPartySize).replace("{people}", shownPartySize === 1 ? t.person : t.people)}
         </p>
       )}
@@ -7389,7 +7427,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             alt="Check-in QR code"
             style={{ width: 130, height: 130, margin: "0 auto", borderRadius: 10, background: "#fff", padding: 6 }}
           />
-          <p className="mt-2 text-[10px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, maxWidth: 200, margin: "6px auto 0" }}>
+          <p className="mt-2 text-[10px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: formFont, maxWidth: 200, margin: "6px auto 0" }}>
             {t.saveQr}
           </p>
           <button
@@ -7399,7 +7437,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               try { await saveCheckinQr(`https://${siteDomain}/checkin/${effectiveCheckinToken}`, personal ? invitedHeading : name.trim()); } finally { setSavingQr(false); }
             }}
             className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[10.5px] font-bold"
-            style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), fontFamily: FONT_BODY, opacity: savingQr ? 0.6 : 1 }}
+            style={{ background: submitBg || (light ? GOLD : EMERALD), color: bs.submitText || (light ? INK : PAPER), fontFamily: formFont, opacity: savingQr ? 0.6 : 1 }}
           >
             <Download size={12} /> {savingQr ? t.savingQr : t.saveQrBtn}
           </button>
@@ -7449,7 +7487,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                 >
                   <ChevronDown size={12} style={{ transform: "rotate(90deg)" }} />
                 </button>
-                <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, letterSpacing: "0.06em" }}>
+                <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase" style={{ background: GOLD, color: INK, fontFamily: formFont, letterSpacing: "0.06em" }}>
                   {editPreviewStates[editPreviewState]}
                 </span>
                 <button
@@ -7500,8 +7538,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               ) : isPastDeadline ? (
                 <div className="text-center">
                   <AlertTriangle size={28} color={light ? GOLD_SOFT : ROSE} style={{ margin: "0 auto 8px" }} />
-                  <p className="text-[13px] font-semibold" style={{ color: light ? PAPER : EMERALD, fontFamily: FONT_BODY }}>{t.rsvpClosed}</p>
-                  <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+                  <p className="text-[13px] font-semibold" style={{ color: light ? PAPER : EMERALD, fontFamily: formFont }}>{t.rsvpClosed}</p>
+                  <p className="mt-1.5 text-[11.5px]" style={{ color: light ? "rgba(244,237,228,0.75)" : "rgba(36,70,61,0.7)", fontFamily: formFont, lineHeight: 1.5 }}>
                     {t.deadlinePassed}
                   </p>
                 </div>
@@ -7514,7 +7552,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                   {/* The guest's name always comes first, before they reply. */}
                   <div className="mb-3">{nameField(light)}</div>
                   {acceptDecline(light)}
-                  {isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: light ? "rgba(244,237,228,0.6)" : ROSE, fontFamily: FONT_BODY }}>{t.capacityReached}</p>}
+                  {isFull && <p className="mt-1.5 text-center text-[10px] italic" style={{ color: light ? "rgba(244,237,228,0.6)" : ROSE, fontFamily: formFont }}>{t.capacityReached}</p>}
                   {choice === "yes" && (
                     <div className="mt-3 flex flex-col gap-2">
                       {rsvpSettings.maxGuestsOpenInvite > 0 && guestStepper(light)}
@@ -7530,7 +7568,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                       ))}
                     </div>
                   )}
-                  {error && <p className="mt-2 text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: FONT_BODY }}>{error}</p>}
+                  {error && <p className="mt-2 text-center text-[10.5px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
                   {submitButton(light, submit, !!choice)}
                 </>
               )}
