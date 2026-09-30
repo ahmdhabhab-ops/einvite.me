@@ -6957,6 +6957,11 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
   const hs = layout.heading, bs = layout.buttons;
   // The "Font" picked for the RSVP form block (its panel) sets the form's text.
   const formFont = bs.fontFamily || FONT_BODY;
+  // Its Size / Bold / Italic set the form's main text: the Yes / No
+  // choices, the names and the name field.
+  const mainText = { fontFamily: formFont, ...(bs.fontSize ? { fontSize: Number(bs.fontSize) } : {}), ...(bs.fontWeight === 700 ? { fontWeight: 700 } : {}), ...(bs.italic ? { fontStyle: "italic" } : {}) };
+  // Elegant's choices and names are italic unless Italic is turned off.
+  const elegantText = { fontFamily: bs.fontFamily || fontDisplay, fontStyle: bs.italic === false ? "normal" : "italic", fontSize: bs.fontSize ? Number(bs.fontSize) : 15, ...(bs.fontWeight === 700 ? { fontWeight: 700 } : {}) };
   const style = rsvpSettings.style || "classic";
   // The RSVP form's look: classic (side-by-side buttons), stacked (two big
   // buttons), card (everything in a frosted card with a Yes/No switch) or
@@ -6966,8 +6971,8 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     ? "w-full bg-transparent px-1 py-2 text-center text-[12px] outline-none"
     : "w-full rounded-full px-3 py-2 text-center text-[12px] outline-none";
   const fieldLook = (light) => (skin === "elegant"
-    ? { color: bs.fieldText || (light ? PAPER : EMERALD), borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}`, fontFamily: formFont }
-    : { background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), fontFamily: formFont });
+    ? { color: bs.fieldText || (light ? PAPER : EMERALD), borderBottom: `1px solid ${light ? "rgba(244,237,228,0.45)" : "rgba(36,70,61,0.35)"}`, ...mainText }
+    : { background: fieldBg || (light ? "rgba(255,255,255,0.12)" : PAPER_2), color: bs.fieldText || (light ? PAPER : EMERALD), ...mainText });
   const submitButton = (light, onClick, enabled = true, extraClass = "mt-3") => (
     <button
       onClick={onClick}
@@ -7209,7 +7214,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
                     {n.trim().charAt(0).toUpperCase()}
                   </span>
                 )}
-                <span className="min-w-0 flex-1 break-words leading-tight" style={{ color: text, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through", ...(elegant ? { fontFamily: bs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: 15 } : { fontFamily: formFont, fontSize: 11.5 }) }}>{n}</span>
+                <span className="min-w-0 flex-1 break-words leading-tight" style={{ color: text, opacity: coming ? 1 : 0.6, textDecoration: coming ? "none" : "line-through", ...(elegant ? elegantText : { fontSize: 11.5, ...mainText }) }}>{n}</span>
                 <div className="flex flex-shrink-0 gap-0.5 rounded-full p-0.5" style={{ border: `1px solid ${line}` }}>
                   <button onClick={() => set(true)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? onYes : off), fontFamily: formFont }} title="Coming">{words ? yesWord : <Check size={12} />}</button>
                   <button onClick={() => set(false)} className={`flex h-[22px] items-center justify-center rounded-full ${words ? "min-w-[30px] px-2.5 text-[10px] font-semibold" : "w-[26px]"}`} style={{ ...(coming ? off : onNo), fontFamily: formFont }} title="Can't make it">{words ? noWord : <X size={12} />}</button>
@@ -7234,14 +7239,14 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         onClick={() => !blockYes && setChoice("yes")}
         disabled={blockYes}
         className="flex-1 rounded-full px-2 py-2 text-[11px] font-semibold leading-tight"
-        style={{ ...(choice === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: formFont, opacity: blockYes ? 0.4 : 1 }}
+        style={{ ...(choice === "yes" ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) } : { background: "transparent", color: light ? PAPER : EMERALD }), ...mainText, opacity: blockYes ? 0.4 : 1 }}
       >
         {blockYes ? t.fullyBooked : content.yesLabel}
       </button>
       <button
         onClick={() => setChoice("no")}
         className="flex-1 rounded-full px-2 py-2 text-[11px] font-semibold leading-tight"
-        style={{ ...(choice === "no" ? { background: noBg || ROSE, color: noText || PAPER } : { background: "transparent", color: light ? PAPER : EMERALD }), fontFamily: formFont }}
+        style={{ ...(choice === "no" ? { background: noBg || ROSE, color: noText || PAPER } : { background: "transparent", color: light ? PAPER : EMERALD }), ...mainText }}
       >
         {content.noLabel}
       </button>
@@ -7262,7 +7267,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
             <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full" style={{ border: `1px solid ${on ? accent : "currentColor"}` }}>
               {on && <span className="h-2 w-2 rounded-full" style={{ background: accent }} />}
             </span>
-            <span style={{ fontFamily: bs.fontFamily || fontDisplay, fontStyle: "italic", fontSize: 15 }}>{blocked ? t.fullyBooked : label}</span>
+            <span style={elegantText}>{blocked ? t.fullyBooked : label}</span>
           </button>
         );
       })}
@@ -7275,10 +7280,10 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
         className="rounded-full py-2.5 text-[12px] font-semibold"
         style={
           blockYes
-            ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, fontFamily: formFont }
+            ? { background: "transparent", color: light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)", border: `1.5px solid ${light ? "rgba(244,237,228,0.25)" : "rgba(36,70,61,0.2)"}`, ...mainText }
             : (editMode || choice === "yes")
-            ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), fontFamily: formFont }
-            : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, fontFamily: formFont }
+            ? { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER), ...mainText }
+            : { background: "transparent", color: light ? PAPER : EMERALD, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : EMERALD}`, ...mainText }
         }
       >
         {blockYes ? t.fullyBooked : content.yesLabel}
@@ -7286,7 +7291,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
       <button
         onClick={() => setChoice("no")}
         className="rounded-full py-2.5 text-[12px] font-semibold"
-        style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, fontFamily: formFont } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, fontFamily: formFont }}
+        style={(editMode || choice === "no") ? { background: noBg || ROSE, color: noText || PAPER, ...mainText } : { background: "transparent", color: light ? PAPER : ROSE, border: `1.5px solid ${light ? "rgba(244,237,228,0.6)" : ROSE}`, ...mainText }}
       >
         {content.noLabel}
       </button>
@@ -7301,7 +7306,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           background: yesBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
           border: `1.5px solid ${blockYes ? (light ? "rgba(244,237,228,0.2)" : "rgba(36,70,61,0.15)") : choice === "yes" ? (light ? GOLD_SOFT : EMERALD) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
           color: blockYes ? (light ? "rgba(244,237,228,0.35)" : "rgba(36,70,61,0.35)") : yesText || (light ? PAPER : EMERALD),
-          fontFamily: formFont,
+          ...mainText,
         }}
       >
         <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
@@ -7316,7 +7321,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           background: noBg || (light ? "rgba(255,255,255,0.1)" : PAPER_2),
           border: `1.5px solid ${choice === "no" ? (light ? GOLD_SOFT : ROSE) : (light ? "rgba(244,237,228,0.4)" : "rgba(36,70,61,0.3)")}`,
           color: noText || (light ? PAPER : EMERALD),
-          fontFamily: formFont,
+          ...mainText,
         }}
       >
         <span className="flex h-3 w-3 items-center justify-center rounded-full" style={{ border: `1.5px solid currentColor` }}>
