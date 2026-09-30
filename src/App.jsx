@@ -14258,8 +14258,8 @@ function LandingPage({ onSignUp, onLogIn }) {
       `}</style>
       <style>{`
         .landing-underline { border-bottom: 1px solid currentColor; padding-bottom: 6px; }
-        .landing-row { transition: background-color .25s; }
-        .landing-row:hover { background: rgba(245,240,231,0.04); }
+        .feature-card { transition: transform .25s, border-color .25s, background-color .25s; }
+        .feature-card:hover { transform: translateY(-3px); border-color: rgba(191,145,74,0.55) !important; }
         .occasion-tile { transition: filter .25s, box-shadow .25s; }
         .occasion-tile:hover { filter: brightness(1.06); box-shadow: 0 18px 30px -18px rgba(28,59,51,0.45); }
       `}</style>
@@ -14373,30 +14373,39 @@ function LandingPage({ onSignUp, onLogIn }) {
       </section>
 
       <section id="features" className="relative px-4 py-24 sm:px-6" style={{ background: LP.green }}>
-        <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-[1fr_1.35fr]">
-          <div className="md:sticky md:top-28 md:self-start">
-            <div className="mb-5 text-[12px] font-semibold uppercase" style={{ ...eyebrow, color: LP.gold }}>{ed.featuresEyebrow}</div>
-            <h2 style={{ ...heading("clamp(32px, 4vw, 50px)"), color: LP.onGreen }}><LandingAccent text={t.features.title} /></h2>
-            <p className="mt-6 max-w-md text-[15px]" style={{ color: LP.onGreen2, lineHeight: 1.7 }}>{t.features.body}</p>
+        <div className="mx-auto max-w-6xl">
+          <div className="grid items-end gap-6 md:grid-cols-2">
+            <div>
+              <div className="mb-5 text-[12px] font-semibold uppercase" style={{ ...eyebrow, color: LP.gold }}>{ed.featuresEyebrow}</div>
+              <h2 style={{ ...heading("clamp(32px, 4vw, 50px)"), color: LP.onGreen }}><LandingAccent text={t.features.title} /></h2>
+            </div>
+            <p className="max-w-md text-[15px] md:justify-self-end" style={{ color: LP.onGreen2, lineHeight: 1.7 }}>{t.features.body}</p>
           </div>
-          <div>
+          {/* Cards side by side, so the whole list stays compact. */}
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {t.features.items.map(({ title, body, href, cta }, i) => {
-              const inner = (
-                <>
-                  <span className="w-8 flex-shrink-0 pt-1.5" style={{ fontFamily: "'Playfair Display', serif", color: LP.gold, fontSize: 15 }}>{String(i + 1).padStart(2, "0")}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block" style={{ fontFamily: fonts.display, color: LP.onGreen, fontSize: "clamp(19px, 2vw, 24px)", lineHeight: 1.3 }}>{title}</span>
-                    <span className="mt-1.5 block text-[14px]" style={{ color: LP.onGreen2, lineHeight: 1.65 }}>{body}</span>
-                    {href && <span className="mt-3 inline-block text-[13.5px] font-semibold" style={{ color: LP.gold }}>{cta}</span>}
+              const Icon = LANDING_FEATURE_ICONS[i] || Sparkles;
+              return href ? (
+                // A feature that's a page of its own (the cost calculator): a wide, linked card.
+                <a key={title} href={href} className="feature-card flex flex-col gap-5 rounded-2xl p-6 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between lg:col-span-3" style={{ background: "rgba(191,145,74,0.14)", border: "1px solid rgba(191,145,74,0.45)" }}>
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(191,145,74,0.2)" }}><Icon size={21} color={LP.gold} strokeWidth={1.6} /></span>
+                    <div>
+                      <h3 style={{ fontFamily: fonts.display, color: LP.onGreen, fontSize: 21, lineHeight: 1.3 }}>{title}</h3>
+                      <p className="mt-1.5 max-w-xl text-[14px]" style={{ color: LP.onGreen2, lineHeight: 1.65 }}>{body}</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex flex-shrink-0 items-center justify-center gap-2 self-start rounded-full px-5 py-2.5 text-[13.5px] font-semibold sm:self-center" style={{ background: LP.gold, color: LP.onGold }}>
+                    {cta} <ArrowRight size={15} className={lang === "ar" ? "rotate-180" : ""} />
                   </span>
-                  {href && <ArrowUpRight size={17} color={LP.gold} className={`mt-2 flex-shrink-0 ${lang === "ar" ? "-scale-x-100" : ""}`} />}
-                </>
+                </a>
+              ) : (
+                <div key={title} className="feature-card rounded-2xl p-6" style={{ background: "rgba(245,240,231,0.05)", border: `1px solid ${LP.greenLine}` }}>
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: "rgba(191,145,74,0.16)" }}><Icon size={21} color={LP.gold} strokeWidth={1.6} /></span>
+                  <h3 className="mt-5" style={{ fontFamily: fonts.display, color: LP.onGreen, fontSize: 20, lineHeight: 1.3 }}>{title}</h3>
+                  <p className="mt-2 text-[14px]" style={{ color: LP.onGreen2, lineHeight: 1.65 }}>{body}</p>
+                </div>
               );
-              const rowClass = "landing-row flex items-start gap-5 px-1 py-7";
-              const rowStyle = { borderTop: i ? `1px solid ${LP.greenLine}` : "none" };
-              return href
-                ? <a key={title} href={href} className={rowClass} style={rowStyle}>{inner}</a>
-                : <div key={title} className={rowClass} style={rowStyle}>{inner}</div>;
             })}
           </div>
         </div>
