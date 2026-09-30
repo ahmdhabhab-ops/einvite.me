@@ -37,15 +37,56 @@ const IVORY = "var(--ui-ivory, #F4EDE4)";
 const MUTED = "var(--ui-muted, #93A69B)";
 const UI_ERROR = "var(--ui-error, #E29B9B)";
 const UI_OK = "var(--ui-ok, #8FBFA3)";
-// Switches the page to the light look while mounted (on the root, so
-// pop-ups rendered outside the builder's own box follow it too).
+// Light (default) or dark look for the app's own screens, remembered in
+// this browser. Every screen using it updates together when it changes.
+const UI_THEME_KEY = "einvite:ui-theme";
+const UI_THEME_EVENT = "einvite:ui-theme-change";
+function readUiTheme() {
+  try { return window.localStorage.getItem(UI_THEME_KEY) === "dark" ? "dark" : "light"; } catch { return "light"; }
+}
+function useUiTheme() {
+  const [theme, setThemeState] = useState(readUiTheme);
+  useEffect(() => {
+    const sync = () => setThemeState(readUiTheme());
+    window.addEventListener(UI_THEME_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(UI_THEME_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
+  const setTheme = (next) => {
+    try { window.localStorage.setItem(UI_THEME_KEY, next); } catch {}
+    setThemeState(next);
+    window.dispatchEvent(new Event(UI_THEME_EVENT));
+  };
+  return [theme, setTheme];
+}
+// Switches the page to the light look while mounted, unless dark mode is
+// chosen (on the root, so pop-ups rendered outside the builder's own box
+// follow it too).
 function LightUiScope() {
+  const [theme] = useUiTheme();
   React.useLayoutEffect(() => {
+    if (theme === "dark") return undefined;
     const root = document.documentElement;
     Object.entries(UI_LIGHT).forEach(([k, v]) => root.style.setProperty(k, v));
     return () => Object.keys(UI_LIGHT).forEach((k) => root.style.removeProperty(k));
-  }, []);
+  }, [theme]);
   return null;
+}
+// The sun / moon button that flips between the two looks.
+function UiThemeToggle() {
+  const [theme, setTheme] = useUiTheme();
+  const dark = theme === "dark";
+  return (
+    <button
+      onClick={() => setTheme(dark ? "light" : "dark")}
+      title={dark ? "Light mode" : "Dark mode"}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
+      style={{ background: INK_3, color: dark ? GOLD : IVORY, border: `1px solid rgba(201,164,76,0.3)` }}
+    >
+      {dark ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
 }
 const PAPER = "#FBF1E7";
 const PAPER_2 = "#F1E2D2";
@@ -17753,6 +17794,7 @@ export default function InvitationBuilder() {
             {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
             {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
             {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
+            <UiThemeToggle />
             <GoldButton onClick={saveDraft}>
               <Check size={14} /> {saveStatus === "saving" ? "Saving…" : "Save invitation"}
             </GoldButton>
