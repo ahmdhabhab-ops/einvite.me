@@ -481,6 +481,58 @@ app.post("/api/translate", requireMember, limitClientTranslations, express.json(
   }
 });
 
+// Guest list from a photo: reads a picture of a handwritten or printed
+// guest list (any language) with OpenAI's vision model and returns the
+// families on it, for the Dashboard to preview before adding them.
+const guestOcrHits = new Map(); // userId -> { count, since }
+function limitGuestOcr(req, res, next) {
+  const who = authReady ? requestRole(req) : { role: "admin" };
+  if (who.role !== "client") return next();
+  const now = Date.now();
+  const h = guestOcrHits.get(who.userId);
+  const cur = h && now - h.since < 3600000 ? h : { count: 0, since: now };
+  if (cur.count >= 30) return res.status(429).json({ error: "You've read a lot of photos in the last hour — please try again a bit later." });
+  guestOcrHits.set(who.userId, { count: cur.count + 1, since: cur.since });
+  next();
+}
+app.post("/api/guests/from-image", requireMember, limitGuestOcr, express.json({ limit: "8mb" }), async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "Reading photos isn't switched on yet: OPENAI_API_KEY needs to be set on the app in Dokploy." });
+  const image = String(req.body?.image || "");
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 7_500_000) return res.status(400).json({ error: "Please upload a JPG or PNG photo of the list." });
+  try {
+    const r = await fetch(`${process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: "You read photos of guest lists for events (weddings, birthdays, seminars...). The list may be handwritten or printed, in any language (often Arabic, English or French), and may be a table. Return every invited party on it, in order. For each: \"name\" = the family or party name, or the person's name, exactly as written in its original script; \"members\" = the individual people's names if the list names them separately (else an empty array); \"phone\" = the phone number if one is written (digits, keep a leading +), else \"\"; \"extra\" = the number of additional unnamed guests if written (e.g. \"+2\", \"3 persons\" for one named person means 2 extra), else 0. Skip titles, headers, column names, row numbers, totals and anything that isn't a guest. Do not invent or translate names. Reply with only JSON: {\"guests\": [{\"name\": \"\", \"members\": [], \"phone\": \"\", \"extra\": 0}]}.",
+          },
+          { role: "user", content: [{ type: "text", text: "Here is the guest list." }, { type: "image_url", image_url: { url: image, detail: "high" } }] },
+        ],
+      }),
+    });
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+    const data = await r.json();
+    const parsed = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+    const clean = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+    const guests = (Array.isArray(parsed.guests) ? parsed.guests : []).slice(0, 500).map((g) => ({
+      name: clean(g?.name, 120),
+      members: (Array.isArray(g?.members) ? g.members : []).map((m) => clean(m, 120)).filter(Boolean).slice(0, 30),
+      phone: clean(g?.phone, 30).replace(/[^0-9+]/g, ""),
+      extra: Math.max(0, Math.min(50, parseInt(g?.extra, 10) || 0)),
+    })).filter((g) => g.name || g.members.length);
+    res.json({ guests });
+  } catch (err) {
+    console.error("guest list from image failed:", err.message);
+    res.status(502).json({ error: "Couldn't read that photo — please try again, or with a clearer, straighter photo." });
+  }
+});
+
 // Upload a new video: the raw file is the request body.
 app.post("/api/video/optimize", requireMember, express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "No video received." });
