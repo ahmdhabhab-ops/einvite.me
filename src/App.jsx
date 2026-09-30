@@ -7127,7 +7127,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
 
 
   // Extra guests ("+ Add a guest") on a personal link.
-  const extraRows = (text, line, topBorder) => (
+  const extraRows = (light, text, line, topBorder) => (
     <>
           {comingNames.length > 0 && extraGuests.map((g, i) => (
             <div key={`extra-${i}`} className="flex items-center gap-2 px-2.5 py-1.5" style={{ borderTop: topBorder || i ? `1px solid ${line}` : "none" }}>
@@ -7187,7 +7187,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
           {acceptDecline(light, false)}
           {extras && (
             <div className={`mt-3 overflow-hidden ${elegant ? "" : "rounded-2xl"}`} style={elegant ? {} : { background: cardBg, border: `1px solid ${line}` }}>
-              {extraRows(text, line, false)}
+              {extraRows(light, text, line, false)}
             </div>
           )}
           {extras && extrasCounted.length > 0 && summary}
@@ -7217,7 +7217,7 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
               </div>
             );
           })}
-          {extraRows(text, line, true)}
+          {extraRows(light, text, line, true)}
         </div>
         {summary}
         {error && <p className="mt-1 text-center text-[10px]" style={{ color: "#E29B9B", fontFamily: formFont }}>{error}</p>}
