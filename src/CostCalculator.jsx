@@ -1,7 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Plus, X, Sparkles, Info, RotateCcw, ArrowRight, Printer, Download, Heart, PartyPopper, Crown, Church, Gift, CalendarDays, Globe, Check } from "lucide-react";
-import foliageA from "./assets/foliage-a.webp";
-import foliageB from "./assets/foliage-b.webp";
 import { LANDING_LANGS, LANDING_LANG_NAMES } from "./landingText.js";
 import { CALC_TEXT } from "./calculatorText.js";
 
@@ -18,24 +16,23 @@ const FONT_HY = "'Noto Serif Armenian', serif";
 const fontsFor = (lang) =>
   lang === "ar" ? { display: FONT_AR, body: FONT_AR, headingStyle: "normal" }
   : lang === "hy" ? { display: FONT_HY, body: "'Inter', 'Noto Serif Armenian', sans-serif", headingStyle: "normal" }
-  : { display: FONT_DISPLAY, body: FONT_BODY, headingStyle: "italic" };
+  : { display: "'Playfair Display', serif", body: FONT_BODY, headingStyle: "normal" };
 
 // Same palette as the home page (LP in App.jsx).
 const LP = {
-  bg: "#2B3830",
-  pageGradient: "linear-gradient(180deg, #313F36 0%, #2C3931 18%, #2A3730 55%, #26322B 100%)",
-  text: "#F3EDE1",
-  text2: "#CFC3AC",
-  gold: "#D4AB4E",
-  goldSoft: "#E2C88E",
-  onGold: "#22302A",
-  card: "rgba(243,237,225,0.045)",
-  cardHi: "rgba(243,237,225,0.075)",
-  line: "rgba(243,237,225,0.11)",
-  outline: "rgba(243,237,225,0.28)",
-  goldShadow: "0 10px 28px -12px rgba(212,171,78,0.55)",
+  bg: "#F5F0E7",
+  pageGradient: "none",
+  text: "#1C3B33",
+  text2: "#55635B",
+  gold: "#BF914A",
+  goldSoft: "#A87B38",
+  onGold: "#FFFFFF",
+  card: "#FBF8F2",
+  cardHi: "#FFFFFF",
+  line: "rgba(28,59,51,0.13)",
+  outline: "rgba(28,59,51,0.4)",
+  goldShadow: "0 14px 30px -14px rgba(191,145,74,0.75)",
 };
-const GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
 
 // Each occasion's shape: which items are "per guest" (1) in each category.
 // The names for every language are in calculatorText.js, in the same order.
@@ -274,7 +271,7 @@ function LangSwitcher({ lang, onChange, label }) {
         <Globe size={15} /> {lang.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute end-0 top-full z-50 mt-2 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: "#26322B", border: `1px solid ${LP.line}`, boxShadow: "0 20px 40px -20px rgba(0,0,0,0.6)" }}>
+        <div className="absolute end-0 top-full z-50 mt-2 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: LP.cardHi, border: `1px solid ${LP.line}`, boxShadow: "0 20px 40px -20px rgba(28,59,51,0.35)" }}>
           {LANDING_LANGS.map((code) => (
             <button
               key={code}
@@ -354,7 +351,7 @@ function Calculator({ o, lang, fonts }) {
   };
 
   const eyebrow = { fontSize: 11, fontWeight: 600, letterSpacing: rtl ? 0 : "0.2em", textTransform: "uppercase", color: LP.goldSoft };
-  const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, fontSize: size, color: LP.text, lineHeight: rtl ? 1.4 : 1.2 });
+  const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 400, fontSize: size, color: LP.text, lineHeight: rtl ? 1.4 : 1.12, letterSpacing: rtl ? 0 : "-0.02em" });
   const field = "calc-field w-full rounded-lg px-3 py-2 text-[14px] outline-none";
   const Money = ({ value }) => <bdi dir="ltr">{money(value)}</bdi>;
 
@@ -446,7 +443,7 @@ function Calculator({ o, lang, fonts }) {
         </div>
 
         <aside className="lg:sticky lg:top-20 lg:self-start">
-          <div className="relative overflow-hidden rounded-3xl p-7" style={{ background: LP.cardHi, border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -40px rgba(0,0,0,0.6)" }}>
+          <div className="relative overflow-hidden rounded-3xl p-7" style={{ background: LP.cardHi, border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -40px rgba(28,59,51,0.35)" }}>
             <div aria-hidden className="pointer-events-none absolute -end-20 -top-20 h-44 w-44 rounded-full" style={{ border: "20px solid rgba(212,171,78,0.08)" }} />
             <div className="relative">
               <div className="flex items-center gap-2" style={eyebrow}><span style={{ color: LP.gold, fontSize: 14 }}>✳</span> {ui.liveEstimate}</div>
@@ -474,7 +471,7 @@ function Calculator({ o, lang, fonts }) {
                       <span style={{ color: LP.text2 }}>{c.title}</span>
                       <span className="font-semibold" style={{ color: LP.text }}><Money value={c.total} /></span>
                     </div>
-                    <div className="mt-1.5 h-1 overflow-hidden rounded-full" style={{ background: "rgba(243,237,225,0.08)" }}>
+                    <div className="mt-1.5 h-1 overflow-hidden rounded-full" style={{ background: "rgba(28,59,51,0.08)" }}>
                       <div className="h-full rounded-full transition-all duration-300" style={{ width: sum.total > 0 ? `${(c.total / sum.total) * 100}%` : 0, background: LP.gold }} />
                     </div>
                   </div>
@@ -490,7 +487,7 @@ function Calculator({ o, lang, fonts }) {
       </div>
 
       {/* Phones: the running total and the PDF button stay in view. */}
-      <div className="calc-screen fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 px-4 py-3 lg:hidden" style={{ background: "rgba(38,50,43,0.94)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderTop: `1px solid ${LP.line}` }}>
+      <div className="calc-screen fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 px-4 py-3 lg:hidden" style={{ background: "rgba(245,240,231,0.95)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderTop: `1px solid ${LP.line}` }}>
         <div>
           <div style={{ ...eyebrow, fontSize: 10 }}>{ui.estimatedTotal}</div>
           <div className="text-[22px] font-bold" style={{ color: LP.gold, lineHeight: 1.2, fontFamily: FONT_BODY }}><Money value={sum.total} /></div>
@@ -596,9 +593,9 @@ export default function CostCalculatorPage({ slug = null }) {
         .landing-link:hover { color: ${LP.text}; }
         .landing-card { transition: transform .25s, border-color .25s, background-color .25s; }
         .landing-card:hover { transform: translateY(-3px); border-color: rgba(212,171,78,0.4) !important; }
-        .calc-field { background: rgba(243,237,225,0.06); border: 1px solid ${LP.line}; color: ${LP.text}; transition: border-color .2s, background-color .2s; }
-        .calc-field::placeholder { color: rgba(207,195,172,0.55); }
-        .calc-field:focus { border-color: rgba(212,171,78,0.6); background: rgba(243,237,225,0.09); }
+        .calc-field { background: #FFFFFF; border: 1px solid ${LP.line}; color: ${LP.text}; transition: border-color .2s, background-color .2s; }
+        .calc-field::placeholder { color: rgba(85,99,91,0.5); }
+        .calc-field:focus { border-color: rgba(191,145,74,0.7); background: #FFFFFF; }
         .calc-print { display: none; }
         @media print {
           @page { margin: 14mm; }
@@ -609,10 +606,9 @@ export default function CostCalculatorPage({ slug = null }) {
         }
       `}</style>
       <div className="calc-page-chrome">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ backgroundImage: GRAIN, opacity: 0.07, mixBlendMode: "overlay" }} />
-        <header className="sticky top-0 z-50" style={{ background: "rgba(44,57,49,0.72)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
+        <header className="sticky top-0 z-50" style={{ background: "rgba(245,240,231,0.86)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <a href="/" dir="ltr" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: LP.text }}>eInvite<span style={{ color: LP.gold }}>.me</span></a>
+            <a href="/" dir="ltr" style={{ fontFamily: "'Playfair Display', serif", fontSize: 23, color: LP.text, letterSpacing: "-0.02em" }}>eInvite<span style={{ color: LP.gold, fontStyle: "italic" }}>.me</span></a>
             <nav className="flex items-center gap-4 text-[13px] sm:gap-5">
               <a href="/" className="landing-link hidden sm:inline">{ui.home}</a>
               <a href="/shop" className="landing-link hidden sm:inline">{ui.designs}</a>
@@ -626,14 +622,12 @@ export default function CostCalculatorPage({ slug = null }) {
       <div className="relative">
         <div aria-hidden="true" className="calc-page-chrome pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute" style={{ inset: "-120px 0 0 0", background: "radial-gradient(ellipse 55% 45% at 26% 20%, rgba(238,210,158,0.10), transparent 70%)" }} />
-          <img src={foliageA} alt="" className="absolute" style={{ top: -150, left: -130, width: 560, opacity: 0.8, maxWidth: "none" }} />
-          <img src={foliageB} alt="" className="absolute" style={{ top: 80, right: -210, width: 520, opacity: 0.45, transform: "rotate(180deg)", maxWidth: "none" }} />
         </div>
 
         <main className="relative mx-auto max-w-6xl px-4 pb-28 pt-12 sm:px-6 lg:pb-20 lg:pt-16">
           <div className="calc-page-chrome text-center">
             <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: rtl ? 0 : "0.2em" }}>{ui.eyebrow}</div>
-            <h1 style={{ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, fontSize: "clamp(32px, 5.2vw, 56px)", lineHeight: rtl ? 1.4 : 1.15, color: LP.text }}>
+            <h1 style={{ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 400, letterSpacing: rtl ? 0 : "-0.02em", fontSize: "clamp(32px, 5.2vw, 56px)", lineHeight: rtl ? 1.4 : 1.15, color: LP.text }}>
               {occasion ? T.occasions[occasion.id].title : ui.pickTitle}
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{occasion ? ui.intro : ui.pickBody}</p>

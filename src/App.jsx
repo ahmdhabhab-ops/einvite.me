@@ -10,15 +10,13 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
 const CostCalculatorPage = lazy(() => import("./CostCalculator.jsx"));
 import jsQR from "jsqr";
-import foliageA from "./assets/foliage-a.webp";
-import foliageB from "./assets/foliage-b.webp";
-import { LANDING_TEXT, LANDING_LANGS, LANDING_LANG_NAMES } from "./landingText.js";
+import { LANDING_TEXT, LANDING_LANGS, LANDING_LANG_NAMES, LANDING_EDITORIAL } from "./landingText.js";
 
 /* ---------------------------------------------------------------------- */
 /* Tokens                                                                  */
@@ -13676,25 +13674,26 @@ function CheckinStaffPage({ slug }) {
 // Home page palette — a lighter, warmer botanical green than the admin
 // app's INK, with cream text and a champagne gold. Only the home page uses it.
 const LP = {
-  bg: "#2B3830",
-  pageGradient: "linear-gradient(180deg, #313F36 0%, #2C3931 18%, #2A3730 55%, #26322B 100%)",
-  text: "#F3EDE1",
-  text2: "#CFC3AC", // muted warm beige
-  gold: "#D4AB4E",
-  goldSoft: "#E2C88E",
-  onGold: "#22302A",
-  card: "rgba(243,237,225,0.045)",
-  cardHi: "rgba(243,237,225,0.075)",
-  line: "rgba(243,237,225,0.11)",
-  outline: "rgba(243,237,225,0.28)",
-  // Alternate sections fade in and out of a slightly lighter tone instead of hard colour bands.
-  band: "linear-gradient(180deg, rgba(243,237,225,0) 0%, rgba(243,237,225,0.035) 20%, rgba(243,237,225,0.035) 80%, rgba(243,237,225,0) 100%)",
-  goldShadow: "0 10px 28px -12px rgba(212,171,78,0.55)",
+  // Light, editorial: warm paper, deep green and gold.
+  bg: "#F5F0E7",
+  pageGradient: "none",
+  text: "#1C3B33",
+  text2: "#55635B",
+  gold: "#BF914A",
+  goldSoft: "#A87B38", // small gold labels, darker so they read on paper
+  onGold: "#FFFFFF",
+  card: "#FBF8F2",
+  cardHi: "#FFFFFF",
+  line: "rgba(28,59,51,0.13)",
+  outline: "rgba(28,59,51,0.4)",
+  band: "#ECE3D2",
+  goldShadow: "0 14px 30px -14px rgba(191,145,74,0.75)",
+  // The deep green bands (announcement, quote, features).
+  green: "#1C3B33",
+  onGreen: "#F5F0E7",
+  onGreen2: "rgba(245,240,231,0.72)",
+  greenLine: "rgba(245,240,231,0.16)",
 };
-
-// Film grain laid over the whole home page, so the gradients read as
-// paper/photographic rather than flat digital fills.
-const LANDING_GRAIN = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.88 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
 
 // Icons for the home page's feature cards, in the same order as
 // LANDING_TEXT[lang].features.items (see landingText.js).
@@ -13718,11 +13717,29 @@ const LandingLangContext = createContext("en");
 const landingFonts = (lang) =>
   lang === "ar" ? { display: FONT_AR, body: FONT_AR, headingStyle: "normal" }
   : lang === "hy" ? { display: FONT_HY, body: "'Inter', 'Noto Serif Armenian', sans-serif", headingStyle: "normal" }
-  : { display: FONT_DISPLAY, body: FONT_BODY, headingStyle: "italic" };
+  : { display: "'Playfair Display', serif", body: FONT_BODY, headingStyle: "normal" };
+// Big editorial serif headings, set tight.
+const landingHeading = (lang, fonts, size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 400, color: LP.text, fontSize: size, lineHeight: lang === "ar" ? 1.35 : 1.08, letterSpacing: lang === "ar" || lang === "hy" ? 0 : "-0.02em" });
+// The last word of a heading in gold italic ("Make the moment *arrive.*").
+function LandingAccent({ text }) {
+  const lang = useContext(LandingLangContext);
+  const str = String(text || "").trim();
+  const i = str.lastIndexOf(" ");
+  const style = { color: LP.gold, fontStyle: lang === "ar" || lang === "hy" ? "normal" : "italic" };
+  return i < 0 ? <span style={style}>{str}</span> : <>{str.slice(0, i + 1)}<span style={style}>{str.slice(i + 1)}</span></>;
+}
+// A four-point sparkle, as in the hero.
+function LandingSparkle({ size = 24, color = LP.green, style }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <path d="M12 0C12.9 7.6 16.4 11.1 24 12C16.4 12.9 12.9 16.4 12 24C11.1 16.4 7.6 12.9 0 12C7.6 11.1 11.1 7.6 12 0Z" fill={color} />
+    </svg>
+  );
+}
 function useLanding() {
   const lang = useContext(LandingLangContext);
   const fonts = landingFonts(lang);
-  const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, color: LP.text, fontSize: size, lineHeight: lang === "ar" ? 1.4 : 1.15 });
+  const heading = (size) => landingHeading(lang, fonts, size);
   return { lang, t: LANDING_TEXT[lang] || LANDING_TEXT.en, fonts, heading };
 }
 
@@ -13746,7 +13763,7 @@ function LandingLangSwitcher({ lang, onChange }) {
         <Globe size={15} /> {lang.toUpperCase()}
       </button>
       {open && (
-        <div className="absolute end-0 top-full z-50 mt-2 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: "#26322B", border: `1px solid ${LP.line}`, boxShadow: "0 20px 40px -20px rgba(0,0,0,0.6)" }}>
+        <div className="absolute end-0 top-full z-50 mt-2 min-w-[150px] overflow-hidden rounded-xl py-1" style={{ background: LP.cardHi, border: `1px solid ${LP.line}`, boxShadow: "0 20px 40px -20px rgba(28,59,51,0.6)" }}>
           {LANDING_LANGS.map((code) => (
             <button
               key={code}
@@ -14156,6 +14173,31 @@ function PrivacyPolicyPage() {
 // Which cost calculator page each home-page occasion opens (see CostCalculator.jsx).
 const CALCULATOR_SLUGS = { wedding: "wedding", birthday: "birthday", quinceanera: "quinceanera", baptism: "baptism", babyShower: "baby-shower", any: "party" };
 
+// The hero's envelope: a gold disc behind a sealed envelope that lifts its
+// flap on hover. Tapping it scrolls down to the live sample invitation.
+function LandingEnvelope({ ed, onOpen }) {
+  const { fonts, lang } = useLanding();
+  return (
+    <div className="relative mx-auto flex w-full max-w-[460px] flex-col items-center">
+      <div className="relative w-full" style={{ aspectRatio: "460 / 380" }}>
+        <div aria-hidden="true" className="absolute rounded-full" style={{ width: "78%", aspectRatio: "1", right: 0, top: "50%", transform: "translateY(-50%)", background: "#E8D3A2" }} />
+        <LandingSparkle size={30} style={{ position: "absolute", left: "6%", top: "6%" }} />
+        <LandingSparkle size={44} style={{ position: "absolute", right: "-2%", bottom: "4%" }} />
+        <button onClick={onOpen} aria-label={ed.tapToOpen} className="landing-envelope absolute left-0 top-1/2 w-[86%] -translate-y-1/2" style={{ aspectRatio: "390 / 250", filter: "drop-shadow(0 24px 30px rgba(28,59,51,0.18))" }}>
+          <div className="absolute inset-0" style={{ background: "#F3E9DA" }} />
+          <div className="landing-envelope-flap absolute inset-x-0 top-0" style={{ height: "62%", background: "#D8C09B", clipPath: "polygon(0 0, 100% 0, 50% 100%)", transformOrigin: "top" }} />
+          <div className="absolute left-1/2 flex items-center justify-center rounded-full" style={{ top: "62%", width: "13%", aspectRatio: "1", transform: "translate(-50%, -50%)", background: LP.gold, color: "#FFF", fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: "clamp(16px, 2.4vw, 22px)" }}>E</div>
+          <div className="absolute inset-x-0 text-center" style={{ bottom: "12%", color: LP.text }}>
+            <div dir="auto" style={{ fontFamily: fonts.display, fontSize: "clamp(12px, 1.7vw, 15px)", letterSpacing: lang === "ar" || lang === "hy" ? 0 : "0.12em", textTransform: "uppercase", fontWeight: 600 }}>{ed.envelopeNames}</div>
+            <div dir="auto" style={{ fontFamily: fonts.display, fontSize: "clamp(11px, 1.3vw, 12.5px)", marginTop: 2 }}>{ed.envelopeLine}</div>
+          </div>
+        </button>
+      </div>
+      <button onClick={onOpen} className="mt-2 text-[12.5px]" style={{ color: LP.text, letterSpacing: lang === "ar" ? 0 : "0.14em" }}>{ed.tapToOpen}</button>
+    </div>
+  );
+}
+
 function LandingPage({ onSignUp, onLogIn }) {
   // Canva designs from the shop — same list /shop shows, fetched the same way.
   const [shopDesigns, setShopDesigns] = useState([]);
@@ -14185,6 +14227,8 @@ function LandingPage({ onSignUp, onLogIn }) {
     return () => { document.documentElement.lang = "en"; };
   }, [lang]);
   const t = LANDING_TEXT[lang] || LANDING_TEXT.en;
+  const ed = LANDING_EDITORIAL[lang] || LANDING_EDITORIAL.en;
+  const toExperience = () => document.getElementById("experience")?.scrollIntoView({ behavior: "smooth" });
   const fonts = landingFonts(lang);
   // The Blog link only appears once the blog has been made public
   // (BLOG_PUBLIC on the server); until then it's a private preview.
@@ -14194,7 +14238,8 @@ function LandingPage({ onSignUp, onLogIn }) {
     fetch("/api/blog/status").then((r) => (r.ok ? r.json() : null)).then((d) => { if (!cancelled && d?.public) setBlogPublic(true); }).catch(() => {});
     return () => { cancelled = true; };
   }, []);
-  const heading = (size) => ({ fontFamily: fonts.display, fontStyle: fonts.headingStyle, fontWeight: 500, color: LP.text, fontSize: size, lineHeight: lang === "ar" ? 1.4 : 1.15 });
+  const heading = (size) => landingHeading(lang, fonts, size);
+  const eyebrow = { color: LP.goldSoft, letterSpacing: lang === "ar" || lang === "hy" ? 0 : "0.16em" };
   const primaryBtn = "inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[14px] font-semibold";
   return (
     <LandingLangContext.Provider value={lang}>
@@ -14216,14 +14261,25 @@ function LandingPage({ onSignUp, onLogIn }) {
           .lf-cta-tr { right: -170px; width: 300px; opacity: 0.45; }
         }
       `}</style>
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ backgroundImage: LANDING_GRAIN, opacity: 0.07, mixBlendMode: "overlay" }} />
+      <style>{`
+        .landing-envelope-flap { transition: transform .5s cubic-bezier(.2,.7,.2,1); }
+        .landing-envelope:hover .landing-envelope-flap { transform: translateY(-3px) scaleY(0.94); }
+        .landing-underline { border-bottom: 1px solid currentColor; padding-bottom: 6px; }
+        .landing-row { transition: background-color .25s; }
+        .landing-row:hover { background: rgba(245,240,231,0.04); }
+      `}</style>
 
-      <header className="sticky top-0 z-50" style={{ background: "rgba(44,57,49,0.72)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div dir="ltr" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 21, color: LP.text }}>
-            eInvite<span style={{ color: LP.gold }}>.me</span>
+      <div className="px-4 py-2.5 text-center text-[12.5px] sm:px-6" style={{ background: LP.green, color: LP.onGreen }}>
+        {ed.announce} <span className="mx-2" style={{ color: LP.gold }}>—</span>
+        <button onClick={toExperience} className="underline underline-offset-4">{ed.announceLink}</button>
+      </div>
+
+      <header className="sticky top-0 z-50" style={{ background: "rgba(245,240,231,0.86)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <div dir="ltr" style={{ fontFamily: "'Playfair Display', serif", fontSize: 23, color: LP.text, letterSpacing: "-0.02em" }}>
+            eInvite<span style={{ color: LP.gold, fontStyle: "italic" }}>.me</span>
           </div>
-          <nav className="flex items-center gap-4 text-[13px] sm:gap-5">
+          <nav className="flex items-center gap-4 text-[13.5px] sm:gap-6">
             <a href="#how" className="landing-link hidden lg:inline">{t.nav.how}</a>
             <a href="#features" className="landing-link hidden md:inline">{t.nav.features}</a>
             <a href="/shop" className="landing-link hidden md:inline">{t.nav.designs}</a>
@@ -14234,97 +14290,118 @@ function LandingPage({ onSignUp, onLogIn }) {
             {hasContact && <a href="#contact" className="landing-link hidden md:inline">{t.nav.contact}</a>}
             <LandingLangSwitcher lang={lang} onChange={changeLang} />
             <button onClick={onLogIn} className="landing-link">{t.nav.logIn}</button>
-            <button onClick={onSignUp} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>{t.nav.start}</button>
+            <button onClick={onSignUp} className="rounded-full px-5 py-2.5 text-[13.5px] font-medium" style={{ color: LP.text, border: `1px solid ${LP.text}` }}>{t.nav.start}</button>
           </nav>
         </div>
       </header>
 
-      <div className="relative">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        {/* Warm light falling from the upper left, behind the headline. */}
-        <div className="absolute" style={{ inset: "-120px 0 0 0", background: "radial-gradient(ellipse 55% 55% at 26% 34%, rgba(238,210,158,0.10), transparent 70%), radial-gradient(ellipse 70% 32% at 50% 76%, rgba(18,26,21,0.3), transparent 70%)" }} />
-        <img src={foliageA} alt="" className="landing-foliage lf-hero-tl" />
-        <img src={foliageB} alt="" className="landing-foliage lf-hero-br" />
-      </div>
-      <section className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 md:grid-cols-2 md:pt-20">
+      <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pb-24 pt-16 sm:px-6 md:grid-cols-2 md:pt-24">
         <div className="text-center md:text-start">
-          <div className="mb-4 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: lang === "ar" ? 0 : "0.2em" }}>{t.hero.eyebrow}</div>
-          <h1 style={heading("clamp(34px, 5.2vw, 56px)")}>{t.hero.title}</h1>
-          <p className="mx-auto mt-5 max-w-lg text-[15px] md:mx-0" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.hero.body}</p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3 md:justify-start">
-            <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
-              {t.hero.create} <Heart size={15} />
+          <div className="mb-6 text-[12px] font-medium" style={eyebrow}>{t.hero.eyebrow}</div>
+          <h1 style={heading("clamp(44px, 6.6vw, 88px)")}><LandingAccent text={t.hero.title} /></h1>
+          <p className="mx-auto mt-7 max-w-lg text-[17px] md:mx-0" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.hero.body}</p>
+          <div className="mt-9 flex flex-wrap items-center justify-center gap-7 md:justify-start">
+            <button onClick={onSignUp} className="rounded-full px-7 py-4 text-[14.5px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
+              {t.hero.create}
             </button>
-            <a href="/shop" className={primaryBtn} style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>{t.hero.seeDesigns}</a>
+            <a href="/shop" className="landing-underline inline-flex items-center gap-2 text-[14.5px]" style={{ color: LP.text }}>
+              {t.hero.seeDesigns} <ArrowRight size={16} className={lang === "ar" ? "rotate-180" : ""} />
+            </a>
           </div>
-          <p className="mt-6 text-[12px]" style={{ color: LP.text2 }}>{t.hero.note}</p>
+          <p className="mt-9 flex items-center justify-center gap-2 text-[12.5px] md:justify-start" style={{ color: LP.text2 }}>
+            <LandingSparkle size={13} color={LP.gold} /> {t.hero.note}
+          </p>
         </div>
-        <div className="flex justify-center">
+        <LandingEnvelope ed={ed} onOpen={toExperience} />
+      </section>
+
+      <section className="px-4 py-16 sm:px-6" style={{ background: LP.green }}>
+        <p className="mx-auto max-w-4xl text-center" style={{ fontFamily: fonts.display, color: LP.onGreen, fontSize: "clamp(24px, 3.2vw, 36px)", lineHeight: 1.35 }}>
+          <span className="mx-3 align-top" style={{ color: LP.gold, fontSize: "0.7em" }}>“</span>{ed.quote}<span className="mx-3 align-top" style={{ color: LP.gold, fontSize: "0.7em" }}>”</span>
+        </p>
+      </section>
+
+      <section id="experience" className="relative mx-auto max-w-6xl px-4 pb-24 pt-24 sm:px-6">
+        <div className="grid items-start gap-10 md:grid-cols-2">
+          <div>
+            <div className="mb-5 text-[12px] font-semibold uppercase" style={eyebrow}>{ed.introEyebrow}</div>
+            <h2 style={heading("clamp(34px, 4.6vw, 58px)")}><LandingAccent text={ed.introTitle} /></h2>
+          </div>
+          <div className="md:pt-10">
+            <p className="text-[16px]" style={{ color: LP.text2, lineHeight: 1.75 }}>{ed.introBody}</p>
+            <a href={LANDING_DEMO_PATH} target="_blank" rel="noreferrer" className="landing-underline mt-7 inline-flex items-center gap-3 text-[14px]" style={{ color: LP.text }}>
+              {ed.introLink} <ArrowUpRight size={15} />
+            </a>
+          </div>
+        </div>
+        <div className="mt-16 flex justify-center">
           <LandingPhone />
         </div>
       </section>
-      </div>
 
-      <section id="occasions" className="relative mx-auto max-w-6xl px-4 pb-20 pt-4 sm:px-6">
-        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.occasions.title}</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.occasions.body}</p>
-        <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <section id="occasions" className="relative mx-auto max-w-6xl px-4 pb-24 pt-4 sm:px-6">
+        <h2 className="text-center" style={heading("clamp(30px, 3.8vw, 46px)")}><LandingAccent text={t.occasions.title} /></h2>
+        <p className="mx-auto mt-5 max-w-xl text-center text-[15.5px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.occasions.body}</p>
+        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {[...EVENT_TYPES.map((et) => ({ key: et.id, name: t.occasions.names[et.id] || et.name, icon: et.icon })), { key: "any", name: t.occasions.names.any, icon: CalendarDays }].map(({ key, name, icon: Icon }) => (
             <button
               key={key}
               onClick={onSignUp}
-              className="landing-card flex flex-col items-center gap-3 rounded-2xl px-4 py-6 text-center"
-              style={{ background: LP.card, border: `1px solid ${LP.line}` }}
+              className="landing-card flex flex-col items-center gap-3 rounded-2xl px-4 py-7 text-center"
+              style={{ background: LP.cardHi, border: `1px solid ${LP.line}` }}
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(212,171,78,0.12)" }}>
+              <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "rgba(191,145,74,0.12)" }}>
                 <Icon size={21} color={LP.gold} strokeWidth={1.6} />
               </span>
-              <span className="text-[14.5px] font-semibold" style={{ color: LP.text }}>{name}</span>
+              <span className="text-[14.5px] font-medium" style={{ color: LP.text }}>{name}</span>
             </button>
           ))}
         </div>
       </section>
 
-      <section id="how" className="relative px-4 py-20 sm:px-6" style={{ background: LP.band }}>
+      <section id="how" className="relative px-4 py-24 sm:px-6" style={{ background: LP.band }}>
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.how.title}</h2>
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
+          <div className="mb-5 text-[12px] font-semibold uppercase" style={eyebrow}>{ed.howEyebrow}</div>
+          <h2 className="max-w-2xl" style={heading("clamp(34px, 4.6vw, 58px)")}>{t.how.title}</h2>
+          <div className="mt-16 grid gap-10 md:grid-cols-3">
             {t.how.steps.map((step, i) => (
-              <div key={step.title} className="rounded-2xl p-7" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: "rgba(212,171,78,0.14)", color: LP.gold }}>{i + 1}</div>
-                <h3 className="mt-5 text-[19px]" style={{ fontFamily: fonts.display, color: LP.text }}>{step.title}</h3>
-                <p className="mt-2 text-[14px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{step.body}</p>
+              <div key={step.title} className="pt-8" style={{ borderTop: `1px solid rgba(191,145,74,0.55)` }}>
+                <div style={{ fontFamily: "'Playfair Display', serif", color: LP.gold, fontSize: 22 }}>{String(i + 1).padStart(2, "0")}</div>
+                <h3 className="mt-8" style={{ fontFamily: fonts.display, color: LP.text, fontSize: 25, lineHeight: 1.25 }}>{step.title}</h3>
+                <p className="mt-3 text-[14.5px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{step.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="features" className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <h2 className="text-center" style={heading("clamp(28px, 3.6vw, 40px)")}>{t.features.title}</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.features.body}</p>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {t.features.items.map(({ title, body, href, cta }, i) => { const Icon = LANDING_FEATURE_ICONS[i]; return href ? (
-            // A feature that's a page of its own (the cost calculator): a wide, linked card.
-            <a key={title} href={href} className="landing-card flex flex-col gap-5 rounded-2xl p-6 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between lg:col-span-3" style={{ background: "linear-gradient(135deg, rgba(212,171,78,0.13), rgba(212,171,78,0.04))", border: "1px solid rgba(212,171,78,0.3)" }}>
-              <div className="flex items-start gap-4">
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(212,171,78,0.14)" }}><Icon size={21} color={LP.gold} strokeWidth={1.6} /></span>
-                <div>
-                  <h3 className="text-[16px] font-semibold" style={{ color: LP.text }}>{title}</h3>
-                  <p className="mt-1.5 max-w-xl text-[13.5px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
-                </div>
-              </div>
-              <span className="inline-flex flex-shrink-0 items-center justify-center gap-2 self-start rounded-full px-5 py-2.5 text-[13.5px] font-semibold sm:self-center" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>
-                {cta} <ArrowRight size={15} className={lang === "ar" ? "rotate-180" : ""} />
-              </span>
-            </a>
-          ) : (
-            <div key={title} className="landing-card rounded-2xl p-6" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
-              <Icon size={22} color={LP.gold} strokeWidth={1.6} />
-              <h3 className="mt-4 text-[16px] font-semibold" style={{ color: LP.text }}>{title}</h3>
-              <p className="mt-2 text-[13.5px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
-            </div>
-          ); })}
+      <section id="features" className="relative px-4 py-24 sm:px-6" style={{ background: LP.green }}>
+        <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-[1fr_1.35fr]">
+          <div className="md:sticky md:top-28 md:self-start">
+            <div className="mb-5 text-[12px] font-semibold uppercase" style={{ ...eyebrow, color: LP.gold }}>{ed.featuresEyebrow}</div>
+            <h2 style={{ ...heading("clamp(32px, 4vw, 50px)"), color: LP.onGreen }}><LandingAccent text={t.features.title} /></h2>
+            <p className="mt-6 max-w-md text-[15px]" style={{ color: LP.onGreen2, lineHeight: 1.7 }}>{t.features.body}</p>
+          </div>
+          <div>
+            {t.features.items.map(({ title, body, href, cta }, i) => {
+              const inner = (
+                <>
+                  <span className="w-8 flex-shrink-0 pt-1.5" style={{ fontFamily: "'Playfair Display', serif", color: LP.gold, fontSize: 15 }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block" style={{ fontFamily: fonts.display, color: LP.onGreen, fontSize: "clamp(19px, 2vw, 24px)", lineHeight: 1.3 }}>{title}</span>
+                    <span className="mt-1.5 block text-[14px]" style={{ color: LP.onGreen2, lineHeight: 1.65 }}>{body}</span>
+                    {href && <span className="mt-3 inline-block text-[13.5px] font-semibold" style={{ color: LP.gold }}>{cta}</span>}
+                  </span>
+                  {href && <ArrowUpRight size={17} color={LP.gold} className={`mt-2 flex-shrink-0 ${lang === "ar" ? "-scale-x-100" : ""}`} />}
+                </>
+              );
+              const rowClass = "landing-row flex items-start gap-5 px-1 py-7";
+              const rowStyle = { borderTop: i ? `1px solid ${LP.greenLine}` : "none" };
+              return href
+                ? <a key={title} href={href} className={rowClass} style={rowStyle}>{inner}</a>
+                : <div key={title} className={rowClass} style={rowStyle}>{inner}</div>;
+            })}
+          </div>
         </div>
       </section>
 
@@ -14383,7 +14460,7 @@ function LandingPage({ onSignUp, onLogIn }) {
             </ul>
           </div>
           {/* Illustrative, not live data — shows the shape of the Dashboard. */}
-          <div className="rounded-2xl p-6" style={{ background: "rgba(22,30,25,0.35)", border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -35px rgba(10,16,12,0.6)" }}>
+          <div className="rounded-2xl p-6" style={{ background: LP.cardHi, border: `1px solid ${LP.line}`, boxShadow: "0 30px 60px -35px rgba(28,59,51,0.35)" }}>
             <div className="mb-5 flex items-center gap-2 text-[12px] font-semibold uppercase" style={{ color: LP.text2, letterSpacing: "0.12em" }}>
               <BarChart3 size={14} /> {t.dashboard.label}
             </div>
@@ -14396,7 +14473,7 @@ function LandingPage({ onSignUp, onLogIn }) {
               ))}
             </div>
             <div className="mt-5 space-y-3">
-              {t.dashboard.rows.map(([name, status], i) => [name, status, [LP.gold, LP.text2, LP.gold, "rgba(207,195,172,0.55)"][i]]).map(([name, status, color]) => (
+              {t.dashboard.rows.map(([name, status], i) => [name, status, [LP.gold, LP.text2, LP.gold, "rgba(85,99,91,0.6)"][i]]).map(([name, status, color]) => (
                 <div key={name} className="flex items-center justify-between rounded-lg px-4 py-3 text-[13px]" style={{ background: LP.card }}>
                   <span style={{ color: LP.text }}>{name}</span>
                   <span style={{ color }}>{status}</span>
@@ -14410,13 +14487,10 @@ function LandingPage({ onSignUp, onLogIn }) {
       <LandingFaqSection />
 
       <div className="relative">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 70% at 50% 50%, rgba(238,210,158,0.08), transparent 70%)" }} />
-        <img src={foliageB} alt="" className="landing-foliage lf-cta-bl" />
-        <img src={foliageA} alt="" className="landing-foliage lf-cta-tr" />
-      </div>
-      <section className="relative mx-auto max-w-3xl px-4 py-24 text-center sm:px-6">
-        <h2 style={heading("clamp(30px, 4vw, 44px)")}>{t.cta.title}</h2>
+      <LandingSparkle size={34} style={{ position: "absolute", left: "12%", top: "22%" }} />
+      <LandingSparkle size={22} color={LP.gold} style={{ position: "absolute", right: "14%", bottom: "24%" }} />
+      <section className="relative mx-auto max-w-3xl px-4 py-28 text-center sm:px-6">
+        <h2 style={heading("clamp(34px, 4.6vw, 56px)")}><LandingAccent text={t.cta.title} /></h2>
         <p className="mx-auto mt-4 max-w-md text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.cta.body}</p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <button onClick={onSignUp} className={primaryBtn} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>{t.cta.create}</button>
