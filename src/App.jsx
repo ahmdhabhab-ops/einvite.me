@@ -11767,17 +11767,17 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                       </button>
                     </td>
                     <td className="px-2 py-0.5">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => copyGuestLink(g)} title="Copy personal invite link" className="flex h-5 w-5 items-center justify-center rounded" style={{ background: INK_3, color: copiedRowId === g.id ? GOLD_SOFT : "#7FA8D9" }}>
-                          <Copy size={10} />
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => copyGuestLink(g)} title="Copy personal invite link" className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: copiedRowId === g.id ? "rgba(143,191,163,0.22)" : "rgba(201,164,76,0.16)", border: `1px solid ${copiedRowId === g.id ? "rgba(143,191,163,0.6)" : "rgba(201,164,76,0.5)"}`, color: copiedRowId === g.id ? UI_OK : GOLD_SOFT }}>
+                          {copiedRowId === g.id ? <Check size={13} /> : <Copy size={13} />}
                         </button>
                         {g.phone ? (
-                          <a href={whatsappHrefFor(g)} target="_blank" rel="noreferrer" onClick={() => updateGuestGroup(g.id, { invitationSent: true })} title="Message on WhatsApp" className="flex h-5 w-5 items-center justify-center rounded" style={{ background: "#25D366", color: "#0B2E1A" }}>
-                            <MessageCircle size={10} />
+                          <a href={whatsappHrefFor(g)} target="_blank" rel="noreferrer" onClick={() => updateGuestGroup(g.id, { invitationSent: true })} title="Message on WhatsApp" className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "#25D366", color: "#0B2E1A" }}>
+                            <MessageCircle size={13} />
                           </a>
                         ) : (
-                          <span title="No phone number on file" className="flex h-5 w-5 items-center justify-center rounded" style={{ background: INK_3, color: "rgba(147,166,155,0.35)" }}>
-                            <MessageCircle size={10} />
+                          <span title="No phone number on file" className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: INK_3, color: MUTED, opacity: 0.45 }}>
+                            <MessageCircle size={13} />
                           </span>
                         )}
                         {g.phone && (
@@ -11785,14 +11785,15 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
                             onClick={() => sendAutomatedWhatsApp(g)}
                             disabled={sendingWhatsAppIds.has(g.id)}
                             title={(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "Sent!" : whatsappResults[g.id] === "error" ? `Failed${whatsappErrors[g.id] ? `: ${whatsappErrors[g.id]}` : ""} — click to retry` : "Send the invitation automatically (WhatsApp API)"}
-                            className="flex h-5 w-5 items-center justify-center rounded"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg"
                             style={{
+                              border: "1px solid rgba(201,164,76,0.45)",
                               background: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "rgba(143,191,163,0.2)" : whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
                               color: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? CHART_COLORS.yes : whatsappResults[g.id] === "error" ? UI_ERROR : GOLD_SOFT,
                               opacity: sendingWhatsAppIds.has(g.id) ? 0.5 : 1,
                             }}
                           >
-                            {(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? <CheckCircle2 size={10} /> : whatsappResults[g.id] === "error" ? <XCircle size={10} /> : <Send size={10} />}
+                            {(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? <CheckCircle2 size={13} /> : whatsappResults[g.id] === "error" ? <XCircle size={13} /> : <Send size={13} />}
                           </button>
                         )}
                         {g.phone && whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] && (
