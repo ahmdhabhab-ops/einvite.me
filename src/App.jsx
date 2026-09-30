@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, ScanText, FileSpreadsheet,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -11110,7 +11110,195 @@ function FloorPlanCanvas({ tables, confirmedGroups, onUpdateTable, onDeleteTable
   );
 }
 
-function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
+// Reads a guest list out of a spreadsheet: the first row may be headers
+// (in English, Arabic, French or Spanish); without them the first column is
+// the name and whichever column holds phone numbers is the phone.
+const IMPORT_HEADER_PATTERNS = {
+  name: /name|family|guest|party|invit|الاسم|اسم|العائلة|عائلة|المدعو|nom|famille|nombre|familia/i,
+  members: /member|people|person|attendee|الأفراد|أفراد|الأشخاص|membre|personne|miembro|persona/i,
+  phone: /phone|mobile|cell|tel|whats|number|هاتف|جوال|موبايل|رقم|téléphone|portable|teléfono|celular|móvil/i,
+  extra: /extra|additional|plus|\+|count|guests|إضافي|عدد|ضيوف|invités|supplémentaire|acompañante|adicional/i,
+};
+const looksLikePhone = (v) => String(v ?? "").replace(/[^0-9]/g, "").length >= 6;
+function splitMemberNames(v) {
+  return String(v ?? "").split(/[,،;\n]|\s&\s|\sو\s/).map((x) => x.trim()).filter(Boolean);
+}
+function guestsFromSheetRows(rows) {
+  const clean = (rows || []).map((r) => (r || []).map((c) => (c == null ? "" : String(c).trim()))).filter((r) => r.some(Boolean));
+  if (!clean.length) return [];
+  const head = clean[0];
+  const cols = {};
+  head.forEach((h, i) => {
+    if (!h || looksLikePhone(h)) return;
+    for (const key of ["phone", "members", "extra", "name"]) {
+      if (cols[key] == null && IMPORT_HEADER_PATTERNS[key].test(h)) { cols[key] = i; break; }
+    }
+  });
+  const hasHeader = cols.name != null || cols.phone != null;
+  const body = hasHeader ? clean.slice(1) : clean;
+  if (cols.name == null) cols.name = [0, 1, 2].find((i) => i !== cols.phone && i !== cols.members && i !== cols.extra) ?? 0;
+  if (cols.phone == null) {
+    const width = Math.max(...body.map((r) => r.length));
+    for (let i = 0; i < width; i++) {
+      if (i === cols.name) continue;
+      const filled = body.filter((r) => r[i]);
+      if (filled.length && filled.filter((r) => looksLikePhone(r[i])).length >= filled.length * 0.6) { cols.phone = i; break; }
+    }
+  }
+  return body.map((r) => ({
+    name: r[cols.name] || "",
+    members: cols.members != null ? splitMemberNames(r[cols.members]) : [],
+    phone: cols.phone != null ? String(r[cols.phone] || "").replace(/[^0-9+]/g, "") : "",
+    extra: cols.extra != null ? Math.max(0, Math.min(50, parseInt(String(r[cols.extra]).replace(/[^0-9]/g, ""), 10) || 0)) : 0,
+  })).filter((g) => g.name || g.members.length);
+}
+function parseCsvText(text) {
+  const rows = []; let row = [], cell = "", quoted = false;
+  const delim = (text.split("\n")[0].match(/;/g) || []).length > (text.split("\n")[0].match(/,/g) || []).length ? ";" : ",";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === delim) { row.push(cell); cell = ""; }
+    else if (ch === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else if (ch !== "\r") cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+// Dashboard: add many guest families at once, from an Excel / CSV file or
+// from a photo of a written list (read by AI). Everything is shown for a
+// check first; families already on the list are left unticked.
+function GuestImportPanel({ guestGroups, onAdd }) {
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [rows, setRows] = useState(null); // [{ name, members, phone, extra, include, dup }]
+  const [done, setDone] = useState("");
+  const existingPhones = new Set(guestGroups.map((g) => String(g.phone || "").replace(/[^0-9]/g, "")).filter((p) => p.length >= 6));
+  const existingNames = new Set(guestGroups.map((g) => String(guestGroupName(g) || "").trim().toLowerCase()).filter(Boolean));
+  const preview = (list, source) => {
+    if (!list.length) { setError(source === "photo" ? "No guest names could be read from that photo." : "No guests found in that file."); return; }
+    setRows(list.map((g) => {
+      const digits = g.phone.replace(/[^0-9]/g, "");
+      const dup = (digits.length >= 6 && existingPhones.has(digits)) || existingNames.has(g.name.trim().toLowerCase());
+      return { ...g, membersText: g.members.join(", "), include: !dup, dup };
+    }));
+  };
+  const onSheet = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    setError(""); setDone(""); setRows(null); setBusy("file");
+    try {
+      if (/\.xls$/i.test(file.name)) throw new Error("Old .xls files aren't supported — in Excel choose File → Save As → .xlsx (or CSV) and upload that.");
+      let sheetRows;
+      if (/\.csv$/i.test(file.name) || file.type === "text/csv") sheetRows = parseCsvText((await file.text()).replace(/^﻿/, ""));
+      else { const { readSheet } = await import("read-excel-file/browser"); sheetRows = await readSheet(file); }
+      preview(guestsFromSheetRows(sheetRows), "file");
+    } catch (err) {
+      setError(err.message || "Couldn't read that file.");
+    } finally { setBusy(""); }
+  };
+  const onPhoto = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    setError(""); setDone(""); setRows(null); setBusy("photo");
+    try {
+      const image = await readImageCompressed(file, 2000, 0.85);
+      const { guests } = await apiJson("/api/guests/from-image", { method: "POST", body: { image } });
+      preview(guests || [], "photo");
+    } catch (err) {
+      setError(err.message || "Couldn't read that photo.");
+    } finally { setBusy(""); }
+  };
+  const setRow = (i, patch) => setRows((list) => list.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const chosen = (rows || []).filter((r) => r.include && (r.name.trim() || r.membersText.trim()));
+  const addAll = async () => {
+    const groups = chosen.map((r) => {
+      const members = splitMemberNames(r.membersText);
+      const name = r.name.trim() || members[0];
+      return {
+        id: uid(), name, lastName: "",
+        members: (members.length ? members : [name]).map((m) => ({ id: uid(), name: m, status: "pending" })),
+        additionalGuests: Math.max(0, parseInt(r.extra, 10) || 0), table: "", phone: String(r.phone || "").trim(),
+        invitationSent: false, invitationViewed: false, updatedAt: Date.now(),
+      };
+    });
+    await onAdd(groups);
+    setRows(null);
+    setDone(`${groups.length} famil${groups.length === 1 ? "y" : "ies"} added to the guest list.`);
+  };
+  const template = () => downloadTextFile("guest-list-template.csv", "﻿Name,Members,Phone,Extra guests\nThe Kfoury Family,\"Peter Kfoury, Martine Kfoury\",+96170123456,1\nAhmad Habhab,,+96171234567,0\n");
+  const cell = { background: INK_3, color: IVORY, fontFamily: FONT_BODY };
+  return (
+    <div className="mb-6 rounded-2xl p-5" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-[220px] flex-1">
+          <h3 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Import guests</h3>
+          <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+            Upload an Excel / CSV file, or a photo of a written or printed list — the names are read for you. You check them before they're added.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }}>
+            <FileSpreadsheet size={14} /> {busy === "file" ? "Reading…" : "Excel / CSV"}
+            <input type="file" accept=".xlsx,.csv,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onSheet} disabled={!!busy} className="hidden" />
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.5)`, fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }}>
+            <ScanText size={14} /> {busy === "photo" ? "Reading the photo…" : "From a photo"}
+            <input type="file" accept="image/*" onChange={onPhoto} disabled={!!busy} className="hidden" />
+          </label>
+        </div>
+      </div>
+      <button onClick={template} className="mt-2 text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>Download a sample file (Name, Members, Phone, Extra guests)</button>
+      {error && <p className="mt-2 text-[11.5px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
+      {done && <p className="mt-2 text-[11.5px]" style={{ color: UI_OK, fontFamily: FONT_BODY }}>✓ {done}</p>}
+      {rows && (
+        <div className="mt-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[12px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>{rows.length} found — check and edit before adding</span>
+            <div className="flex gap-2">
+              <GhostButton onClick={() => setRows(null)}>Cancel</GhostButton>
+              <GoldButton onClick={addAll} disabled={!chosen.length}><Plus size={14} /> Add {chosen.length} to the guest list</GoldButton>
+            </div>
+          </div>
+          <div className="max-h-[420px] overflow-auto rounded-lg" style={{ border: `1px solid rgba(201,164,76,0.15)` }}>
+            <table className="w-full text-[12px]" style={{ fontFamily: FONT_BODY }}>
+              <thead>
+                <tr style={{ color: MUTED }}>
+                  <th className="p-2 text-left font-semibold"></th>
+                  <th className="p-2 text-left font-semibold">Family / name</th>
+                  <th className="p-2 text-left font-semibold">Members (comma-separated)</th>
+                  <th className="p-2 text-left font-semibold">Phone</th>
+                  <th className="p-2 text-left font-semibold">+ Guests</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid rgba(147,166,155,0.15)`, opacity: r.include ? 1 : 0.55 }}>
+                    <td className="p-2 align-middle"><input type="checkbox" checked={r.include} onChange={(e) => setRow(i, { include: e.target.checked })} /></td>
+                    <td className="p-1.5">
+                      <input value={r.name} onChange={(e) => setRow(i, { name: e.target.value })} dir="auto" className="w-full rounded px-2 py-1 outline-none" style={cell} />
+                      {r.dup && <div className="mt-0.5 text-[10px]" style={{ color: GOLD_SOFT }}>Already on your list</div>}
+                    </td>
+                    <td className="p-1.5"><input value={r.membersText} onChange={(e) => setRow(i, { membersText: e.target.value })} dir="auto" className="w-full rounded px-2 py-1 outline-none" style={cell} /></td>
+                    <td className="p-1.5"><input value={r.phone} onChange={(e) => setRow(i, { phone: e.target.value })} dir="ltr" className="w-36 rounded px-2 py-1 outline-none" style={cell} /></td>
+                    <td className="p-1.5"><input type="number" min={0} value={r.extra} onChange={(e) => setRow(i, { extra: e.target.value })} className="w-16 rounded px-2 py-1 outline-none" style={cell} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
   const staffAccessKeys = useAccessKeys(slug); // the check-in staff link's secret key
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -11549,6 +11737,8 @@ function DashboardView({ guestGroups, addGuestGroup, updateGuestGroup, deleteGue
           <GoldButton onClick={submitAddGuest}><Plus size={14} /> Add guest</GoldButton>
         </div>
       </div>
+
+      <GuestImportPanel guestGroups={guestGroups} onAdd={addGuestGroups} />
 
       <div className="rounded-2xl p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
         <h3 className="mb-1 text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Multiple Open Invite Links</h3>
@@ -16649,8 +16839,10 @@ export default function InvitationBuilder() {
     }, 1200);
   };
 
-  const addGuestGroup = async (g) => {
-    const newGuestGroups = [g, ...guestGroups];
+  const addGuestGroup = (g) => addGuestGroups([g]);
+  // Several at once (an import), in their given order at the top.
+  const addGuestGroups = async (groups) => {
+    const newGuestGroups = [...groups, ...guestGroups];
     setGuestGroups(newGuestGroups);
     // THE ACTUAL FIX: persist immediately, don't rely on the owner
     // remembering to click "Save invitation" afterward. getActiveSnapshot()
@@ -16667,7 +16859,7 @@ export default function InvitationBuilder() {
       try {
         const snapshot = { ...getActiveSnapshot(), guestGroups: newGuestGroups };
         const ok = await persistentStorage.set(invitationKey(activeInvitationId), JSON.stringify(snapshot), false);
-        if (!ok) console.error(`addGuestGroup: save returned falsy for invitation "${activeInvitationId}".`);
+        if (!ok) console.error(`addGuestGroups: save returned falsy for invitation "${activeInvitationId}".`);
       } catch (err) {
         console.error(`addGuestGroup: failed to save guest to Supabase for invitation "${activeInvitationId}":`, err);
       }
@@ -18295,6 +18487,7 @@ export default function InvitationBuilder() {
           <DashboardView
             guestGroups={guestGroups}
             addGuestGroup={addGuestGroup}
+            addGuestGroups={addGuestGroups}
             updateGuestGroup={updateGuestGroup}
             deleteGuestGroup={deleteGuestGroup}
             moveGuestGroup={moveGuestGroup}
