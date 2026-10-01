@@ -839,6 +839,14 @@ const ALL_STEPS = [
 const REQUIRED_STEP_KEY = "cover"; // always shown — an invitation needs at least a cover
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+// The swipe hint under the invitation: longer translations (French,
+// Spanish, Armenian…) get a smaller size and tighter spacing so they stay
+// as discreet as the English "Swipe up". Arabic isn't uppercased or spaced.
+const swipeHintText = (label) => {
+  const n = String(label || "").length;
+  if (/[\u0600-\u06FF]/.test(label)) return { fontSize: 10, letterSpacing: 0 };
+  return n > 20 ? { fontSize: 7.5, letterSpacing: "0.08em" } : n > 10 ? { fontSize: 8.5, letterSpacing: "0.12em" } : { fontSize: 10, letterSpacing: "0.2em" };
+};
 
 // Client logins are checked by the app's own server (server.js
 // /api/auth/*), which keeps each password only as a hash. Until the server
@@ -9303,7 +9311,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 ) : (
                   <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 )}
-                <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
+                <span className="whitespace-nowrap font-semibold uppercase" style={{ ...swipeHintText(isHorizontal ? t.swipeLeft : t.swipeUp), color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
                   {isHorizontal ? t.swipeLeft : t.swipeUp}
                 </span>
               </div>
@@ -9318,7 +9326,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                   )}
                 </span>
-                <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
+                <span className="whitespace-nowrap font-semibold uppercase" style={{ ...swipeHintText(isHorizontal ? t.swipeRight : t.swipeDown), color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
                   {isHorizontal ? t.swipeRight : t.swipeDown}
                 </span>
               </div>
@@ -9333,7 +9341,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                 ) : (
                   <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                 )}
-                <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
+                <span className="whitespace-nowrap font-semibold uppercase" style={{ ...swipeHintText(isHorizontal ? t.swipeLeft : t.swipeUp), color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
                   {isHorizontal ? t.swipeLeft : t.swipeUp}
                 </span>
               </button>
@@ -9348,7 +9356,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     <ChevronsUp size={20} color={currentPageIsLight ? PAPER : EMERALD} style={{ animation: "bounceUp 1.4s ease-in-out infinite", filter: currentPageIsLight ? "drop-shadow(0 1px 3px rgba(0,0,0,0.4))" : "none" }} />
                   )}
                 </span>
-                <span className="text-[10px] font-semibold uppercase" style={{ color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, letterSpacing: "0.2em", textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
+                <span className="whitespace-nowrap font-semibold uppercase" style={{ ...swipeHintText(isHorizontal ? t.swipeRight : t.swipeDown), color: currentPageIsLight ? PAPER : EMERALD, fontFamily: FONT_BODY, textShadow: currentPageIsLight ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
                   {isHorizontal ? t.swipeRight : t.swipeDown}
                 </span>
               </button>
