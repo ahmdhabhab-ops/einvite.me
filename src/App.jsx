@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, ScanText, FileSpreadsheet,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Smartphone, Phone, ScanText, FileSpreadsheet,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -14145,6 +14145,229 @@ function siteContactLinks(contact) {
     .filter((f) => f && f.url);
 }
 
+// ---------------------------------------------------------------------------
+// The client's phone app (/app): installable to the home screen, with the
+// invitation's countdown, replies, guest list, voice messages, check-in and
+// a way to reach us. Uses the same login and data as the builder.
+// ---------------------------------------------------------------------------
+const APP_PATH = /^\/app(\/|$)/;
+const timeAgo = (t) => {
+  const m = Math.round((Date.now() - (Number(t) || 0)) / 60000);
+  if (!t || m < 0) return "";
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return d < 30 ? `${d} d ago` : new Date(t).toLocaleDateString();
+};
+function groupReply(g) {
+  const ms = g.members || [];
+  const yes = ms.filter((m) => m.status === "yes").length;
+  const no = ms.filter((m) => m.status === "no").length;
+  const coming = yes ? yes + (Number(g.additionalGuests) || 0) : 0;
+  return { yes, no, coming, state: yes ? "yes" : no && no === ms.length ? "no" : "pending" };
+}
+function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loaded, onLogout }) {
+  const [tab, setTab] = useState("home");
+  const [installEvent, setInstallEvent] = useState(null);
+  const [installed, setInstalled] = useState(() => typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true));
+  const [contact, setContact] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const cd = useCountdown(schedule?.date, schedule?.time);
+  useEffect(() => {
+    navigator.serviceWorker?.register("/sw.js").catch(() => {});
+    const onPrompt = (e) => { e.preventDefault(); setInstallEvent(e); };
+    const onInstalled = () => { setInstalled(true); setInstallEvent(null); };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    (async () => { try { const r = await persistentStorage.get(SITE_CONTACT_KEY, false); if (r?.value) setContact(JSON.parse(r.value)); } catch {} })();
+    return () => { window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled); };
+  }, []);
+  const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const replies = guestGroups.map((g) => ({ g, ...groupReply(g) }));
+  const stats = replies.reduce((a, r) => ({ coming: a.coming + r.coming, no: a.no + r.no, families: a.families + 1, waiting: a.waiting + (r.state === "pending" ? 1 : 0) }), { coming: 0, no: 0, families: 0, waiting: 0 });
+  const recent = replies.filter((r) => r.state !== "pending").sort((a, b) => (b.g.updatedAt || 0) - (a.g.updatedAt || 0)).slice(0, 8);
+  const link = `https://${siteDomain}/e/${slug}`;
+  const share = async () => {
+    try { if (navigator.share) await navigator.share({ title, url: link }); else { await navigator.clipboard.writeText(link); alert("Link copied"); } } catch {}
+  };
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const badge = (state) => state === "yes" ? { bg: "rgba(47,122,85,0.12)", fg: UI_OK, label: "Coming" } : state === "no" ? { bg: "rgba(176,72,72,0.1)", fg: UI_ERROR, label: "Not coming" } : { bg: INK_3, fg: MUTED, label: "Waiting" };
+  const tabs = [
+    { key: "home", label: "Home", icon: Heart },
+    { key: "guests", label: "Guests", icon: Users },
+    { key: "voice", label: "Voice", icon: Mic },
+    { key: "checkin", label: "Check-in", icon: QrCode },
+    { key: "contact", label: "Contact", icon: MessageCircle },
+  ];
+  const list = replies
+    .filter((r) => filter === "all" || r.state === filter)
+    .filter((r) => !query.trim() || JSON.stringify([guestGroupName(r.g), (r.g.members || []).map((m) => m.name), r.g.phone]).toLowerCase().includes(query.trim().toLowerCase()));
+  return (
+    <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY, color: IVORY, paddingBottom: "calc(76px + env(safe-area-inset-bottom))" }}>
+      <LightUiScope />
+      <header className="sticky top-0 z-30 flex items-center justify-between px-4 pb-3" style={{ paddingTop: "calc(12px + env(safe-area-inset-top))", background: INK, borderBottom: "1px solid rgba(201,164,76,0.14)" }}>
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase" style={{ color: GOLD, letterSpacing: "0.2em" }}>eInvite.me</div>
+          <div className="truncate" style={{ fontFamily: "'Playfair Display', serif", fontSize: 21 }}>{title}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <UiThemeToggle />
+          <button onClick={onLogout} title="Log out" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: INK_3, color: MUTED }}><LogOut size={16} /></button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-xl px-4 pt-4">
+        {!loaded && <p className="py-10 text-center text-[13px]" style={{ color: MUTED }}>Loading your invitation…</p>}
+
+        {loaded && tab === "home" && (
+          <div className="space-y-4">
+            {!installed && (installEvent || isIos) && (
+              <div className="flex items-center gap-3 rounded-2xl p-4" style={{ ...card, background: "rgba(201,164,76,0.12)" }}>
+                <Download size={20} style={{ color: GOLD_SOFT, flexShrink: 0 }} />
+                <div className="min-w-0 flex-1 text-[12.5px]" style={{ lineHeight: 1.5 }}>
+                  {installEvent ? "Add eInvite to your home screen to open it like an app." : "To add this app: tap Share, then “Add to Home Screen”."}
+                </div>
+                {installEvent && <GoldButton onClick={async () => { installEvent.prompt(); await installEvent.userChoice.catch(() => {}); setInstallEvent(null); }}>Install</GoldButton>}
+              </div>
+            )}
+
+            <div className="rounded-2xl p-5 text-center" style={{ background: "linear-gradient(150deg, #24473E 0%, #1C3B33 55%, #162E28 100%)", color: "#F5F0E7" }}>
+              <div className="text-[11px] font-semibold uppercase" style={{ color: "#E8D5B0", letterSpacing: "0.16em" }}>{cd && cd.passed ? "The day is here" : "Counting down"}</div>
+              {cd && !cd.passed ? (
+                <div className="mt-3 flex justify-center gap-3">
+                  {[["days", cd.days], ["hrs", cd.hours], ["min", cd.mins], ["sec", cd.secs]].map(([l, v]) => (
+                    <div key={l} className="w-16 rounded-xl py-2" style={{ background: "rgba(245,240,231,0.08)" }}>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 26 }}>{v}</div>
+                      <div className="text-[10px] uppercase" style={{ opacity: 0.7, letterSpacing: "0.1em" }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : !cd ? (
+                <p className="mt-2 text-[12.5px]" style={{ opacity: 0.8 }}>Set the date on the Countdown page of the builder.</p>
+              ) : null}
+              {schedule?.date && <div className="mt-3 text-[12px]" style={{ opacity: 0.75 }}>{new Date(`${schedule.date}T${schedule.time || "00:00"}`).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {[["Coming", stats.coming, UI_OK], ["Not coming", stats.no, UI_ERROR], ["Waiting", stats.waiting, MUTED]].map(([l, v, col]) => (
+                <button key={l} onClick={() => { setTab("guests"); setFilter(l === "Coming" ? "yes" : l === "Not coming" ? "no" : "pending"); }} className="rounded-2xl p-3 text-left" style={card}>
+                  <div className="text-[10.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>{l}</div>
+                  <div className="mt-1" style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: col }}>{v}</div>
+                </button>
+              ))}
+            </div>
+            <p className="-mt-2 text-[11px]" style={{ color: MUTED }}>Coming = people (with their extra guests) · Not coming = people · Waiting = families who haven't replied.</p>
+
+            <div className="rounded-2xl p-4" style={card}>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[13px] font-semibold">Latest replies</span>
+                <button onClick={() => setTab("guests")} className="text-[12px]" style={{ color: GOLD_SOFT }}>See all</button>
+              </div>
+              {recent.length === 0 && <p className="py-3 text-[12.5px]" style={{ color: MUTED }}>No replies yet — they'll appear here as guests answer.</p>}
+              {recent.map(({ g, state, coming }) => {
+                const b = badge(state);
+                return (
+                  <div key={g.id} className="flex items-center justify-between gap-3 py-2.5" style={{ borderTop: "1px solid rgba(147,166,155,0.15)" }}>
+                    <div className="min-w-0">
+                      <div className="truncate text-[13.5px] font-medium" dir="auto">{guestGroupName(g) || "Guest"}</div>
+                      <div className="text-[11px]" style={{ color: MUTED }}>{timeAgo(g.updatedAt)}</div>
+                    </div>
+                    <span className="flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: b.bg, color: b.fg }}>{b.label}{state === "yes" ? ` · ${coming}` : ""}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={share} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-[13px] font-semibold" style={card}><Share2 size={16} style={{ color: GOLD_SOFT }} /> Share invitation</button>
+              <a href="/" className="flex items-center justify-center gap-2 rounded-2xl p-4 text-[13px] font-semibold" style={card}><Pencil size={16} style={{ color: GOLD_SOFT }} /> Open builder</a>
+            </div>
+          </div>
+        )}
+
+        {loaded && tab === "guests" && (
+          <div>
+            <div className="mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: INK_3 }}>
+              <Search size={15} style={{ color: MUTED }} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a name or phone" className="w-full bg-transparent text-[14px] outline-none" style={{ color: IVORY }} />
+            </div>
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              {[["all", `All ${stats.families}`], ["yes", "Coming"], ["no", "Not coming"], ["pending", "Waiting"]].map(([k, l]) => (
+                <button key={k} onClick={() => setFilter(k)} className="flex-shrink-0 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: filter === k ? GOLD : INK_2, color: filter === k ? INK : IVORY, border: "1px solid rgba(201,164,76,0.25)" }}>{l}</button>
+              ))}
+            </div>
+            <div className="space-y-2.5">
+              {list.length === 0 && <p className="py-8 text-center text-[13px]" style={{ color: MUTED }}>No guests here.</p>}
+              {list.map(({ g, state, coming }) => {
+                const b = badge(state);
+                const phone = String(g.phone || "").replace(/[^0-9+]/g, "");
+                return (
+                  <div key={g.id} className="rounded-2xl p-4" style={card}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[14.5px] font-semibold" dir="auto">{guestGroupName(g) || "Guest"}</div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          {(g.members || []).map((m) => (
+                            <span key={m.id} className="inline-flex items-center gap-1 text-[12px]" dir="auto" style={{ color: m.status === "no" ? MUTED : IVORY, textDecoration: m.status === "no" ? "line-through" : "none" }}>
+                              <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.status === "yes" ? UI_OK : m.status === "no" ? UI_ERROR : MUTED }} />{m.name}
+                            </span>
+                          ))}
+                          {Number(g.additionalGuests) > 0 && <span className="text-[12px]" style={{ color: MUTED }}>+{g.additionalGuests}</span>}
+                        </div>
+                      </div>
+                      <span className="flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: b.bg, color: b.fg }}>{b.label}{state === "yes" ? ` · ${coming}` : ""}</span>
+                    </div>
+                    {phone && (
+                      <div className="mt-3 flex gap-2">
+                        <a href={`tel:${phone}`} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY }}><Phone size={13} /> Call</a>
+                        <a href={`https://wa.me/${phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: "#25D366", color: "#0B2E1A" }}><MessageCircle size={13} /> WhatsApp</a>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {loaded && tab === "voice" && <VoiceMessagesPanel slug={slug} />}
+        {loaded && tab === "checkin" && <CheckinPanel slug={slug} siteDomain={siteDomain} />}
+
+        {tab === "contact" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl p-5" style={card}>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>We're here to help</div>
+              <p className="mt-1 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>Reach the eInvite team any time — or tap the chat bubble below to write to us here.</p>
+              <div className="mt-4 grid grid-cols-1 gap-2">
+                {siteContactLinks(contact).map((l) => (
+                  <a key={l.key} href={l.url} target={l.key === "email" ? undefined : "_blank"} rel="noreferrer" className="flex items-center gap-3 rounded-xl px-4 py-3 text-[13.5px] font-semibold" style={{ background: INK_3, color: IVORY }}>
+                    <BrandIcon name={l.icon} size={18} /> {l.label}
+                    <span className="ml-auto truncate text-[12px] font-normal" style={{ color: MUTED }}>{l.value}</span>
+                  </a>
+                ))}
+                {siteContactLinks(contact).length === 0 && <p className="text-[12.5px]" style={{ color: MUTED }}>Use the chat below to reach us.</p>}
+              </div>
+            </div>
+            <LiveChatWidget page="app" defaultName={[user?.name, user?.email].filter(Boolean).join(" · ").slice(0, 80)} bottom={92} />
+          </div>
+        )}
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around px-2 pt-2" style={{ background: INK_2, borderTop: "1px solid rgba(201,164,76,0.18)", paddingBottom: "calc(8px + env(safe-area-inset-bottom))" }}>
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <button key={key} onClick={() => { setTab(key); window.scrollTo(0, 0); }} className="flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10.5px] font-semibold" style={{ color: tab === key ? GOLD_SOFT : MUTED }}>
+            <Icon size={20} />
+            {label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 function SiteContactEditor() {
   const [form, setForm] = useState(null); // null until loaded, so an empty form never overwrites saved links
   const [status, setStatus] = useState("idle"); // idle | saving | saved | error | loadError
@@ -17961,7 +18184,7 @@ export default function InvitationBuilder() {
     // mid-flow: coming from the shop with a design picked, carrying a
     // prefilled signup email, or landing back from Google sign-in (whose
     // #access_token AuthPreview itself has to be mounted to pick up).
-    const skipLanding = !!pendingShopTemplate || !!prefillSignupEmail || (typeof window !== "undefined" && window.location.hash.includes("access_token"));
+    const skipLanding = !!pendingShopTemplate || !!prefillSignupEmail || (typeof window !== "undefined" && (window.location.hash.includes("access_token") || APP_PATH.test(window.location.pathname)));
     if (!skipLanding && !authFromLanding) {
       const openAuth = (screen) => { setBuilderDataMode("full"); setAuthFromLanding(screen); window.scrollTo(0, 0); };
       return <LandingPage onSignUp={() => openAuth("signup")} onLogIn={() => openAuth("login")} />;
@@ -17979,6 +18202,22 @@ export default function InvitationBuilder() {
           exitLabel="Back to home"
         />
       </div>
+    );
+  }
+
+  // The phone app (/app) for a logged-in client.
+  if (actingAsUser && typeof window !== "undefined" && APP_PATH.test(window.location.pathname)) {
+    return (
+      <ClientApp
+        user={actingAsUser}
+        title={[c.cover.name1, c.cover.name2].filter(Boolean).join(" & ") || actingAsUser.name || "Your invitation"}
+        schedule={rsvpSchedule}
+        guestGroups={guestGroups}
+        slug={slug}
+        siteDomain={siteDomain}
+        loaded={coreDataLoaded}
+        onLogout={() => { exitActingAs(); window.location.assign("/app"); }}
+      />
     );
   }
 
@@ -18014,6 +18253,11 @@ export default function InvitationBuilder() {
             {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
             {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
             {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
+            {actingAsUser && (
+              <a href="/app" title="Open the phone app (replies, guests, voice messages, check-in)" className="flex h-10 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}>
+                <Smartphone size={15} style={{ color: GOLD_SOFT }} /> App
+              </a>
+            )}
             <UiThemeToggle />
             <GoldButton onClick={saveDraft}>
               <Check size={14} /> {saveStatus === "saving" ? "Saving…" : "Save invitation"}
