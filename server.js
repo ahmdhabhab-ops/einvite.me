@@ -2238,6 +2238,13 @@ ${urls.map((u) => `  <url><loc>${escapeHtml(SITE_URL + (u === "/" ? "/" : u))}</
 });
 
 // Hashed build assets can be cached forever; index.html must always revalidate.
+// The app's service worker and manifest must never be cached, or phones
+// keep running an old version after a Redeploy.
+app.get(["/sw.js", "/manifest.webmanifest"], (req, res) => {
+  res.set("cache-control", "no-cache");
+  if (req.path === "/sw.js") res.set("service-worker-allowed", "/");
+  res.sendFile(path.join(DIST_DIR, req.path.slice(1)));
+});
 app.use(express.static(DIST_DIR, { index: false, maxAge: "1y", immutable: true }));
 
 app.get("*", (_req, res) => {
