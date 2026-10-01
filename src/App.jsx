@@ -9743,7 +9743,8 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
   );
 }
 
-function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin }) {
+function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain, setSiteDomain, slugMatchesCoupleNames, nameBasedSlugPreview, onRegenerateSlug, swipeDirection, setSwipeDirection, tornPhotoEdges, setTornPhotoEdges, viewStyle, setViewStyle, integrations, updateIntegrations, isAdmin, editingDesign = null, onUpdateDesign }) {
+  const [designLinkCopied, setDesignLinkCopied] = useState(false);
   const [copyState, setCopyState] = useState("idle"); // idle | copied | failed
   const [ogUploading, setOgUploading] = useState(false);
   const [ogUploadError, setOgUploadError] = useState("");
@@ -9885,7 +9886,23 @@ function SettingsView({ og, setOg, autoTitle, autoDescription, slug, siteDomain,
 
       <Divider />
 
-      <FieldLabel>Shareable link</FieldLabel>
+      {editingDesign && (
+        <div className="mb-4 rounded-xl p-4" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.3)` }}>
+          <div className="text-[12.5px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Link of the design “{editingDesign.name}”</div>
+          <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.55 }}>
+            This design has its own link. It shows what you see in the Builder once you press “Update Shop Design”. The link further down is your own invitation, not the design's.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="min-w-0 flex-1 select-all truncate rounded-lg px-3 py-2 text-[12px]" style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}>https://{siteDomain}{designDemoPath(editingDesign.id)}</span>
+            <GhostButton onClick={async () => { const ok = await copyToClipboard(`https://${siteDomain}${designDemoPath(editingDesign.id)}`); setDesignLinkCopied(ok); setTimeout(() => setDesignLinkCopied(false), 2000); }}>
+              <Copy size={13} /> {designLinkCopied ? "Copied!" : "Copy"}
+            </GhostButton>
+            <a href={designDemoPath(editingDesign.id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12px] underline" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Open <ExternalLink size={11} /></a>
+          </div>
+          {onUpdateDesign && <button onClick={onUpdateDesign} className="mt-3 rounded-full px-4 py-2 text-[12px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>Update Shop Design</button>}
+        </div>
+      )}
+      <FieldLabel>{editingDesign ? "Your own invitation's link" : "Shareable link"}</FieldLabel>
       <div className="flex items-center gap-2">
         <div className="flex flex-1 items-center gap-2 rounded-lg px-3 py-2.5" style={{ background: INK_3 }}>
           <Link2 size={13} style={{ color: MUTED }} />
@@ -17983,6 +18000,7 @@ export default function InvitationBuilder() {
       gateIcon: intro.icon || "heart",
     });
     setEditingShopDesignId(null);
+    alert(hasDemo ? "Design updated — its own link now shows this invitation." : "Design updated, but its live preview couldn't be saved — try again in a moment.");
   };
   const updateShopDesign = async (id, patch) => {
     const exists = shopDesigns.some((d) => d.id === id);
@@ -18019,6 +18037,9 @@ export default function InvitationBuilder() {
   // pieces a shop design is made of. Saving afterward (via the "Update
   // Shop Design" button, shown while editingShopDesignId is set) writes
   // the current styling back onto this same design.
+  const editingShopDesignName = editingShopDesignId
+    ? (shopDesigns.find((d) => d.id === editingShopDesignId) || INVITATION_TEMPLATES.find((t) => t.id === editingShopDesignId))?.name || "Untitled design"
+    : "";
   const loadShopDesignForEditing = (design) => {
     setPageBackgrounds((prev) => {
       const next = { ...prev };
@@ -19459,7 +19480,8 @@ export default function InvitationBuilder() {
               {editingShopDesignId && (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.3)` }}>
                   <span className="text-[12px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
-                    Editing shop design: {shopDesigns.find((d) => d.id === editingShopDesignId)?.name || "…"}
+                    Editing shop design: {editingShopDesignName}
+                    <a href={designDemoPath(editingShopDesignId)} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 underline" style={{ color: MUTED }}>its link <ExternalLink size={10} /></a>
                   </span>
                   <div className="flex items-center gap-2">
                     <button onClick={updateCurrentStylingOnShopDesign} className="rounded-full px-3 py-1.5 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
@@ -19890,7 +19912,7 @@ export default function InvitationBuilder() {
 
         {view === "settings" && (
           <>
-            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} viewStyle={viewStyle} setViewStyle={setViewStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} />
+            <SettingsView og={og} setOg={setOg} autoTitle={autoTitle} autoDescription={autoDescription} slug={slug} siteDomain={siteDomain} setSiteDomain={setSiteDomain} slugMatchesCoupleNames={slugMatchesCoupleNames} nameBasedSlugPreview={nameBasedSlugPreview} onRegenerateSlug={regenerateSlugFromCoupleNames} swipeDirection={swipeDirection} setSwipeDirection={setSwipeDirection} tornPhotoEdges={tornPhotoEdges} setTornPhotoEdges={setTornPhotoEdges} viewStyle={viewStyle} setViewStyle={setViewStyle} integrations={integrations} updateIntegrations={updateIntegrations} isAdmin={isAdminPath && !actingAsUser} editingDesign={editingShopDesignId ? { id: editingShopDesignId, name: editingShopDesignName } : null} onUpdateDesign={updateCurrentStylingOnShopDesign} />
             <RsvpSettingsView rsvpSettings={rsvpSettings} updateRsvpSettings={updateRsvpSettings} />
           </>
         )}
