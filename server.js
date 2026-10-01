@@ -603,6 +603,191 @@ app.post("/api/assistant", requireMember, express.json({ limit: "64kb" }), async
   }
 });
 
+// ---------------------------------------------------------------------------
+// Team (sales) accounts: their own email + password, made by the admin.
+// A sales account sees only the live chat, the clients list (read only)
+// and invoices — nothing else of the admin or any invitation.
+// ---------------------------------------------------------------------------
+const STAFF_KV = "einvite:staff";
+const STAFF_COOKIE = "staff_session";
+const STAFF_SESSION_MS = 14 * 24 * 3600 * 1000;
+const staffSig = (payload) => createHmac("sha256", sessionKey).update(`staff:${payload}`).digest("hex");
+const isAdminReq = (req) => !gatewayEnforced() || hasAdminSession(req);
+async function readStaff() { const raw = await kvRead(STAFF_KV); return raw ? JSON.parse(raw) : []; }
+async function staffOf(req) {
+  const raw = readCookie(req, STAFF_COOKIE);
+  const i = raw.lastIndexOf(".");
+  if (i < 0) return null;
+  const payload = raw.slice(0, i);
+  const [id, expires] = payload.split(".");
+  if (!id || !(Number(expires) > Date.now()) || !sameSecret(raw.slice(i + 1), staffSig(payload))) return null;
+  const member = (await readStaff()).find((m) => m.id === id);
+  return member && member.active !== false ? member : null;
+}
+// The admin, or a logged-in sales account (req.staff is set for the latter).
+async function requireStaffOrAdmin(req, res, next) {
+  if (isAdminReq(req)) return next();
+  try { req.staff = await staffOf(req); } catch { req.staff = null; }
+  if (req.staff) return next();
+  res.status(401).json({ error: "Please log in." });
+}
+function requireAdminOnly(req, res, next) {
+  if (isAdminReq(req)) return next();
+  res.status(403).json({ error: "Only the admin can do this." });
+}
+const publicStaff = (m) => ({ id: m.id, name: m.name, email: m.email, role: m.role || "sales", active: m.active !== false, createdAt: m.createdAt });
+
+app.post("/api/staff/login", express.json({ limit: "4kb" }), async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const password = String(req.body?.password || "");
+  const limitKeys = [`ip:${clientIp(req)}`, `staff:${email}`];
+  if (loginBlocked(limitKeys)) return res.status(429).json({ error: "Too many wrong attempts. Please try again in 15 minutes." });
+  try {
+    const member = (await readStaff()).find((m) => m.email === email && m.active !== false);
+    if (!member || !(await verifyPassword(password, member.hash))) {
+      noteLoginFailure(limitKeys);
+      return res.status(401).json({ error: "Wrong email or password." });
+    }
+    const payload = `${member.id}.${Date.now() + STAFF_SESSION_MS}`;
+    res.cookie(STAFF_COOKIE, `${payload}.${staffSig(payload)}`, { httpOnly: true, sameSite: "lax", secure: isHttps(req), maxAge: STAFF_SESSION_MS, path: "/" });
+    res.json({ staff: publicStaff(member) });
+  } catch (err) {
+    console.error("staff login failed:", err.message);
+    res.status(502).json({ error: "Couldn't log in — please try again." });
+  }
+});
+app.post("/api/staff/logout", (req, res) => { res.clearCookie(STAFF_COOKIE, { path: "/" }); res.json({ ok: true }); });
+app.get("/api/staff/me", async (req, res) => {
+  const member = await staffOf(req).catch(() => null);
+  if (!member) return res.status(401).json({ error: "Please log in." });
+  res.set("cache-control", "no-store").json({ staff: publicStaff(member) });
+});
+
+// The admin manages the team.
+app.get("/api/staff", requireAdminOnly, async (_req, res) => {
+  try { res.set("cache-control", "no-store").json({ staff: (await readStaff()).map(publicStaff) }); } catch (err) { res.status(502).json({ error: "Couldn't load the team." }); }
+});
+app.post("/api/staff", requireAdminOnly, express.json({ limit: "4kb" }), async (req, res) => {
+  const name = String(req.body?.name || "").trim().slice(0, 80);
+  const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 120);
+  const password = String(req.body?.password || "");
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a name and a valid email." });
+  if (password.length < 8) return res.status(400).json({ error: "The password needs at least 8 characters." });
+  try {
+    const staff = await readStaff();
+    if (staff.some((m) => m.email === email)) return res.status(409).json({ error: "There's already a team account with this email." });
+    const member = { id: randomUUID().replace(/-/g, "").slice(0, 12), name, email, role: "sales", active: true, hash: await hashPassword(password), createdAt: Date.now() };
+    await kvWrite(STAFF_KV, JSON.stringify([...staff, member]));
+    res.json({ staff: publicStaff(member) });
+  } catch (err) { console.error("staff create failed:", err.message); res.status(502).json({ error: "Couldn't create the account." }); }
+});
+app.patch("/api/staff/:id", requireAdminOnly, express.json({ limit: "4kb" }), async (req, res) => {
+  try {
+    const staff = await readStaff();
+    const i = staff.findIndex((m) => m.id === req.params.id);
+    if (i < 0) return res.status(404).json({ error: "Not found." });
+    const b = req.body || {};
+    if (typeof b.active === "boolean") staff[i].active = b.active;
+    if (typeof b.name === "string" && b.name.trim()) staff[i].name = b.name.trim().slice(0, 80);
+    if (typeof b.password === "string" && b.password) {
+      if (b.password.length < 8) return res.status(400).json({ error: "The password needs at least 8 characters." });
+      staff[i].hash = await hashPassword(b.password);
+    }
+    await kvWrite(STAFF_KV, JSON.stringify(staff));
+    res.json({ staff: publicStaff(staff[i]) });
+  } catch (err) { res.status(502).json({ error: "Couldn't update the account." }); }
+});
+app.delete("/api/staff/:id", requireAdminOnly, async (req, res) => {
+  try {
+    const staff = await readStaff();
+    await kvWrite(STAFF_KV, JSON.stringify(staff.filter((m) => m.id !== req.params.id)));
+    res.json({ ok: true });
+  } catch (err) { res.status(502).json({ error: "Couldn't delete the account." }); }
+});
+
+// The live chat inbox password: remembered here once the admin uses the
+// inbox, and handed to logged-in team accounts so they can answer chats.
+app.post("/api/staff/chat-key", requireAdminOnly, express.json({ limit: "2kb" }), async (req, res) => {
+  const key = String(req.body?.key || "").trim().slice(0, 200);
+  if (!key) return res.status(400).json({ error: "bad request" });
+  try { await kvWrite("einvite:live-chat-team-key", JSON.stringify({ key })); res.json({ ok: true }); } catch { res.status(502).json({ error: "Couldn't save." }); }
+});
+app.get("/api/staff/chat-key", requireStaffOrAdmin, async (_req, res) => {
+  try {
+    const raw = await kvRead("einvite:live-chat-team-key");
+    const key = raw ? JSON.parse(raw).key : "";
+    res.set("cache-control", "no-store").json({ key: key || "" });
+  } catch { res.status(502).json({ error: "Couldn't load the chat." }); }
+});
+
+// The clients list, read only (no passwords or private data beyond contact).
+app.get("/api/staff/users", requireStaffOrAdmin, async (_req, res) => {
+  try {
+    const users = (await readDraftUsers()).filter((u) => u?.id).map((u) => ({
+      id: u.id, name: String(u.name || ""), email: String(u.email || ""), phone: String(u.phone || ""),
+      status: String(u.status || "active"), role: String(u.role || "normal"), slug: String(u.invitationSlug || ""),
+      createdAt: u.createdAt || null,
+    }));
+    const by = (st) => users.filter((u) => u.status === st).length;
+    res.set("cache-control", "no-store").json({ total: users.length, active: by("active"), pending: by("pending"), users });
+  } catch (err) { res.status(502).json({ error: "Couldn't load the clients." }); }
+});
+
+// Invoices, made by the admin or the team.
+const INVOICES_KV = "einvite:invoices";
+async function readInvoices() { const raw = await kvRead(INVOICES_KV); return raw ? JSON.parse(raw) : []; }
+function cleanInvoice(b) {
+  const str = (v, n) => String(v ?? "").trim().slice(0, n);
+  const items = (Array.isArray(b?.items) ? b.items : []).slice(0, 50).map((it) => ({
+    description: str(it?.description, 300),
+    qty: Math.max(0, Math.min(100000, Number(it?.qty) || 0)),
+    unitPrice: Math.max(0, Math.min(10000000, Math.round((Number(it?.unitPrice) || 0) * 100) / 100)),
+  })).filter((it) => it.description && it.qty > 0);
+  const subtotal = items.reduce((n, it) => n + it.qty * it.unitPrice, 0);
+  const discount = Math.max(0, Math.min(subtotal, Math.round((Number(b?.discount) || 0) * 100) / 100));
+  return {
+    billTo: { name: str(b?.billTo?.name, 120), email: str(b?.billTo?.email, 120), phone: str(b?.billTo?.phone, 40), userId: str(b?.billTo?.userId, 40) },
+    items, currency: /^[A-Z]{3}$/.test(String(b?.currency || "")) ? b.currency : "USD",
+    issueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(b?.issueDate || "")) ? b.issueDate : new Date().toISOString().slice(0, 10),
+    dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(b?.dueDate || "")) ? b.dueDate : "",
+    discount, notes: str(b?.notes, 1000),
+    subtotal: Math.round(subtotal * 100) / 100, total: Math.round((subtotal - discount) * 100) / 100,
+  };
+}
+app.get("/api/invoices", requireStaffOrAdmin, async (_req, res) => {
+  try { res.set("cache-control", "no-store").json({ invoices: await readInvoices() }); } catch { res.status(502).json({ error: "Couldn't load invoices." }); }
+});
+app.post("/api/invoices", requireStaffOrAdmin, express.json({ limit: "64kb" }), async (req, res) => {
+  const inv = cleanInvoice(req.body);
+  if (!inv.billTo.name) return res.status(400).json({ error: "Who is the invoice for? Enter a name." });
+  if (!inv.items.length) return res.status(400).json({ error: "Add at least one item with a quantity." });
+  try {
+    const all = await readInvoices();
+    const year = inv.issueDate.slice(0, 4);
+    const seq = all.filter((x) => String(x.number || "").startsWith(`INV-${year}-`)).length + 1;
+    const invoice = { id: randomUUID().replace(/-/g, "").slice(0, 12), number: `INV-${year}-${String(seq).padStart(4, "0")}`, status: "unpaid", ...inv,
+      createdBy: req.staff ? { role: "sales", id: req.staff.id, name: req.staff.name } : { role: "admin", name: "Admin" }, createdAt: Date.now() };
+    await kvWrite(INVOICES_KV, JSON.stringify([invoice, ...all]));
+    res.json({ invoice });
+  } catch (err) { console.error("invoice create failed:", err.message); res.status(502).json({ error: "Couldn't save the invoice." }); }
+});
+app.patch("/api/invoices/:id", requireStaffOrAdmin, express.json({ limit: "64kb" }), async (req, res) => {
+  try {
+    const all = await readInvoices();
+    const i = all.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return res.status(404).json({ error: "Not found." });
+    const b = req.body || {};
+    if (["unpaid", "paid", "void"].includes(b.status)) { all[i].status = b.status; all[i].paidAt = b.status === "paid" ? Date.now() : null; }
+    if (b.items) Object.assign(all[i], cleanInvoice({ ...all[i], ...b }));
+    all[i].updatedAt = Date.now();
+    await kvWrite(INVOICES_KV, JSON.stringify(all));
+    res.json({ invoice: all[i] });
+  } catch (err) { res.status(502).json({ error: "Couldn't update the invoice." }); }
+});
+app.delete("/api/invoices/:id", requireAdminOnly, async (req, res) => {
+  try { await kvWrite(INVOICES_KV, JSON.stringify((await readInvoices()).filter((x) => x.id !== req.params.id))); res.json({ ok: true }); } catch { res.status(502).json({ error: "Couldn't delete the invoice." }); }
+});
+
 // Upload a new video: the raw file is the request body.
 app.post("/api/video/optimize", requireMember, express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "No video received." });
