@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Palette, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Palette, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet, Headset, Building2, Bot,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -2847,6 +2847,7 @@ function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
       { key: "users", label: "Users", icon: Users },
       { key: "livechat", label: "Live Chat", icon: MessageCircle, badge: liveChatUnread },
       { key: "review", label: "Review", icon: Palette },
+      { key: "appointments", label: "Appointments", icon: CalendarDays },
       { key: "invoices", label: "Invoices", icon: FileText },
       { key: "team", label: "Team", icon: UserCog },
       { key: "contact", label: "Contact", icon: Globe },
@@ -13239,14 +13240,20 @@ function LiveChatWidget({ page, defaultName = "", bottom = 20, openSignal = 0, p
           style={{ width: "min(320px, calc(100vw - 40px))", height: "min(440px, calc(100vh - 140px))", background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, boxShadow: "0 20px 50px -15px rgba(0,0,0,0.6)" }}
         >
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid rgba(201,164,76,0.15)` }}>
-            <div className="flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#6FCF97" }} />
-              <span className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Chat with us</span>
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(201,164,76,0.16)" }}>
+                <Headset size={16} style={{ color: GOLD_SOFT }} />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full" style={{ background: "#6FCF97", border: `2px solid ${INK_2}` }} />
+              </span>
+              <div>
+                <div className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Chat with our team</div>
+                <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Real people reply — not a bot</div>
+              </div>
             </div>
             <button onClick={() => setOpen(false)} style={{ color: MUTED }} aria-label="Close chat"><X size={16} /></button>
           </div>
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            <ChatBubble mine={false} body="Hi! 👋 Send us a message and we'll reply right here as soon as we can." />
+            <ChatBubble mine={false} body="Hi! 👋 You're talking to a real person from the eInvite team. Send us a message and we'll reply right here as soon as we can." />
             {messages.map((m) => (
               <ChatBubble key={m.id} mine={m.sender === "visitor"} body={m.body} time={formatChatTime(m.created_at)} />
             ))}
@@ -13288,7 +13295,7 @@ function LiveChatWidget({ page, defaultName = "", bottom = 20, openSignal = 0, p
         onClick={() => setOpen((o) => !o)}
         className="relative flex h-14 w-14 items-center justify-center rounded-full"
         style={{ background: IVORY, boxShadow: "0 10px 30px -8px rgba(0,0,0,0.5)", marginLeft: "auto" }}
-        aria-label={open ? "Close chat" : "Chat with us"}
+        aria-label={open ? "Close chat" : "Chat with our team"}
       >
         {open ? <X size={22} style={{ color: INK }} /> : <MessageCircle size={24} style={{ color: INK }} />}
         {unread && <span className="absolute right-0.5 top-0.5 h-3.5 w-3.5 rounded-full" style={{ background: "#E25B5B", border: `2px solid ${IVORY}` }} />}
@@ -13829,7 +13836,7 @@ function StaffPortal() {
       </div>
     );
   }
-  const tabs = [["chat", "Live Chat", MessageCircle, chat.unreadCount], ["clients", "Clients", Users, 0], ["invoices", "Invoices", FileText, 0]];
+  const tabs = [["chat", "Live Chat", MessageCircle, chat.unreadCount], ["clients", "Clients", Users, 0], ["appointments", "Appointments", CalendarDays, 0], ["invoices", "Invoices", FileText, 0]];
   return (
     <div style={shell}>
       <LightUiScope />
@@ -13857,6 +13864,7 @@ function StaffPortal() {
           ? <p className="rounded-2xl p-5 text-[13px]" style={{ background: INK_2, color: MUTED }}>The chat isn't shared with the team yet — ask the admin to open the Live Chat tab once.</p>
           : chatKeyState === "ready" ? <LiveChatInbox chat={chat} /> : <p className="text-[13px]" style={{ color: MUTED }}>Loading…</p>)}
         {tab === "clients" && <StaffClientsPanel />}
+        {tab === "appointments" && <AppointmentsPanel />}
         {tab === "invoices" && <InvoicesPanel isAdmin={false} />}
       </main>
     </div>
@@ -14757,6 +14765,223 @@ function AppNotificationsCard({ installed, isIos }) {
 
 // The app's AI assistant: questions about the guest list, answered from
 // the invitation's own data, with a hand-over to a person.
+// The app's "We're here to help" card: WhatsApp and a phone call on the
+// same number, and email.
+function appHelpLinks(contact) {
+  const out = [];
+  const wa = String(contact?.whatsapp || "").trim();
+  const digits = wa.replace(/\D/g, "");
+  if (wa && !isUrl(wa) && digits.length >= 7) {
+    out.push({ key: "whatsapp", label: "WhatsApp", value: wa, url: `https://wa.me/${digits}` });
+    out.push({ key: "call", label: "Call us", value: wa, url: `tel:+${digits}` });
+  } else if (wa) {
+    const l = siteContactLinks({ whatsapp: wa })[0];
+    if (l) out.push({ key: "whatsapp", label: "WhatsApp", value: l.value, url: l.url });
+  }
+  const email = String(contact?.email || "").trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) out.push({ key: "email", label: "Email", value: email, url: `mailto:${email}` });
+  return out;
+}
+
+const APPOINTMENT_KINDS = [
+  { key: "zoom", label: "Zoom meeting", icon: Video, hint: "We'll send you the Zoom link." },
+  { key: "office", label: "At our office", icon: Building2, hint: "Visit us and see the invitations in person." },
+  { key: "phone", label: "Phone call", icon: Phone, hint: "We'll call you at the time you choose." },
+];
+const APPOINTMENT_STATUS = {
+  requested: { label: "Waiting for confirmation", color: MUTED, bg: INK_3 },
+  confirmed: { label: "Confirmed", color: UI_OK, bg: "rgba(47,122,85,0.12)" },
+  declined: { label: "Not available", color: UI_ERROR, bg: "rgba(176,72,72,0.1)" },
+  done: { label: "Done", color: MUTED, bg: INK_3 },
+  cancelled: { label: "Cancelled", color: MUTED, bg: INK_3 },
+};
+const appointmentWhen = (a) => {
+  const d = new Date(`${a.date}T${a.time || "00:00"}`);
+  return isNaN(d) ? `${a.date} ${a.time}` : `${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${a.time}`;
+};
+
+// Lets the client ask for a meeting with the team (Zoom, office or phone).
+function AppointmentCard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const [list, setList] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ type: "zoom", date: "", time: "", phone: "", note: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const load = () => apiJson("/api/appointments/mine").then((d) => setList(d.appointments || [])).catch(() => {});
+  useEffect(() => { load(); }, []);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true); setError("");
+    try {
+      await apiJson("/api/appointments", { method: "POST", body: form });
+      setOpen(false); setSent(true);
+      setForm((f) => ({ ...f, date: "", time: "", note: "" }));
+      load();
+    } catch (err) { setError(err.message || "Couldn't send your request."); } finally { setBusy(false); }
+  };
+  const cancel = async (a) => {
+    if (!window.confirm("Cancel this appointment request?")) return;
+    try { await apiJson(`/api/appointments/${a.id}/cancel`, { method: "POST" }); load(); } catch (err) { alert(err.message); }
+  };
+  const field = { background: INK_3, color: IVORY, border: "1px solid rgba(147,166,155,0.2)" };
+  const upcoming = list.filter((a) => a.status !== "cancelled").slice(0, 6);
+  return (
+    <div className="rounded-2xl p-5" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.14)" }}>
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(201,164,76,0.16)" }}><CalendarDays size={18} style={{ color: GOLD_SOFT }} /></span>
+        <div className="min-w-0 flex-1">
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20 }}>Book an appointment</div>
+          <p className="mt-0.5 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.55 }}>Meet our team on Zoom, at our office, or by phone.</p>
+        </div>
+      </div>
+      {sent && !open && <p className="mt-3 rounded-xl px-3 py-2 text-[12.5px]" style={{ background: "rgba(47,122,85,0.12)", color: UI_OK }}>Request sent — we'll confirm it here and notify you.</p>}
+      {!open ? (
+        <button onClick={() => { setOpen(true); setSent(false); }} className="mt-4 w-full rounded-full py-3 text-[13.5px] font-semibold" style={{ background: GOLD, color: INK }}>Choose a day & time</button>
+      ) : (
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            {APPOINTMENT_KINDS.map(({ key, label, icon: Icon }) => (
+              <button type="button" key={key} onClick={() => setForm((f) => ({ ...f, type: key }))} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-[11.5px] font-semibold" style={{ background: form.type === key ? GOLD : INK_3, color: form.type === key ? INK : IVORY }}>
+                <Icon size={18} /> {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11.5px]" style={{ color: MUTED }}>{APPOINTMENT_KINDS.find((k) => k.key === form.type)?.hint}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[11px] font-semibold" style={{ color: MUTED }}>Day
+              <input type="date" min={today} value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className="mt-1 w-full rounded-xl px-3 py-2.5 text-[13.5px] outline-none" style={field} required />
+            </label>
+            <label className="text-[11px] font-semibold" style={{ color: MUTED }}>Time
+              <input type="time" value={form.time} onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} className="mt-1 w-full rounded-xl px-3 py-2.5 text-[13.5px] outline-none" style={field} required />
+            </label>
+          </div>
+          {form.type === "phone" && (
+            <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.slice(0, 40) }))} placeholder="Your phone number" className="w-full rounded-xl px-3 py-2.5 text-[13.5px] outline-none" style={field} />
+          )}
+          <textarea value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value.slice(0, 1000) }))} dir="auto" rows={3} placeholder="What would you like to talk about? (optional)" className="w-full rounded-xl px-3 py-2.5 text-[13.5px] outline-none" style={field} />
+          {error && <p className="text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-full py-3 text-[13px] font-semibold" style={{ background: INK_3, color: IVORY }}>Cancel</button>
+            <button type="submit" disabled={busy} className="flex-1 rounded-full py-3 text-[13px] font-semibold" style={{ background: GOLD, color: INK, opacity: busy ? 0.6 : 1 }}>{busy ? "Sending…" : "Send request"}</button>
+          </div>
+        </form>
+      )}
+      {upcoming.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="text-[11px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>Your appointments</div>
+          {upcoming.map((a) => {
+            const st = APPOINTMENT_STATUS[a.status] || APPOINTMENT_STATUS.requested;
+            const kind = APPOINTMENT_KINDS.find((k) => k.key === a.type) || APPOINTMENT_KINDS[0];
+            return (
+              <div key={a.id} className="rounded-xl p-3" style={{ background: INK_3 }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 text-[13px] font-semibold"><kind.icon size={14} style={{ color: GOLD_SOFT }} /> {kind.label}</div>
+                    <div className="mt-0.5 text-[12px]" style={{ color: MUTED }}>{appointmentWhen(a)}</div>
+                  </div>
+                  <span className="flex-shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+                </div>
+                {a.reply && <p className="mt-2 text-[12px]" dir="auto" style={{ lineHeight: 1.5 }}>{a.reply}</p>}
+                {a.status === "confirmed" && a.zoomLink && (
+                  <a href={a.zoomLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: "#2D8CFF", color: "#fff" }}><Video size={13} /> Join Zoom</a>
+                )}
+                {a.status === "requested" && <button onClick={() => cancel(a)} className="mt-2 text-[11.5px] underline" style={{ color: MUTED }}>Cancel request</button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Admin and team: the appointment requests, to confirm or decline.
+function AppointmentsPanel() {
+  const [list, setList] = useState(null);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("open");
+  const [edit, setEdit] = useState({}); // id -> { date, time, reply, zoomLink }
+  const load = () => apiJson("/api/appointments").then((d) => { setList(d.appointments || []); setError(""); }).catch((err) => setError(err.message));
+  useEffect(() => { load(); }, []);
+  const draft = (a) => edit[a.id] || { date: a.date, time: a.time, reply: a.reply || "", zoomLink: a.zoomLink || "" };
+  const setDraft = (a, patch) => setEdit((e) => ({ ...e, [a.id]: { ...draft(a), ...patch } }));
+  const update = async (a, status) => {
+    const d = draft(a);
+    try {
+      await apiJson(`/api/appointments/${a.id}`, { method: "PATCH", body: { ...d, status } });
+      setEdit((e) => { const n = { ...e }; delete n[a.id]; return n; });
+      load();
+    } catch (err) { alert(err.message); }
+  };
+  if (error) return <p className="text-[13px]" style={{ color: UI_ERROR }}>{error}</p>;
+  if (!list) return <p className="text-[13px]" style={{ color: MUTED }}>Loading…</p>;
+  const open = list.filter((a) => a.status === "requested" || a.status === "confirmed");
+  const shown = filter === "open" ? open : list;
+  const field = { background: INK_3, color: IVORY, border: "1px solid rgba(147,166,155,0.2)" };
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, color: IVORY }}>Appointments</div>
+          <p className="text-[12.5px]" style={{ color: MUTED }}>Clients ask for a Zoom meeting, an office visit or a phone call from their app.</p>
+        </div>
+        <div className="flex gap-2">
+          {[["open", `Open (${open.length})`], ["all", `All (${list.length})`]].map(([k, l]) => (
+            <button key={k} onClick={() => setFilter(k)} className="rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: filter === k ? GOLD : INK_2, color: filter === k ? INK : IVORY }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {shown.length === 0 && <p className="rounded-2xl p-5 text-[13px]" style={{ background: INK_2, color: MUTED }}>No appointment requests.</p>}
+      <div className="grid gap-3 md:grid-cols-2">
+        {shown.map((a) => {
+          const st = APPOINTMENT_STATUS[a.status] || APPOINTMENT_STATUS.requested;
+          const kind = APPOINTMENT_KINDS.find((k) => k.key === a.type) || APPOINTMENT_KINDS[0];
+          const d = draft(a);
+          const phone = String(a.phone || "").replace(/[^0-9+]/g, "");
+          return (
+            <div key={a.id} className="rounded-2xl p-4" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.14)", color: IVORY }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-semibold" dir="auto">{a.name || a.email || "Client"}</div>
+                  <div className="text-[12px]" style={{ color: MUTED }}>{[a.email, a.phone].filter(Boolean).join(" · ")}</div>
+                </div>
+                <span className="flex-shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-semibold" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-[13px] font-semibold"><kind.icon size={15} style={{ color: GOLD_SOFT }} /> {kind.label} · <span style={{ fontWeight: 400 }}>{appointmentWhen(a)}</span></div>
+              {a.note && <p className="mt-2 rounded-xl px-3 py-2 text-[12.5px]" dir="auto" style={{ background: INK_3, lineHeight: 1.5 }}>{a.note}</p>}
+              {phone && (
+                <div className="mt-2 flex gap-2">
+                  <a href={`tel:${phone}`} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY }}><Phone size={13} /> Call</a>
+                  <a href={`https://wa.me/${phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: "#25D366", color: "#0B2E1A" }}><MessageCircle size={13} /> WhatsApp</a>
+                </div>
+              )}
+              {(a.status === "requested" || a.status === "confirmed") && (
+                <div className="mt-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" value={d.date} onChange={(e) => setDraft(a, { date: e.target.value })} className="rounded-xl px-3 py-2 text-[13px] outline-none" style={field} />
+                    <input type="time" value={d.time} onChange={(e) => setDraft(a, { time: e.target.value })} className="rounded-xl px-3 py-2 text-[13px] outline-none" style={field} />
+                  </div>
+                  {a.type === "zoom" && <input value={d.zoomLink} onChange={(e) => setDraft(a, { zoomLink: e.target.value })} placeholder="Zoom link (https://…)" className="w-full rounded-xl px-3 py-2 text-[13px] outline-none" style={field} />}
+                  <input value={d.reply} onChange={(e) => setDraft(a, { reply: e.target.value })} dir="auto" placeholder="Message to the client (optional)" className="w-full rounded-xl px-3 py-2 text-[13px] outline-none" style={field} />
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => update(a, "confirmed")} className="rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: GOLD, color: INK }}>{a.status === "confirmed" ? "Save changes" : "Confirm"}</button>
+                    {a.status === "requested" && <button onClick={() => update(a, "declined")} className="rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: INK_3, color: UI_ERROR }}>Decline</button>}
+                    {a.status === "confirmed" && <button onClick={() => update(a, "done")} className="rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: INK_3, color: IVORY }}>Mark as done</button>}
+                  </div>
+                </div>
+              )}
+              {a.handledBy && <div className="mt-2 text-[11px]" style={{ color: MUTED }}>Handled by {a.handledBy}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AppAssistant({ messages, setMessages, onHandoff }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -14781,10 +15006,13 @@ function AppAssistant({ messages, setMessages, onHandoff }) {
     <div className="rounded-2xl p-4" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.14)" }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "rgba(201,164,76,0.16)" }}><Sparkles size={17} style={{ color: GOLD_SOFT }} /></span>
+          <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ background: "rgba(201,164,76,0.16)" }}><Bot size={18} style={{ color: GOLD_SOFT }} /></span>
           <div>
-            <div className="text-[13.5px] font-semibold" style={{ color: IVORY }}>Assistant</div>
-            <div className="text-[11px]" style={{ color: MUTED }}>Ask about your replies, in any language</div>
+            <div className="flex items-center gap-1.5 text-[13.5px] font-semibold" style={{ color: IVORY }}>
+              AI Assistant
+              <span className="rounded-full px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: GOLD, color: INK, letterSpacing: "0.06em" }}>AI</span>
+            </div>
+            <div className="text-[11px]" style={{ color: MUTED }}>Automatic answers about your replies — not a person</div>
           </div>
         </div>
         <button onClick={() => onHandoff(messages.filter((m) => m.role === "user").slice(-1)[0]?.content || "")} className="flex-shrink-0 rounded-full px-3 py-2 text-[11.5px] font-semibold" style={{ background: INK_3, color: IVORY, border: "1px solid rgba(201,164,76,0.3)" }}>
@@ -14802,12 +15030,13 @@ function AppAssistant({ messages, setMessages, onHandoff }) {
         {messages.map((m, i) => (
           <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
             <div dir="auto" className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13px]" style={{ background: m.role === "user" ? GOLD : INK_3, color: m.role === "user" ? INK : IVORY, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+              {m.role === "assistant" && <div className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.08em" }}><Bot size={11} /> AI</div>}
               {m.content}
-              {m.handoff && <div className="mt-1.5 text-[11px]" style={{ opacity: 0.75 }}>The chat with our team is open below ↓</div>}
+              {m.handoff && <div className="mt-1.5 text-[11px]" style={{ opacity: 0.75 }}>The chat with a real person from our team is open below ↓</div>}
             </div>
           </div>
         ))}
-        {busy && <div className="text-[12px]" style={{ color: MUTED }}>Thinking…</div>}
+        {busy && <div className="text-[12px]" style={{ color: MUTED }}>AI is thinking…</div>}
         <div ref={endRef} />
       </div>
       {error && <p className="mt-2 text-[11.5px]" style={{ color: UI_ERROR }}>{error}</p>}
@@ -15002,17 +15231,19 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
             <AppAssistant messages={aiMessages} setMessages={setAiMessages} onHandoff={handoff} />
             <div className="rounded-2xl p-5" style={card}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>We're here to help</div>
-              <p className="mt-1 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>Reach the eInvite team any time — or tap the chat bubble below to write to us here.</p>
+              <p className="mt-1 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>Reach a real person from the eInvite team — or tap the chat bubble below to write to us here.</p>
               <div className="mt-4 grid grid-cols-1 gap-2">
-                {siteContactLinks(contact).map((l) => (
-                  <a key={l.key} href={l.url} target={l.key === "email" ? undefined : "_blank"} rel="noreferrer" className="flex items-center gap-3 rounded-xl px-4 py-3 text-[13.5px] font-semibold" style={{ background: INK_3, color: IVORY }}>
-                    <BrandIcon name={l.icon} size={18} /> {l.label}
+                {appHelpLinks(contact).map((l) => (
+                  <a key={l.key} href={l.url} target={l.key === "whatsapp" ? "_blank" : undefined} rel="noreferrer" className="flex items-center gap-3 rounded-xl px-4 py-3 text-[13.5px] font-semibold" style={{ background: INK_3, color: IVORY }}>
+                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center">{l.key === "whatsapp" ? <BrandIcon name="whatsapp" size={18} /> : l.key === "call" ? <Phone size={17} /> : <Mail size={17} />}</span>
+                    {l.label}
                     <span className="ml-auto truncate text-[12px] font-normal" style={{ color: MUTED }}>{l.value}</span>
                   </a>
                 ))}
-                {siteContactLinks(contact).length === 0 && <p className="text-[12.5px]" style={{ color: MUTED }}>Use the chat below to reach us.</p>}
+                {appHelpLinks(contact).length === 0 && <p className="text-[12.5px]" style={{ color: MUTED }}>Use the chat below to reach us.</p>}
               </div>
             </div>
+            <AppointmentCard />
             <LiveChatWidget page="app" defaultName={[user?.name, user?.email].filter(Boolean).join(" · ").slice(0, 80)} bottom={92} openSignal={chatSignal} prefill={chatPrefill} />
           </div>
         )}
@@ -16913,7 +17144,7 @@ export default function InvitationBuilder() {
   }, [steps.length, activeIndex]);
 
   useEffect(() => {
-    if (actingAsUser && ["users", "invoices", "team", "review", "livechat", "contact"].includes(view)) setView("builder");
+    if (actingAsUser && ["users", "invoices", "team", "review", "appointments", "livechat", "contact"].includes(view)) setView("builder");
   }, [actingAsUser, view]);
 
   useEffect(() => {
@@ -19474,6 +19705,7 @@ export default function InvitationBuilder() {
         {view === "invoices" && !actingAsUser && <InvoicesPanel isAdmin />}
         {view === "team" && !actingAsUser && <TeamManager />}
         {view === "review" && !actingAsUser && <DesignReviewPanel />}
+        {view === "appointments" && !actingAsUser && <AppointmentsPanel />}
 
         {view === "users" && !actingAsUser && (
           <UsersView
