@@ -692,6 +692,7 @@ app.patch("/api/staff/:id", requireAdminOnly, express.json({ limit: "4kb" }), as
     if (typeof b.password === "string" && b.password) {
       if (b.password.length < 8) return res.status(400).json({ error: "The password needs at least 8 characters." });
       staff[i].hash = await hashPassword(b.password);
+      loginFailures.delete(`staff:${staff[i].email}`);
     }
     await kvWrite(STAFF_KV, JSON.stringify(staff));
     res.json({ staff: publicStaff(staff[i]) });
@@ -703,6 +704,14 @@ app.delete("/api/staff/:id", requireAdminOnly, async (req, res) => {
     await kvWrite(STAFF_KV, JSON.stringify(staff.filter((m) => m.id !== req.params.id)));
     res.json({ ok: true });
   } catch (err) { res.status(502).json({ error: "Couldn't delete the account." }); }
+});
+
+// The admin can lift the "too many wrong attempts" lock for everyone at
+// once (e.g. after someone mistyped a password ten times).
+app.post("/api/auth/unlock", requireAdminOnly, (_req, res) => {
+  const n = loginFailures.size;
+  loginFailures.clear();
+  res.json({ ok: true, cleared: n });
 });
 
 // The live chat inbox password: remembered here once the admin uses the

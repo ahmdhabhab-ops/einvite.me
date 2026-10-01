@@ -13546,6 +13546,7 @@ function StaffClientsPanel() {
 // Admin: the team's accounts.
 function TeamManager() {
   const [staff, setStaff] = useState(null);
+  const [unlockNote, setUnlockNote] = useState("");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -13567,6 +13568,13 @@ function TeamManager() {
       <p className="mb-5 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>
         Sales accounts log in at <a href={loginUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: GOLD_SOFT }}>{loginUrl}</a> and see only the live chat, the clients list (read only) and invoices. Open the Live Chat tab here once so the team's chat works.
       </p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={card}>
+        <div className="min-w-[220px] flex-1 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>
+          <span className="font-semibold" style={{ color: IVORY }}>“Too many wrong attempts”?</span> After 10 wrong passwords, logins are paused for 15 minutes. Lift it now for clients and the team:
+        </div>
+        <button onClick={async () => { try { const d = await apiJson("/api/auth/unlock", { method: "POST" }); setUnlockNote(d.cleared ? "Unlocked — they can log in again now." : "Nothing was locked."); } catch (err) { setUnlockNote(err.message); } }} className="rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: INK_3, color: IVORY, border: "1px solid rgba(201,164,76,0.35)" }}>Unlock logins</button>
+        {unlockNote && <div className="w-full text-[12px]" style={{ color: UI_OK }}>{unlockNote}</div>}
+      </div>
       <div className="mb-6 rounded-2xl p-5" style={card}>
         <div className="mb-3 text-[13.5px] font-semibold" style={{ color: IVORY }}>Add a sales account</div>
         <div className="grid gap-2 sm:grid-cols-3">
