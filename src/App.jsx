@@ -12723,7 +12723,34 @@ function DesignThumb({ tpl, maxWidth = 180 }) {
   );
 }
 
-function TemplateShopPage({ mode = "canva" }) {
+// The designs shop, in the site's light look, with the home page's top bar
+// so there's always a way back.
+function TemplateShopPage(props) {
+  return (
+    <>
+      <LightUiScope />
+      <header className="sticky top-0 z-50" style={{ background: "rgba(245,240,231,0.9)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid rgba(28,59,51,0.13)" }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
+          <div className="flex items-center gap-4">
+            <a href="/" className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[13px]" style={{ color: "#1C3B33", border: "1px solid rgba(28,59,51,0.25)", fontFamily: FONT_BODY }}>
+              <ArrowLeft size={15} /> Home
+            </a>
+            <a href="/" dir="ltr" style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: "#1C3B33", letterSpacing: "-0.02em" }}>
+              eInvite<span style={{ color: "#BF914A", fontStyle: "italic" }}>.me</span>
+            </a>
+          </div>
+          <nav className="flex items-center gap-5 text-[13.5px]" style={{ fontFamily: FONT_BODY }}>
+            <a href="/cost-calculator" className="hidden sm:inline" style={{ color: "#55635B" }}>Cost calculator</a>
+            <a href="/" className="rounded-full px-4 py-2" style={{ color: "#1C3B33", border: "1px solid #1C3B33" }}>Log in</a>
+          </nav>
+        </div>
+      </header>
+      <TemplateShopBody {...props} />
+    </>
+  );
+}
+
+function TemplateShopBody({ mode = "canva" }) {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [buyerEmail, setBuyerEmail] = useState("");
   const [paying, setPaying] = useState(false);
@@ -12845,7 +12872,7 @@ function TemplateShopPage({ mode = "canva" }) {
     <div style={{ minHeight: "100vh", background: INK }}>
       <div className="mx-auto max-w-4xl px-5 py-10">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Invitation Designs</h1>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(32px, 4.4vw, 52px)", lineHeight: 1.1, letterSpacing: "-0.02em", color: IVORY }}>Invitation <span style={{ color: GOLD, fontStyle: "italic" }}>Designs</span></h1>
           <p className="mt-2 text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
             {mode === "website" ? "Buy a design, then customize it yourself directly on our website." : "Buy a design, then customize it yourself directly in Canva — no account needed here."}
           </p>
