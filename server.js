@@ -714,6 +714,92 @@ app.post("/api/auth/unlock", requireAdminOnly, (_req, res) => {
   res.json({ ok: true, cleared: n });
 });
 
+// ---------------------------------------------------------------------------
+// Designers: client accounts with role "designer" that build invitation
+// designs in the normal builder and send them for review. The admin
+// approves (with a name and price, which publishes it on /shop) or
+// declines with a reason.
+// ---------------------------------------------------------------------------
+const SUBMISSIONS_KV = "einvite:design-submissions";
+async function readSubmissions() { const raw = await kvRead(SUBMISSIONS_KV); return raw ? JSON.parse(raw) : []; }
+app.get("/api/designers", requireAdminOnly, async (_req, res) => {
+  try {
+    const users = (await readDraftUsers()).filter((u) => u?.role === "designer").map((u) => ({ id: u.id, name: u.name, email: u.email, status: u.status, createdAt: u.createdAt }));
+    res.set("cache-control", "no-store").json({ designers: users });
+  } catch { res.status(502).json({ error: "Couldn't load designers." }); }
+});
+app.post("/api/designers", requireAdminOnly, express.json({ limit: "4kb" }), async (req, res) => {
+  const name = String(req.body?.name || "").trim().slice(0, 100);
+  const email = String(req.body?.email || "").trim().slice(0, 200);
+  const password = String(req.body?.password || "");
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a name and a valid email." });
+  if (password.length < 8) return res.status(400).json({ error: "The password needs at least 8 characters." });
+  try {
+    const users = await readDraftUsers();
+    if (users.some((u) => String(u?.email || "").toLowerCase() === email.toLowerCase())) return res.status(409).json({ error: "An account with that email already exists." });
+    const user = { id: randomUUID().replace(/-/g, "").slice(0, 10), name, email, phone: "", role: "designer", status: "active", dashboardAccess: false, canDesign: true, createdAt: Date.now(), invitationSlug: null, packageTier: null };
+    await saveAccountHash(user.id, await hashPassword(password));
+    await updateDraftUsers((list) => [user, ...list]);
+    res.json({ designer: { id: user.id, name, email, status: user.status } });
+  } catch (err) { console.error("designer create failed:", err.message); res.status(502).json({ error: "Couldn't create the designer account." }); }
+});
+// Who's asking: the admin, or a logged-in designer (their user record).
+async function designerOf(req) {
+  const who = authReady ? requestRole(req) : { role: "admin" };
+  if (who.role !== "client") return null;
+  const u = (await readDraftUsers()).find((x) => x?.id === who.userId);
+  return u?.role === "designer" ? u : null;
+}
+app.post("/api/designs/submit", express.json({ limit: "512kb" }), async (req, res) => {
+  try {
+    const designer = await designerOf(req);
+    if (!designer) return res.status(403).json({ error: "Only designer accounts can submit designs." });
+    const design = req.body?.design;
+    if (!design || typeof design !== "object") return res.status(400).json({ error: "bad request" });
+    const sub = {
+      id: randomUUID().replace(/-/g, "").slice(0, 12),
+      designerId: designer.id, designerName: designer.name, designerEmail: designer.email,
+      title: String(req.body?.title || "").trim().slice(0, 100), note: String(req.body?.note || "").trim().slice(0, 1000),
+      previewSlug: String(designer.invitationSlug || ""),
+      design: JSON.parse(JSON.stringify(design)), status: "pending", submittedAt: Date.now(),
+    };
+    await kvWrite(SUBMISSIONS_KV, JSON.stringify([sub, ...(await readSubmissions())]));
+    res.json({ submission: { ...sub, design: undefined } });
+  } catch (err) { console.error("design submit failed:", err.message); res.status(502).json({ error: "Couldn't send the design — please try again." }); }
+});
+app.get("/api/designs/submissions", async (req, res) => {
+  try {
+    const all = await readSubmissions();
+    if (isAdminReq(req)) return res.set("cache-control", "no-store").json({ submissions: all });
+    const designer = await designerOf(req);
+    if (!designer) return res.status(401).json({ error: "Please log in." });
+    res.set("cache-control", "no-store").json({ submissions: all.filter((x) => x.designerId === designer.id).map((x) => ({ ...x, design: undefined })) });
+  } catch { res.status(502).json({ error: "Couldn't load submissions." }); }
+});
+app.post("/api/designs/submissions/:id/review", requireAdminOnly, express.json({ limit: "4kb" }), async (req, res) => {
+  const action = req.body?.action;
+  if (!["approve", "decline"].includes(action)) return res.status(400).json({ error: "bad request" });
+  try {
+    const all = await readSubmissions();
+    const i = all.findIndex((x) => x.id === req.params.id);
+    if (i < 0) return res.status(404).json({ error: "Not found." });
+    if (action === "approve") {
+      const name = String(req.body?.name || "").trim().slice(0, 100);
+      const price = Math.max(0, Math.min(100000, Number(req.body?.price) || 0));
+      if (!name) return res.status(400).json({ error: "Give the design a name." });
+      const shopRaw = await kvRead("einvite:shop-designs");
+      const shop = shopRaw ? JSON.parse(shopRaw) : [];
+      const design = { ...all[i].design, id: `shop-${randomUUID().replace(/-/g, "").slice(0, 10)}`, name, price, description: all[i].title || "", designedBy: all[i].designerName };
+      await kvWrite("einvite:shop-designs", JSON.stringify([...shop, design]));
+      Object.assign(all[i], { status: "approved", shopDesignId: design.id, name, price, reviewedAt: Date.now(), reason: "" });
+    } else {
+      Object.assign(all[i], { status: "declined", reason: String(req.body?.reason || "").trim().slice(0, 1000), reviewedAt: Date.now() });
+    }
+    await kvWrite(SUBMISSIONS_KV, JSON.stringify(all));
+    res.json({ submission: all[i] });
+  } catch (err) { console.error("design review failed:", err.message); res.status(502).json({ error: "Couldn't save the review." }); }
+});
+
 // The live chat inbox password: remembered here once the admin uses the
 // inbox, and handed to logged-in team accounts so they can answer chats.
 app.post("/api/staff/chat-key", requireAdminOnly, express.json({ limit: "2kb" }), async (req, res) => {

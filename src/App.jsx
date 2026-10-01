@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Palette, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -2846,6 +2846,7 @@ function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
     ...(isClientPortal ? [] : [
       { key: "users", label: "Users", icon: Users },
       { key: "livechat", label: "Live Chat", icon: MessageCircle, badge: liveChatUnread },
+      { key: "review", label: "Review", icon: Palette },
       { key: "invoices", label: "Invoices", icon: FileText },
       { key: "team", label: "Team", icon: UserCog },
       { key: "contact", label: "Contact", icon: Globe },
@@ -13543,7 +13544,191 @@ function StaffClientsPanel() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Designers: they send a design for review; the admin approves it (name +
+// price, published to /shop) or declines it with a reason.
+// ---------------------------------------------------------------------------
+const SUBMISSION_STATUS = {
+  pending: { label: "Waiting for review", bg: "rgba(201,164,76,0.16)", fg: GOLD_SOFT },
+  approved: { label: "Approved", bg: "rgba(47,122,85,0.12)", fg: UI_OK },
+  declined: { label: "Declined", bg: "rgba(176,72,72,0.1)", fg: UI_ERROR },
+};
+function DesignerSubmitModal({ onClose, onSubmit }) {
+  const [title, setTitle] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const send = async () => {
+    setBusy(true); setError("");
+    try { await onSubmit(title.trim(), note.trim()); setDone(true); } catch (err) { setError(err.message || "Couldn't send the design."); } finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center px-4" style={{ background: "rgba(10,14,12,0.55)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.2)", fontFamily: FONT_BODY }} onClick={(e) => e.stopPropagation()}>
+        {done ? (
+          <div className="text-center">
+            <CheckCircle2 size={36} style={{ color: UI_OK, margin: "0 auto 10px" }} />
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: IVORY }}>Sent for review</div>
+            <p className="mt-2 text-[12.5px]" style={{ color: MUTED }}>The admin will approve it or send it back with notes. You'll see the answer above the builder.</p>
+            <div className="mt-5"><GoldButton onClick={onClose}>Done</GoldButton></div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: IVORY }}>Submit design for review</div>
+            <p className="mt-1 text-[12px]" style={{ color: MUTED, lineHeight: 1.6 }}>Your invitation is saved and its design (backgrounds, colors, fonts, intro) is sent to the admin.</p>
+            <div className="mt-4"><FieldLabel>Design title (a suggestion)</FieldLabel></div>
+            <TextInput value={title} onChange={setTitle} placeholder="e.g. Golden Garden" />
+            <div className="mt-3"><FieldLabel>Note for the admin (optional)</FieldLabel></div>
+            <TextArea value={note} onChange={setNote} rows={3} placeholder="Occasion, style, anything to know…" />
+            {error && <p className="mt-2 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <GhostButton onClick={onClose}>Cancel</GhostButton>
+              <GoldButton onClick={send} disabled={busy}><Send size={14} /> {busy ? "Sending…" : "Send"}</GoldButton>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+// The designer's own submissions and their answers, above the builder.
+function DesignerSubmissionsStrip({ refreshKey }) {
+  const [subs, setSubs] = useState([]);
+  useEffect(() => { apiJson("/api/designs/submissions").then((d) => setSubs(d.submissions || [])).catch(() => {}); }, [refreshKey]);
+  if (!subs.length) return null;
+  return (
+    <div className="mb-4 rounded-xl p-3" style={{ background: INK_3, fontFamily: FONT_BODY }}>
+      <div className="mb-2 text-[10.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.1em" }}>My submitted designs</div>
+      <div className="space-y-1.5">
+        {subs.slice(0, 6).map((x) => {
+          const st = SUBMISSION_STATUS[x.status] || SUBMISSION_STATUS.pending;
+          return (
+            <div key={x.id} className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
+              <span style={{ color: IVORY }}>{x.name || x.title || "Untitled"} <span style={{ color: MUTED }}>· {new Date(x.submittedAt).toLocaleDateString()}</span></span>
+              <span className="flex items-center gap-2">
+                {x.status === "approved" && <span style={{ color: MUTED }}>${x.price}</span>}
+                <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
+              </span>
+              {x.status === "declined" && x.reason && <div className="w-full text-[11.5px]" style={{ color: MUTED }}>“{x.reason}”</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+// Admin: the review queue.
+function DesignReviewPanel() {
+  const [subs, setSubs] = useState(null);
+  const [filter, setFilter] = useState("pending");
+  const [forms, setForms] = useState({});
+  const [error, setError] = useState("");
+  const load = () => apiJson("/api/designs/submissions").then((d) => setSubs(d.submissions || [])).catch((err) => { setError(err.message); setSubs([]); });
+  useEffect(() => { load(); }, []);
+  const setF = (id, patch) => setForms((f) => ({ ...f, [id]: { ...(f[id] || {}), ...patch } }));
+  const review = async (x, action, reasonOverride) => {
+    const f = { ...(forms[x.id] || {}), ...(reasonOverride !== undefined ? { reason: reasonOverride } : {}) };
+    setError("");
+    try {
+      const { submission } = await apiJson(`/api/designs/submissions/${x.id}/review`, { method: "POST", body: { action, name: f.name ?? x.title, price: f.price, reason: f.reason } });
+      setSubs((list) => list.map((y) => (y.id === x.id ? submission : y)));
+    } catch (err) { setError(err.message); }
+  };
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const field = "w-full rounded-lg px-3 py-2 text-[13px] outline-none";
+  const fieldStyle = { background: INK_3, color: IVORY, fontFamily: FONT_BODY };
+  const shown = (subs || []).filter((x) => filter === "all" || x.status === filter);
+  const pending = (subs || []).filter((x) => x.status === "pending").length;
+  return (
+    <div className="mx-auto max-w-5xl" style={{ fontFamily: FONT_BODY }}>
+      <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: IVORY }}>Design review</h2>
+      <p className="mb-4 text-[12.5px]" style={{ color: MUTED }}>Designs sent by your designers. Approve with a name and price to publish them in the shop, or decline with a note.</p>
+      {error && <p className="mb-3 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+      <div className="mb-4 flex gap-2">
+        {[["pending", `Waiting (${pending})`], ["approved", "Approved"], ["declined", "Declined"], ["all", "All"]].map(([k, l]) => (
+          <button key={k} onClick={() => setFilter(k)} className="rounded-full px-4 py-1.5 text-[12px] font-semibold" style={{ background: filter === k ? GOLD : INK_2, color: filter === k ? INK : IVORY, border: "1px solid rgba(201,164,76,0.25)" }}>{l}</button>
+        ))}
+      </div>
+      {subs === null && <p className="text-[13px]" style={{ color: MUTED }}>Loading…</p>}
+      {subs && shown.length === 0 && <p className="rounded-2xl p-5 text-[13px]" style={{ ...card, color: MUTED }}>Nothing here.</p>}
+      <div className="grid gap-4 md:grid-cols-2">
+        {shown.map((x) => {
+          const st = SUBMISSION_STATUS[x.status] || SUBMISSION_STATUS.pending;
+          const f = forms[x.id] || {};
+          return (
+            <div key={x.id} className="flex gap-4 rounded-2xl p-4" style={card}>
+              <div className="w-[120px] flex-shrink-0">{x.design && <DesignThumb tpl={{ ...x.design, name: x.title || "Design" }} maxWidth={120} />}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[14px] font-semibold" style={{ color: IVORY }}>{x.name || x.title || "Untitled"}</div>
+                  <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
+                </div>
+                <div className="text-[11.5px]" style={{ color: MUTED }}>by {x.designerName} · {new Date(x.submittedAt).toLocaleDateString()}</div>
+                {x.note && <p className="mt-1.5 text-[12px]" style={{ color: IVORY, lineHeight: 1.5 }}>“{x.note}”</p>}
+                {x.previewSlug && <a href={`/e/${x.previewSlug}`} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] underline" style={{ color: GOLD_SOFT }}>Open the designer's invitation <ExternalLink size={11} /></a>}
+                {x.status === "pending" && (
+                  <div className="mt-3 space-y-2">
+                    <div className="grid grid-cols-[1fr_90px] gap-2">
+                      <input value={f.name ?? x.title ?? ""} onChange={(e) => setF(x.id, { name: e.target.value })} placeholder="Name in the shop" className={field} style={fieldStyle} />
+                      <input type="number" min={0} value={f.price ?? ""} onChange={(e) => setF(x.id, { price: e.target.value })} placeholder="Price $" className={field} style={fieldStyle} />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <GoldButton onClick={() => review(x, "approve")} disabled={!(f.name ?? x.title ?? "").trim()}><Check size={14} /> Approve & publish</GoldButton>
+                      <button onClick={() => { const reason = window.prompt("Why is it declined? (the designer sees this)"); if (reason !== null) review(x, "decline", reason); }} className="rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: INK_3, color: UI_ERROR }}>Decline</button>
+                    </div>
+                  </div>
+                )}
+                {x.status === "approved" && <div className="mt-2 text-[12px]" style={{ color: UI_OK }}>In the shop for ${x.price}</div>}
+                {x.status === "declined" && x.reason && <div className="mt-2 text-[12px]" style={{ color: MUTED }}>Reason: {x.reason}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Admin: the team's accounts.
+function DesignersManager() {
+  const [list, setList] = useState(null);
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [error, setError] = useState("");
+  const load = () => apiJson("/api/designers").then((d) => setList(d.designers || [])).catch((err) => { setError(err.message); setList([]); });
+  useEffect(() => { load(); }, []);
+  const add = async () => {
+    setError("");
+    try { await apiJson("/api/designers", { method: "POST", body: form }); setForm({ name: "", email: "", password: "" }); load(); } catch (err) { setError(err.message); }
+  };
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const field = "w-full rounded-lg px-3 py-2.5 text-[13px] outline-none";
+  const fieldStyle = { background: INK_3, color: IVORY, fontFamily: FONT_BODY };
+  return (
+    <div className="mb-6 rounded-2xl p-5" style={card}>
+      <div className="text-[13.5px] font-semibold" style={{ color: IVORY }}>Graphic designers</div>
+      <p className="mb-3 mt-1 text-[12px]" style={{ color: MUTED, lineHeight: 1.6 }}>They log in on the website like a client, design in the builder, and send designs to the Review tab. Nothing is published until you approve it.</p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Designer's name" className={field} style={fieldStyle} />
+        <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="Designer's email" className={field} style={fieldStyle} />
+        <input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Designer's password (8+ characters)" className={field} style={fieldStyle} />
+      </div>
+      {error && <p className="mt-2 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+      <div className="mt-3"><GoldButton onClick={add}><Plus size={14} /> Add designer</GoldButton></div>
+      {list && list.length > 0 && (
+        <div className="mt-4 space-y-1.5">
+          {list.map((d) => (
+            <div key={d.id} className="flex items-center justify-between rounded-lg px-3 py-2 text-[12.5px]" style={{ background: INK_3 }}>
+              <span style={{ color: IVORY }}>{d.name} <span style={{ color: MUTED }}>· {d.email}</span></span>
+              <span className="text-[11px]" style={{ color: MUTED }}>designer</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamManager() {
   const [staff, setStaff] = useState(null);
   const [unlockNote, setUnlockNote] = useState("");
@@ -13602,6 +13787,7 @@ function TeamManager() {
           </div>
         ))}
       </div>
+      <div className="mt-8"><DesignersManager /></div>
     </div>
   );
 }
@@ -16463,6 +16649,8 @@ export default function InvitationBuilder() {
     setSelectedBlockId(`custom:${newBlock.id}`);
   };
   const [showSaveAsShopDesign, setShowSaveAsShopDesign] = useState(false);
+  const [showDesignerSubmit, setShowDesignerSubmit] = useState(false);
+  const [designerSubmitCount, setDesignerSubmitCount] = useState(0);
   const [editingShopDesignId, setEditingShopDesignId] = useState(null); // set while the admin is editing an existing shop design's styling directly in the Builder
   const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
@@ -16725,7 +16913,7 @@ export default function InvitationBuilder() {
   }, [steps.length, activeIndex]);
 
   useEffect(() => {
-    if (actingAsUser && ["users", "invoices", "team", "livechat", "contact"].includes(view)) setView("builder");
+    if (actingAsUser && ["users", "invoices", "team", "review", "livechat", "contact"].includes(view)) setView("builder");
   }, [actingAsUser, view]);
 
   useEffect(() => {
@@ -17275,7 +17463,7 @@ export default function InvitationBuilder() {
   // a one-time snapshot of the STYLE only. Saved straight to Supabase so
   // /shop (a completely separate page) sees it right away, without
   // depending on a "Save invitation" click.
-  const saveCurrentAsShopDesign = async (name, price, canvaUrl) => {
+  const buildShopDesignFromCurrent = (name, price, canvaUrl) => {
     const pageImages = Object.fromEntries(
       Object.keys(pageBackgrounds)
         .filter((key) => key !== "cover" && hasActiveCustomImage(pageBackgrounds[key]))
@@ -17310,6 +17498,10 @@ export default function InvitationBuilder() {
       canvaTemplateUrl: canvaUrl || null,
       previewVideo: null,
     };
+    return newDesign;
+  };
+  const saveCurrentAsShopDesign = async (name, price, canvaUrl) => {
+    const newDesign = buildShopDesignFromCurrent(name, price, canvaUrl);
     const nextList = [...shopDesigns, newDesign];
     setShopDesigns(nextList);
     try {
@@ -18834,14 +19026,24 @@ export default function InvitationBuilder() {
                     <Sparkles size={13} /> Save as Shop Design
                   </button>
                 )}
-                <button
+                {activeUserRecord?.role === "designer" && (
+                  <button
+                    onClick={() => setShowDesignerSubmit(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-bold"
+                    style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}
+                  >
+                    <Send size={13} /> Submit design for review
+                  </button>
+                )}
+                {activeUserRecord?.role !== "designer" && <button
                   onClick={() => setShowPublishModal(true)}
                   className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[12px] font-bold uppercase"
                   style={{ background: activeUserRecord?.packageTier ? "rgba(143,191,163,0.18)" : GOLD, color: activeUserRecord?.packageTier ? CHART_COLORS.yes : INK, fontFamily: FONT_BODY, letterSpacing: "0.04em" }}
                 >
                   {activeUserRecord?.packageTier ? `${PACKAGE_TIERS[activeUserRecord.packageTier]?.name || activeUserRecord.packageTier} — Published` : "Publish"}
-                </button>
+                </button>}
               </div>
+              {activeUserRecord?.role === "designer" && <DesignerSubmissionsStrip refreshKey={designerSubmitCount} />}
               <StepRail steps={steps} activeIndex={safeIndex} visited={visited} onSelect={selectStep} />
 
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -19271,6 +19473,7 @@ export default function InvitationBuilder() {
         {view === "contact" && !actingAsUser && <SiteContactEditor />}
         {view === "invoices" && !actingAsUser && <InvoicesPanel isAdmin />}
         {view === "team" && !actingAsUser && <TeamManager />}
+        {view === "review" && !actingAsUser && <DesignReviewPanel />}
 
         {view === "users" && !actingAsUser && (
           <UsersView
@@ -19298,6 +19501,16 @@ export default function InvitationBuilder() {
           />
         )}
 
+        {showDesignerSubmit && (
+          <DesignerSubmitModal
+            onClose={() => setShowDesignerSubmit(false)}
+            onSubmit={async (title, note) => {
+              await saveDraft();
+              await apiJson("/api/designs/submit", { method: "POST", body: { title, note, design: buildShopDesignFromCurrent("", 0, null) } });
+              setDesignerSubmitCount((n) => n + 1);
+            }}
+          />
+        )}
         {showSaveAsShopDesign && (
           <SaveAsShopDesignModal
             onClose={() => setShowSaveAsShopDesign(false)}
