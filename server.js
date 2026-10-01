@@ -883,6 +883,88 @@ app.delete("/api/invoices/:id", requireAdminOnly, async (req, res) => {
   try { await kvWrite(INVOICES_KV, JSON.stringify((await readInvoices()).filter((x) => x.id !== req.params.id))); res.json({ ok: true }); } catch { res.status(502).json({ error: "Couldn't delete the invoice." }); }
 });
 
+// Appointments: a client asks for a Zoom meeting, an office visit or a
+// phone call; the admin or the team confirms (with a time / Zoom link) or
+// declines, and the client sees it in the app.
+const APPOINTMENTS_KV = "einvite:appointments";
+const APPOINTMENT_TYPES = ["zoom", "office", "phone"];
+async function readAppointments() { const raw = await kvRead(APPOINTMENTS_KV); return raw ? JSON.parse(raw) : []; }
+const myAppointment = (a) => ({ id: a.id, type: a.type, date: a.date, time: a.time, note: a.note, status: a.status, reply: a.reply || "", zoomLink: a.zoomLink || "", createdAt: a.createdAt, updatedAt: a.updatedAt || null });
+const appointmentLabel = (t) => (t === "zoom" ? "Zoom meeting" : t === "office" ? "Office visit" : "Phone call");
+
+app.get("/api/appointments/mine", async (req, res) => {
+  const who = authReady ? requestRole(req) : { role: "anon" };
+  if (who.role !== "client") return res.json({ appointments: [] });
+  try { res.set("cache-control", "no-store").json({ appointments: (await readAppointments()).filter((a) => a.userId === who.userId).map(myAppointment) }); }
+  catch { res.status(502).json({ error: "Couldn't load your appointments." }); }
+});
+app.post("/api/appointments", express.json({ limit: "8kb" }), async (req, res) => {
+  const who = authReady ? requestRole(req) : { role: "anon" };
+  if (who.role !== "client") return res.status(401).json({ error: "Please log in to book an appointment." });
+  const b = req.body || {};
+  const str = (v, n) => String(v ?? "").trim().slice(0, n);
+  const type = APPOINTMENT_TYPES.includes(b.type) ? b.type : "";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || "")) ? b.date : "";
+  const time = /^\d{2}:\d{2}$/.test(String(b.time || "")) ? b.time : "";
+  if (!type) return res.status(400).json({ error: "Choose how you'd like to meet." });
+  if (!date || !time) return res.status(400).json({ error: "Choose a day and a time." });
+  if (date < new Date(Date.now() - 86400000).toISOString().slice(0, 10)) return res.status(400).json({ error: "That day has already passed." });
+  try {
+    const all = await readAppointments();
+    if (all.filter((a) => a.userId === who.userId && a.status === "requested").length >= 3) return res.status(429).json({ error: "You already have 3 requests waiting — we'll get back to you soon." });
+    const user = (await readDraftUsers()).find((u) => u?.id === who.userId) || {};
+    const appt = {
+      id: randomUUID().replace(/-/g, "").slice(0, 12), userId: who.userId,
+      name: str(user.name, 120), email: str(user.email, 120), phone: str(b.phone, 40) || str(user.phone, 40),
+      type, date, time, note: str(b.note, 1000), status: "requested", createdAt: Date.now(),
+    };
+    await kvWrite(APPOINTMENTS_KV, JSON.stringify([appt, ...all]));
+    notifyOwner("__owner__", { title: "New appointment request", body: `${appt.name || appt.email || "A client"} · ${appointmentLabel(type)} · ${date} ${time}`, tag: `appt-${appt.id}`, url: "/" }).catch(() => {});
+    res.json({ appointment: myAppointment(appt) });
+  } catch (err) { console.error("appointment create failed:", err.message); res.status(502).json({ error: "Couldn't send your request — please try again." }); }
+});
+// The client cancels their own request.
+app.post("/api/appointments/:id/cancel", async (req, res) => {
+  const who = authReady ? requestRole(req) : { role: "anon" };
+  if (who.role !== "client") return res.status(401).json({ error: "Please log in." });
+  try {
+    const all = await readAppointments();
+    const a = all.find((x) => x.id === req.params.id && x.userId === who.userId);
+    if (!a) return res.status(404).json({ error: "Not found." });
+    a.status = "cancelled"; a.updatedAt = Date.now();
+    await kvWrite(APPOINTMENTS_KV, JSON.stringify(all));
+    res.json({ appointment: myAppointment(a) });
+  } catch { res.status(502).json({ error: "Couldn't cancel — please try again." }); }
+});
+app.get("/api/appointments", requireStaffOrAdmin, async (_req, res) => {
+  try { res.set("cache-control", "no-store").json({ appointments: await readAppointments() }); } catch { res.status(502).json({ error: "Couldn't load appointments." }); }
+});
+app.patch("/api/appointments/:id", requireStaffOrAdmin, express.json({ limit: "8kb" }), async (req, res) => {
+  const b = req.body || {};
+  try {
+    const all = await readAppointments();
+    const a = all.find((x) => x.id === req.params.id);
+    if (!a) return res.status(404).json({ error: "Not found." });
+    const before = `${a.status}|${a.date}|${a.time}`;
+    if (["requested", "confirmed", "declined", "done"].includes(b.status)) a.status = b.status;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ""))) a.date = b.date;
+    if (/^\d{2}:\d{2}$/.test(String(b.time || ""))) a.time = b.time;
+    if (b.reply !== undefined) a.reply = String(b.reply || "").trim().slice(0, 1000);
+    if (b.zoomLink !== undefined) { const z = String(b.zoomLink || "").trim().slice(0, 500); a.zoomLink = /^https:\/\//i.test(z) ? z : ""; }
+    a.handledBy = req.staff ? req.staff.name : "Admin";
+    a.updatedAt = Date.now();
+    await kvWrite(APPOINTMENTS_KV, JSON.stringify(all));
+    if (before !== `${a.status}|${a.date}|${a.time}` && (a.status === "confirmed" || a.status === "declined")) {
+      notifyOwner(a.userId, {
+        title: a.status === "confirmed" ? "Appointment confirmed" : "Appointment not available",
+        body: a.status === "confirmed" ? `${appointmentLabel(a.type)} · ${a.date} at ${a.time}` : a.reply || "Please choose another time.",
+        tag: `appt-${a.id}`, url: "/app",
+      }).catch(() => {});
+    }
+    res.json({ appointment: a });
+  } catch (err) { res.status(502).json({ error: "Couldn't update the appointment." }); }
+});
+
 // Upload a new video: the raw file is the request body.
 app.post("/api/video/optimize", requireMember, express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "No video received." });
