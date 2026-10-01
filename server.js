@@ -21,6 +21,7 @@ import net from "node:net";
 import { randomUUID, timingSafeEqual, createHmac, scrypt, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
+import webpush from "web-push";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "dist");
@@ -1297,6 +1298,84 @@ app.post("/api/whatsapp-status", express.json({ limit: "64kb" }), async (req, re
 // itself (a personal link updates its own entry, anything else adds one).
 const rsvpHits = new Map(); // ip -> { count, since }
 const RSVP_STATUSES = ["yes", "no", "maybe", "pending"];
+// ---------------------------------------------------------------------------
+// Phone notifications (the /app web app): a client turns them on, and each
+// guest reply to their invitation pings their phone. The signing keys
+// (VAPID) are made once and kept in kv_store, unless set as
+// WEB_PUSH_PUBLIC_KEY / WEB_PUSH_PRIVATE_KEY.
+// ---------------------------------------------------------------------------
+let vapidReady = null;
+function pushKeys() {
+  if (!vapidReady) vapidReady = (async () => {
+    let keys = process.env.WEB_PUSH_PUBLIC_KEY && process.env.WEB_PUSH_PRIVATE_KEY
+      ? { publicKey: process.env.WEB_PUSH_PUBLIC_KEY, privateKey: process.env.WEB_PUSH_PRIVATE_KEY }
+      : null;
+    if (!keys) {
+      const raw = await kvRead("einvite:vapid-keys");
+      keys = raw ? JSON.parse(raw) : null;
+      if (!keys?.publicKey) {
+        keys = webpush.generateVAPIDKeys();
+        await kvWrite("einvite:vapid-keys", JSON.stringify(keys));
+      }
+    }
+    webpush.setVapidDetails(process.env.WEB_PUSH_SUBJECT || "mailto:hello@einvite.me", keys.publicKey, keys.privateKey);
+    return keys;
+  })().catch((err) => { vapidReady = null; throw err; });
+  return vapidReady;
+}
+const pushSubsKey = (ownerId) => `einvite:push-subs-${ownerId}`;
+// Whose notifications a request manages: a client's own, or the admin's.
+const pushOwnerOf = (req) => { const who = authReady ? requestRole(req) : { role: "admin" }; return who.role === "client" ? who.userId : who.role === "admin" ? "__owner__" : null; };
+app.get("/api/push/key", async (_req, res) => {
+  try { res.json({ publicKey: (await pushKeys()).publicKey }); } catch (err) { console.error("push keys:", err.message); res.status(503).json({ error: "Notifications aren't available right now." }); }
+});
+app.post("/api/push/subscribe", requireMember, express.json({ limit: "8kb" }), async (req, res) => {
+  const ownerId = pushOwnerOf(req);
+  const sub = req.body?.subscription;
+  if (!ownerId || !sub || !/^https:\/\//.test(String(sub.endpoint || "")) || !sub.keys?.p256dh || !sub.keys?.auth) return res.status(400).json({ error: "bad subscription" });
+  try {
+    const raw = await kvRead(pushSubsKey(ownerId));
+    const list = (raw ? JSON.parse(raw) : []).filter((x) => x.endpoint !== sub.endpoint);
+    list.unshift({ endpoint: String(sub.endpoint), keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) }, at: Date.now() });
+    await kvWrite(pushSubsKey(ownerId), JSON.stringify(list.slice(0, 10)));
+    res.json({ ok: true });
+  } catch (err) { console.error("push subscribe:", err.message); res.status(502).json({ error: "Couldn't turn on notifications — please try again." }); }
+});
+app.post("/api/push/unsubscribe", requireMember, express.json({ limit: "8kb" }), async (req, res) => {
+  const ownerId = pushOwnerOf(req);
+  if (!ownerId) return res.status(400).json({ error: "bad request" });
+  try {
+    const raw = await kvRead(pushSubsKey(ownerId));
+    const list = (raw ? JSON.parse(raw) : []).filter((x) => x.endpoint !== String(req.body?.endpoint || ""));
+    await kvWrite(pushSubsKey(ownerId), JSON.stringify(list));
+    res.json({ ok: true });
+  } catch (err) { res.status(502).json({ error: "Couldn't turn off notifications." }); }
+});
+// Sends to every phone the owner turned notifications on for; drops the
+// ones the phone has since revoked (404 / 410).
+async function notifyOwner(ownerId, payload) {
+  const raw = await kvRead(pushSubsKey(ownerId)).catch(() => null);
+  const list = raw ? JSON.parse(raw) : [];
+  if (!list.length) return;
+  await pushKeys();
+  const gone = new Set();
+  await Promise.all(list.map((sub) => webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 86400 }).catch((err) => {
+    if (err.statusCode === 404 || err.statusCode === 410) gone.add(sub.endpoint);
+    else console.error("push send failed:", err.statusCode || "", String(err.body || err.message).slice(0, 160));
+  })));
+  if (gone.size) await kvWrite(pushSubsKey(ownerId), JSON.stringify(list.filter((x) => !gone.has(x.endpoint)))).catch(() => {});
+}
+function rsvpNotice(group, status) {
+  const ms = group.members || [];
+  const named = group.name || ms.map((m) => m.name).filter((n) => n && n !== "Guest").slice(0, 3).join(", ") || "A guest";
+  const coming = ms.filter((m) => m.status === "yes").length + (status === "yes" ? Number(group.additionalGuests) || 0 : 0);
+  return status === "yes"
+    ? { title: "New reply: coming", body: `${named} ${coming > 1 ? `are coming (${coming} people)` : "is coming"}`, tag: `rsvp-${group.id}`, url: "/app" }
+    : status === "no"
+    ? { title: "New reply: not coming", body: `${named} can't make it`, tag: `rsvp-${group.id}`, url: "/app" }
+    : { title: "New reply", body: `${named} replied: ${status}`, tag: `rsvp-${group.id}`, url: "/app" };
+}
+
 app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) => {
   if (!authReady) return res.status(503).json({ error: "not ready" });
   const ip = clientIp(req);
@@ -1342,6 +1421,7 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
     }
     await kvWrite(key, JSON.stringify(latest));
     res.json({ group });
+    notifyOwner(ownerId, rsvpNotice(group, status)).catch((err) => console.error("rsvp notification failed:", err.message));
   } catch (err) {
     console.error("guest rsvp failed:", err.message);
     res.status(502).json({ error: "Couldn't save your response — please try again." });
