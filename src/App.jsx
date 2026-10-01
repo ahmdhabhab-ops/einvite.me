@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Smartphone, Phone, ScanText, FileSpreadsheet,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -14168,6 +14168,70 @@ function groupReply(g) {
   const coming = yes ? yes + (Number(g.additionalGuests) || 0) : 0;
   return { yes, no, coming, state: yes ? "yes" : no && no === ms.length ? "no" : "pending" };
 }
+// Turns this phone's notifications for new replies on or off (web push).
+function urlBase64ToUint8Array(base64) {
+  const padded = (base64 + "=".repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(padded);
+  return Uint8Array.from([...raw].map((ch) => ch.charCodeAt(0)));
+}
+function AppNotificationsCard({ installed, isIos }) {
+  const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const [state, setState] = useState("checking"); // checking | off | on | denied | busy | unsupported | install
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (isIos && !installed) { setState("install"); return; }
+    if (!supported) { setState("unsupported"); return; }
+    if (Notification.permission === "denied") { setState("denied"); return; }
+    navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then((sub) => setState(sub && Notification.permission === "granted" ? "on" : "off")).catch(() => setState("off"));
+  }, [installed]);
+  const turnOn = async () => {
+    setError(""); setState("busy");
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setState(perm === "denied" ? "denied" : "off"); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const { publicKey } = await apiJson("/api/push/key");
+      const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) }));
+      await apiJson("/api/push/subscribe", { method: "POST", body: { subscription: sub.toJSON() } });
+      setState("on");
+    } catch (err) {
+      setError(err.message || "Couldn't turn on notifications."); setState("off");
+    }
+  };
+  const turnOff = async () => {
+    setError(""); setState("busy");
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) { await apiJson("/api/push/unsubscribe", { method: "POST", body: { endpoint: sub.endpoint } }).catch(() => {}); await sub.unsubscribe(); }
+      setState("off");
+    } catch { setState("on"); }
+  };
+  const text = {
+    checking: "…",
+    off: "Get a notification on this phone each time a guest replies.",
+    on: "On — you'll be notified on this phone when a guest replies.",
+    busy: "One moment…",
+    denied: "Notifications are blocked for this site. Allow them in your phone's settings for eInvite, then come back.",
+    unsupported: "This browser can't show notifications. Try Chrome, or add the app to your home screen.",
+    install: "On iPhone, first add the app to your home screen (Share → Add to Home Screen), then open it from there to turn notifications on.",
+  }[state];
+  return (
+    <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.14)" }}>
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ background: state === "on" ? "rgba(47,122,85,0.14)" : "rgba(201,164,76,0.14)" }}>
+        {state === "on" ? <BellRing size={18} style={{ color: UI_OK }} /> : <Bell size={18} style={{ color: GOLD_SOFT }} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-semibold" style={{ color: IVORY }}>Notifications</div>
+        <div className="text-[11.5px]" style={{ color: MUTED, lineHeight: 1.5 }}>{text}</div>
+        {error && <div className="mt-1 text-[11px]" style={{ color: UI_ERROR }}>{error}</div>}
+      </div>
+      {state === "off" && <GoldButton onClick={turnOn}>Turn on</GoldButton>}
+      {state === "on" && <button onClick={turnOff} className="rounded-full px-3 py-2 text-[12px] font-semibold" style={{ background: INK_3, color: MUTED }}>Turn off</button>}
+    </div>
+  );
+}
+
 function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loaded, onLogout }) {
   const [tab, setTab] = useState("home");
   const [installEvent, setInstallEvent] = useState(null);
@@ -14233,6 +14297,8 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
                 {installEvent && <GoldButton onClick={async () => { installEvent.prompt(); await installEvent.userChoice.catch(() => {}); setInstallEvent(null); }}>Install</GoldButton>}
               </div>
             )}
+
+            <AppNotificationsCard installed={installed} isIos={isIos} />
 
             <div className="rounded-2xl p-5 text-center" style={{ background: "linear-gradient(150deg, #24473E 0%, #1C3B33 55%, #162E28 100%)", color: "#F5F0E7" }}>
               <div className="text-[11px] font-semibold uppercase" style={{ color: "#E8D5B0", letterSpacing: "0.16em" }}>{cd && cd.passed ? "The day is here" : "Counting down"}</div>
