@@ -12575,7 +12575,7 @@ function TemplatePicker({ eventTypeId, onChoose, onCancel }) {
 // bought here has nothing to do with an eInvite.me account or invitation.
 // Admin-only modal for capturing the current invitation's visual style
 // (see saveCurrentAsShopDesign) as a new, independent design on /shop.
-function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign, onEditInBuilder, onUploadVideo }) {
+function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesign, onDeleteDesign, onEditInBuilder, onUploadVideo, onSetDemo }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [canvaUrl, setCanvaUrl] = useState("");
@@ -12645,10 +12645,20 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
                         </span>
                       </div>
                       <div className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>${d.price}</div>
+                      {d.hasDemo
+                        ? <a href={designDemoPath(d.id)} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[10.5px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>Live preview <ExternalLink size={10} /></a>
+                        : <div className="mt-0.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>No live preview yet</div>}
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={() => onEditInBuilder(d)} className="rounded-md px-2 py-1 text-[10.5px] font-semibold" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.35)`, fontFamily: FONT_BODY }} title="Edit full design in Builder">
                         Edit design
+                      </button>
+                      <button
+                        onClick={async () => { if (window.confirm(`Use the invitation open in the Builder now as the live preview of "${d.name}"? Guests aren't copied.`) && await onSetDemo(d.id)) alert("Live preview saved."); }}
+                        className="flex h-7 w-7 items-center justify-center rounded-md" style={{ color: d.hasDemo ? GOLD_SOFT : MUTED }}
+                        title={d.hasDemo ? "Update the live preview from the invitation open now" : "Use the invitation open now as the live preview"}
+                      >
+                        <Eye size={13} />
                       </button>
                       <label className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md" style={{ color: MUTED }} title={d.previewVideo ? "Replace preview video" : "Add preview video"}>
                         <Film size={13} />
@@ -12712,6 +12722,13 @@ function SaveAsShopDesignModal({ onClose, onSave, existingDesigns, onUpdateDesig
 // The built-in designs plus the admin's own published ones (a saved edit
 // with the same id overrides the hardcoded original), narrowed to Canva
 // designs ("canva") or ones edited on this website ("website").
+// A shop design's live preview: a copy of the invitation it was made from
+// (without guests), opened at /e/design-<design id> like any invitation.
+const DESIGN_DEMO_PREFIX = "design-";
+const designDemoKey = (designId) => `einvite:design-demo-${designId}`;
+const designDemoPath = (designId) => `/e/${DESIGN_DEMO_PREFIX}${encodeURIComponent(designId)}`;
+const demoSnapshotOf = (snapshot) => ({ ...snapshot, guestGroups: [], tables: [], openInviteLinks: [] });
+
 function mergeShopTemplates(shopDesigns, mode) {
   return INVITATION_TEMPLATES
     .map((t) => shopDesigns.find((d) => d.id === t.id) || t)
@@ -12936,7 +12953,21 @@ function TemplateShopBody({ mode = "canva" }) {
         {selectedTemplate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
             <div className="w-full max-w-sm overflow-hidden rounded-2xl" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, maxHeight: "90vh", overflowY: "auto" }}>
-              {selectedTemplate.previewVideo && (
+              {selectedTemplate.hasDemo ? (
+                <div className="flex flex-col items-center px-4 pt-5" style={{ background: INK_3 }}>
+                  <div style={{ background: "#0E120F", borderRadius: 30, padding: 6, boxShadow: "0 20px 40px -20px rgba(0,0,0,0.5)" }}>
+                    <iframe
+                      src={designDemoPath(selectedTemplate.id)}
+                      title={`${selectedTemplate.name} — live preview`}
+                      allow="autoplay"
+                      style={{ display: "block", width: 270, height: 555, maxHeight: "60vh", border: "none", borderRadius: 24, background: "#1F2A24" }}
+                    />
+                  </div>
+                  <a href={designDemoPath(selectedTemplate.id)} target="_blank" rel="noreferrer" className="my-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold underline" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
+                    Open the invitation full screen <ExternalLink size={12} />
+                  </a>
+                </div>
+              ) : selectedTemplate.previewVideo && (
                 <video
                   src={selectedTemplate.previewVideo}
                   controls
@@ -16689,7 +16720,7 @@ function initialBuilderDataMode() {
   const p = window.location.pathname;
   if (p === "/admin" || p.startsWith("/admin/")) return "full";
   const guest = p.match(/^\/e\/([^/]+)\/?$/);
-  if (guest) return decodeURIComponent(guest[1]) === "admin-preview" ? "none" : "users"; // the owner's preview (ADMIN_PREVIEW_SLUG) is fetched on its own
+  if (guest) return decodeURIComponent(guest[1]) === "admin-preview" || decodeURIComponent(guest[1]).startsWith(DESIGN_DEMO_PREFIX) ? "none" : "users"; // the owner's preview (ADMIN_PREVIEW_SLUG) and design previews are fetched on their own
   if (/^\/(shop|designs|privacy|dj|checkin-staff|checkin|quick|network|([a-z-]+-)?cost-calculator)(\/|$)/.test(p)) return "none";
   // Site root: the Builder for a logged-in client or someone mid sign-up,
   // otherwise the home page (which switches to "full" once they open
@@ -17843,8 +17874,21 @@ export default function InvitationBuilder() {
     };
     return newDesign;
   };
+  // Copies the invitation open in the Builder as this design's live preview.
+  const saveDesignDemo = async (designId) => {
+    const ok = await persistentStorage.set(designDemoKey(designId), JSON.stringify(demoSnapshotOf(getActiveSnapshot())), false);
+    if (!ok) throw new Error("Couldn't save the live preview — try again in a moment.");
+  };
+  const setShopDesignDemo = async (designId) => {
+    try {
+      await saveDesignDemo(designId);
+      await updateShopDesign(designId, { hasDemo: true });
+      return true;
+    } catch (err) { alert(err.message); return false; }
+  };
   const saveCurrentAsShopDesign = async (name, price, canvaUrl) => {
     const newDesign = buildShopDesignFromCurrent(name, price, canvaUrl);
+    try { await saveDesignDemo(newDesign.id); newDesign.hasDemo = true; } catch {}
     const nextList = [...shopDesigns, newDesign];
     setShopDesigns(nextList);
     try {
@@ -17879,7 +17923,10 @@ export default function InvitationBuilder() {
       Object.keys(pageBackgrounds).map((key) => [key, pageBackgrounds[key]?.preset || null])
     );
     const namesLayout = layouts?.cover?.names || {};
+    let hasDemo = false;
+    try { await saveDesignDemo(editingShopDesignId); hasDemo = true; } catch {}
     await updateShopDesign(editingShopDesignId, {
+      ...(hasDemo ? { hasDemo: true } : {}),
       coverImage: hasActiveCustomImage(pageBackgrounds.cover) ? pageBackgrounds.cover.image : null,
       coverBackdropColor: pageBackgrounds.cover?.backdropColor || null,
       coverPreset: pagePresets.cover,
@@ -18652,6 +18699,20 @@ export default function InvitationBuilder() {
     // happens to have loaded as its default active invitation (it won't
     // always be the owner's, e.g. if this browser was last "acting as" a
     // specific client).
+    if (urlSlug.startsWith(DESIGN_DEMO_PREFIX)) {
+      (async () => {
+        let snapshot = null;
+        try {
+          const res = await persistentStorage.get(designDemoKey(urlSlug.slice(DESIGN_DEMO_PREFIX.length)), false);
+          if (res?.value) snapshot = JSON.parse(res.value);
+        } catch {}
+        if (cancelled) return;
+        setGuestView(snapshot
+          ? { found: true, ownSlug: false, demo: true, slug: urlSlug, userId: null, snapshot, snapshotGuestGroups: [], groupId: null, guestNameParam: null, batchId: null }
+          : { found: false });
+      })();
+      return () => { cancelled = true; };
+    }
     if (urlSlug === ADMIN_PREVIEW_SLUG) {
       const cachedOwner = invitationsStore[OWNER_SLOT];
       if (cachedOwner) {
@@ -18942,6 +19003,7 @@ export default function InvitationBuilder() {
   // whatever invitation is currently loaded for editing).
   const submitGuestViewRsvp = async ({ names, declinedNames, familyName, status, additionalGuests }) => {
     if (!guestView?.found) return null;
+    if (guestView.demo) return null; // a design's preview: nothing to save
     if (guestView.ownSlug) {
       return await submitGuestRsvp({ names, declinedNames, familyName, status, additionalGuests, existingGroupId: guestView.groupId, batchId: guestView.batchId });
     }
@@ -19865,6 +19927,7 @@ export default function InvitationBuilder() {
             onDeleteDesign={deleteShopDesign}
             onEditInBuilder={loadShopDesignForEditing}
             onUploadVideo={uploadShopDesignVideo}
+            onSetDemo={setShopDesignDemo}
           />
         )}
       </div>

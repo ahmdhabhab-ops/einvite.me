@@ -790,6 +790,13 @@ app.post("/api/designs/submissions/:id/review", requireAdminOnly, express.json({
       const shopRaw = await kvRead("einvite:shop-designs");
       const shop = shopRaw ? JSON.parse(shopRaw) : [];
       const design = { ...all[i].design, id: `shop-${randomUUID().replace(/-/g, "").slice(0, 10)}`, name, price, description: all[i].title || "", designedBy: all[i].designerName };
+      // The designer's own invitation becomes the design's live preview
+      // (/e/design-<id>), without their guests.
+      const designerRaw = all[i].designerId ? await kvRead(`einvite:invitation-${all[i].designerId}`).catch(() => null) : null;
+      if (designerRaw) {
+        await kvWrite(`einvite:design-demo-${design.id}`, JSON.stringify({ ...JSON.parse(designerRaw), guestGroups: [], tables: [], openInviteLinks: [] }));
+        design.hasDemo = true;
+      }
       await kvWrite("einvite:shop-designs", JSON.stringify([...shop, design]));
       Object.assign(all[i], { status: "approved", shopDesignId: design.id, name, price, reviewedAt: Date.now(), reason: "" });
     } else {
@@ -1457,11 +1464,18 @@ const KV_KEY_RE = /^einvite:[A-Za-z0-9:_\-.]{1,120}$/;
 // lives in their own invitation, so those writes are now ignored.
 const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key === "einvite:og-image" || key === "einvite:music-audio";
 
+// Server-only data (logins, invoices, keys…): read through their own
+// endpoints, never straight from the store by anyone but the admin.
+const ADMIN_ONLY_KV = (key) =>
+  /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys)$/.test(key) ||
+  /^einvite:(push-subs-|slim-backup-)/.test(key);
+
 app.get("/api/kv", async (req, res) => {
   const key = String(req.query.key || "");
   if (!KV_KEY_RE.test(key)) return res.status(400).json({ error: "bad key" });
   if (!authReady) return res.status(503).json({ error: "not ready" });
   const who = requestRole(req);
+  if (ADMIN_ONLY_KV(key) && who.role !== "admin") return res.status(403).json({ error: "not allowed" });
   try {
     let value = await kvRead(key);
     if (value !== null && key === DRAFT_KEY && who.role !== "admin") {
