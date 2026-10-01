@@ -11177,7 +11177,7 @@ function parseCsvText(text) {
 // Dashboard: add many guest families at once, from an Excel / CSV file or
 // from a photo of a written list (read by AI). Everything is shown for a
 // check first; families already on the list are left unticked.
-function GuestImportPanel({ guestGroups, onAdd }) {
+function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [rows, setRows] = useState(null); // [{ name, members, phone, extra, include, dup }]
@@ -11269,6 +11269,24 @@ function GuestImportPanel({ guestGroups, onAdd }) {
               <GoldButton onClick={addAll} disabled={!chosen.length}><Plus size={14} /> Add {chosen.length} to the guest list</GoldButton>
             </div>
           </div>
+          {compact ? (
+            <div className="space-y-2">
+              {rows.map((r, i) => (
+                <div key={i} className="space-y-1.5 rounded-xl p-3" style={{ background: INK_3, opacity: r.include ? 1 : 0.55 }}>
+                  <label className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+                    <input type="checkbox" checked={r.include} onChange={(e) => setRow(i, { include: e.target.checked })} /> Add this one
+                    {r.dup && <span className="ml-auto text-[10.5px] font-normal" style={{ color: GOLD_SOFT }}>Already on your list</span>}
+                  </label>
+                  <input value={r.name} onChange={(e) => setRow(i, { name: e.target.value })} dir="auto" placeholder="Family / name" className="w-full rounded-lg px-3 py-2 text-[13.5px] outline-none" style={{ ...cell, background: INK_2 }} />
+                  <input value={r.membersText} onChange={(e) => setRow(i, { membersText: e.target.value })} dir="auto" placeholder="Members (comma-separated)" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ ...cell, background: INK_2 }} />
+                  <div className="flex gap-2">
+                    <input value={r.phone} onChange={(e) => setRow(i, { phone: e.target.value })} dir="ltr" placeholder="Phone" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ ...cell, background: INK_2 }} />
+                    <input type="number" min={0} value={r.extra} onChange={(e) => setRow(i, { extra: e.target.value })} title="+ Guests" className="w-20 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ ...cell, background: INK_2 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="max-h-[420px] overflow-auto rounded-lg" style={{ border: `1px solid rgba(201,164,76,0.15)` }}>
             <table className="w-full text-[12px]" style={{ fontFamily: FONT_BODY }}>
               <thead>
@@ -11296,6 +11314,7 @@ function GuestImportPanel({ guestGroups, onAdd }) {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       )}
     </div>
@@ -11843,6 +11862,9 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
           ))}
           <GhostButton onClick={exportGuestsToCsv} title="Downloads a .csv file that opens directly in Excel">
             <Download size={13} /> Download
+          </GhostButton>
+          <GhostButton onClick={() => printGuestList(coupleTitle || "Guest list", guestGroups)} title="Opens a printable page — print it or save it as PDF">
+            <Printer size={13} /> Print
           </GhostButton>
         </div>
 
@@ -13393,6 +13415,42 @@ function printInvoice(inv) {
     <table><thead><tr><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="tot"><div><span>Subtotal</span><span>${money(inv.subtotal, inv.currency)}</span></div>${inv.discount ? `<div><span>Discount</span><span>−${money(inv.discount, inv.currency)}</span></div>` : ""}<div class="big"><span>Total</span><span>${money(inv.total, inv.currency)}</span></div></div>
     ${inv.notes ? `<div class="notes">${escHtml(inv.notes)}</div>` : ""}
+    <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+// The guest list as a clean A4 page in a new window, ready to print or save as PDF.
+function printGuestList(title, groups) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Allow pop-ups for this site to print the guest list."); return; }
+  const replies = groups.map((g) => ({ g, ...groupReply(g) }));
+  const coming = replies.reduce((n, r) => n + r.coming, 0);
+  const no = replies.reduce((n, r) => n + r.no, 0);
+  const waiting = replies.filter((r) => r.state === "pending").length;
+  const label = { yes: "Coming", no: "Not coming", pending: "Waiting" };
+  const rows = replies.map(({ g, state, coming: c }, i) => `<tr>
+    <td class="n0">${i + 1}</td>
+    <td dir="auto"><b>${escHtml(guestGroupName(g) || "Guest")}</b></td>
+    <td dir="auto">${(g.members || []).map((m) => `<span class="m ${m.status === "yes" ? "y" : m.status === "no" ? "x" : ""}">${escHtml(m.name)}</span>`).join(" ")}${Number(g.additionalGuests) > 0 ? ` <span class="muted">+${Number(g.additionalGuests)}</span>` : ""}</td>
+    <td dir="ltr">${escHtml(g.phone || "")}</td>
+    <td><span class="st ${state}">${label[state]}${state === "yes" ? ` · ${c}` : ""}</span></td>
+    <td class="box"></td></tr>`).join("");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)} — Guest list</title><style>
+    body{font-family:Inter,Arial,sans-serif;color:#1C3B33;margin:0;padding:32px;}
+    .top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #BF914A;padding-bottom:14px}
+    h1{font-family:'Playfair Display',Georgia,serif;font-weight:400;font-size:28px;margin:0}
+    .muted{color:#5F6D65;font-size:12px}.sum{display:flex;gap:18px;margin:16px 0 14px;font-size:13px}.sum b{font-size:18px;margin-right:4px}
+    table{width:100%;border-collapse:collapse;font-size:12.5px}th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#5F6D65;border-bottom:1px solid #ccc;padding:7px 5px}
+    td{padding:8px 5px;border-bottom:1px solid #eee;vertical-align:top}.n0{color:#999;width:22px}
+    .m{white-space:nowrap;margin-right:6px}.m.x{text-decoration:line-through;color:#999}.m.y{color:#2F7A55}
+    .st{white-space:nowrap;font-size:11px;font-weight:700}.st.yes{color:#2F7A55}.st.no{color:#B04848}.st.pending{color:#888}
+    .box{width:26px}.box:after{content:"";display:inline-block;width:14px;height:14px;border:1.5px solid #999;border-radius:3px}
+    tr{page-break-inside:avoid}@media print{body{padding:12mm}}
+  </style></head><body>
+    <div class="top"><div><div class="muted" style="letter-spacing:.18em;text-transform:uppercase;color:#BF914A;font-weight:700;font-size:10.5px">eInvite.me · Guest list</div><h1 dir="auto">${escHtml(title)}</h1></div><div class="muted">${escHtml(new Date().toLocaleDateString())}</div></div>
+    <div class="sum"><span><b>${groups.length}</b>families</span><span><b style="color:#2F7A55">${coming}</b>coming</span><span><b style="color:#B04848">${no}</b>not coming</span><span><b style="color:#888">${waiting}</b>waiting</span></div>
+    <table><thead><tr><th></th><th>Family / name</th><th>Members</th><th>Phone</th><th>Reply</th><th>✓</th></tr></thead><tbody>${rows}</tbody></table>
     <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
   </body></html>`);
   w.document.close();
@@ -15048,8 +15106,26 @@ function AppAssistant({ messages, setMessages, onHandoff }) {
   );
 }
 
-function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loaded, onLogout, builderHref = "/" }) {
+function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, siteDomain, loaded, onLogout, builderHref = "/" }) {
   const [tab, setTab] = useState("home");
+  const [adding, setAdding] = useState(false);
+  const [newGuest, setNewGuest] = useState({ name: "", members: "", phone: "", extra: 0 });
+  const [addError, setAddError] = useState("");
+  const [addedMsg, setAddedMsg] = useState("");
+  const addOne = async (e) => {
+    e.preventDefault();
+    const name = newGuest.name.trim();
+    if (!name) { setAddError("Enter the family or guest name."); return; }
+    if (!newGuest.phone.trim()) { setAddError("Phone number is required."); return; }
+    const members = splitMemberNames(newGuest.members);
+    await onAddGuests([{
+      id: uid(), name, lastName: "",
+      members: (members.length ? members : [name]).map((m) => ({ id: uid(), name: m, status: "pending" })),
+      additionalGuests: Math.max(0, parseInt(newGuest.extra, 10) || 0), table: "", phone: newGuest.phone.trim(),
+      invitationSent: false, invitationViewed: false, updatedAt: Date.now(),
+    }]);
+    setNewGuest({ name: "", members: "", phone: "", extra: 0 }); setAddError(""); setAddedMsg(`✓ ${name} added to the guest list.`);
+  };
   const [installEvent, setInstallEvent] = useState(null);
   const [installed, setInstalled] = useState(() => typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true));
   const [contact, setContact] = useState(null);
@@ -15180,6 +15256,34 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
 
         {loaded && tab === "guests" && (
           <div>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button onClick={() => { setAdding((v) => !v); setAddedMsg(""); setAddError(""); }} className="flex items-center justify-center gap-2 rounded-2xl p-3 text-[13px] font-semibold" style={{ background: adding ? INK_3 : GOLD, color: adding ? IVORY : INK }}>
+                {adding ? <><X size={16} /> Close</> : <><UserPlus size={16} /> Add guests</>}
+              </button>
+              <button onClick={() => printGuestList(title, guestGroups)} className="flex items-center justify-center gap-2 rounded-2xl p-3 text-[13px] font-semibold" style={card}><Printer size={16} style={{ color: GOLD_SOFT }} /> Print list</button>
+            </div>
+            {adding && (
+              <div className="mb-4 space-y-3">
+                <form onSubmit={addOne} className="space-y-2 rounded-2xl p-4" style={card}>
+                  <div className="text-[13.5px] font-semibold">Add a guest family</div>
+                  <input value={newGuest.name} onChange={(e) => setNewGuest((g) => ({ ...g, name: e.target.value.slice(0, 120) }))} dir="auto" placeholder="Family name (e.g. The Kfoury Family)" className="w-full rounded-xl px-3 py-2.5 text-[14px] outline-none" style={{ background: INK_3, color: IVORY }} />
+                  <input value={newGuest.members} onChange={(e) => setNewGuest((g) => ({ ...g, members: e.target.value.slice(0, 600) }))} dir="auto" placeholder="Members, comma-separated (optional)" className="w-full rounded-xl px-3 py-2.5 text-[14px] outline-none" style={{ background: INK_3, color: IVORY }} />
+                  <div className="flex gap-2">
+                    <input type="tel" value={newGuest.phone} onChange={(e) => setNewGuest((g) => ({ ...g, phone: e.target.value.slice(0, 40) }))} dir="ltr" placeholder="Phone (required)" className="min-w-0 flex-1 rounded-xl px-3 py-2.5 text-[14px] outline-none" style={{ background: INK_3, color: IVORY }} />
+                    <div className="flex items-center gap-1 rounded-xl px-2" style={{ background: INK_3 }}>
+                      <span className="text-[11px]" style={{ color: MUTED }}>+Guests</span>
+                      <button type="button" onClick={() => setNewGuest((g) => ({ ...g, extra: Math.max(0, g.extra - 1) }))} className="px-1.5 py-1" style={{ color: IVORY }}><Minus size={14} /></button>
+                      <span className="w-4 text-center text-[13.5px] font-semibold">{newGuest.extra}</span>
+                      <button type="button" onClick={() => setNewGuest((g) => ({ ...g, extra: Math.min(50, g.extra + 1) }))} className="px-1.5 py-1" style={{ color: IVORY }}><Plus size={14} /></button>
+                    </div>
+                  </div>
+                  {addError && <p className="text-[12px]" style={{ color: UI_ERROR }}>{addError}</p>}
+                  {addedMsg && <p className="text-[12px]" style={{ color: UI_OK }}>{addedMsg}</p>}
+                  <button type="submit" className="w-full rounded-full py-3 text-[13.5px] font-semibold" style={{ background: GOLD, color: INK }}>Add guest</button>
+                </form>
+                <GuestImportPanel guestGroups={guestGroups} onAdd={onAddGuests} compact />
+              </div>
+            )}
             <div className="mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: INK_3 }}>
               <Search size={15} style={{ color: MUTED }} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a name or phone" className="w-full bg-transparent text-[14px] outline-none" style={{ color: IVORY }} />
@@ -19118,6 +19222,7 @@ export default function InvitationBuilder() {
         title={[c.cover.name1, c.cover.name2].filter(Boolean).join(" & ") || actingAsUser?.name || "Your invitation"}
         schedule={rsvpSchedule}
         guestGroups={guestGroups}
+        onAddGuests={addGuestGroups}
         slug={slug}
         siteDomain={siteDomain}
         loaded={coreDataLoaded}
