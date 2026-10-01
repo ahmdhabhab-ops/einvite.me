@@ -14877,6 +14877,350 @@ function LandingLangSwitcher({ lang, onChange }) {
 // and swipe through it right here.
 const LANDING_DEMO_PATH = "/e/admin-preview";
 
+// ---------------------------------------------------------------------------
+// WhatsApp Yes / No invitations (/yes-no): its own simple page — the photo,
+// the names, the guest list and one button to send — so couples who only
+// want this don't have to find their way around the full builder.
+// ---------------------------------------------------------------------------
+const YES_NO_PATH = /^\/yes-no\/?$/;
+
+// What the guest sees in WhatsApp: the invitation with Yes / No, their tap,
+// and the QR code coming back.
+function WhatsAppYesNoMockup({ m, dir = "ltr", width = 300, photo = null, title = "Emma & Lucas" }) {
+  const bubble = { background: "#FFFFFF", borderRadius: 10, boxShadow: "0 1px 0.5px rgba(11,20,26,0.13)" };
+  const time = (t) => <span style={{ fontSize: 9.5, color: "#667781", float: dir === "rtl" ? "left" : "right", margin: dir === "rtl" ? "6px 8px 0 0" : "6px 0 0 8px" }}>{t}</span>;
+  return (
+    <div dir={dir} className="yn-mock relative mx-auto" style={{ width, background: "#0E120F", borderRadius: 36, padding: 8, boxShadow: "0 40px 80px -30px rgba(12,18,14,0.55), 0 0 0 1px rgba(243,237,225,0.08)" }}>
+      <style>{`
+        .yn-mock .yn-in { opacity: 0; animation: ynIn .5s ease forwards; }
+        @keyframes ynIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+      `}</style>
+      <div className="overflow-hidden" style={{ borderRadius: 29, background: "#EFE7DD", fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <div className="flex items-center gap-2.5 px-3.5 pb-2.5 pt-7" style={{ background: "#F7F5F2", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold" style={{ background: "#1C3B33", color: "#E8D5B0", fontFamily: "'Playfair Display', serif" }}>e</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 text-[13px] font-semibold" style={{ color: "#111B21" }}>{m.business} <CheckCircle2 size={12} style={{ color: "#25D366" }} /></div>
+            <div className="text-[10px]" style={{ color: "#667781" }}>WhatsApp Business</div>
+          </div>
+        </div>
+        <div className="space-y-2 px-2.5 py-3" style={{ minHeight: 470 }}>
+          <div className="yn-in" style={{ ...bubble, maxWidth: "88%", padding: 4, animationDelay: ".1s" }}>
+            {photo ? (
+              <div style={{ height: 130, borderRadius: 7, background: `url(${photo}) center/cover` }} />
+            ) : (
+              <div className="flex flex-col items-center justify-center" style={{ height: 118, borderRadius: 7, background: "linear-gradient(150deg, #24473E 0%, #1C3B33 55%, #162E28 100%)" }}>
+                <div style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontSize: 24, color: "#E8D5B0", textAlign: "center", padding: "0 8px" }} dir="auto">{title}</div>
+                <div className="mt-1 text-[9px] font-semibold uppercase" style={{ color: "rgba(245,240,231,0.7)", letterSpacing: "0.2em" }}>20 · 10 · 2026</div>
+              </div>
+            )}
+            <div className="px-2 pb-1 pt-2 text-[12px]" style={{ color: "#111B21", lineHeight: 1.45 }}>
+              <div className="font-semibold">{m.hello}</div>
+              <div className="mt-1">{m.text}</div>
+              {time("21:03")}
+              <div style={{ clear: "both" }} />
+            </div>
+            {[m.yes, m.no].map((label) => (
+              <div key={label} className="flex items-center justify-center gap-1.5 py-2 text-[12.5px] font-medium" style={{ color: "#027EB5", borderTop: "1px solid rgba(0,0,0,0.07)" }}>
+                <Undo2 size={13} /> {label}
+              </div>
+            ))}
+          </div>
+          <div className="yn-in flex" style={{ justifyContent: "flex-end", animationDelay: ".9s" }}>
+            <div className="px-2.5 py-1.5 text-[12.5px]" style={{ background: "#D9FDD3", borderRadius: 10, color: "#111B21", boxShadow: "0 1px 0.5px rgba(11,20,26,0.13)" }}>
+              {m.yes} <span style={{ fontSize: 9.5, color: "#667781", marginInlineStart: 6 }}>21:05 <CheckCheck size={12} style={{ display: "inline", color: "#53BDEB", verticalAlign: "-2px" }} /></span>
+            </div>
+          </div>
+          <div className="yn-in" style={{ ...bubble, maxWidth: "72%", padding: 4, animationDelay: "1.7s" }}>
+            <div className="flex items-center justify-center" style={{ background: "#FFFFFF", borderRadius: 7, padding: 8 }}>
+              <img src={qrCodeImageUrl("https://cores.einvite.me/checkin/sample", 220)} alt="Check-in QR code" style={{ width: 132, height: 132, display: "block" }} />
+            </div>
+            <div className="px-2 pb-1 pt-1 text-[11.5px]" style={{ color: "#111B21", lineHeight: 1.45 }}>
+              {m.thanks}
+              {time("21:05")}
+              <div style={{ clear: "both" }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// /yes-no for someone not logged in: what it is, and the way in.
+function YesNoLandingPage({ onSignUp, onLogIn }) {
+  const [lang, setLang] = useState(initialLandingLang);
+  const changeLang = (code) => { setLang(code); lsSet(LANDING_LANG_KEY, code); };
+  useEffect(() => { document.documentElement.lang = lang; return () => { document.documentElement.lang = "en"; }; }, [lang]);
+  const t = LANDING_TEXT[lang] || LANDING_TEXT.en;
+  const y = t.yesNo;
+  const fonts = landingFonts(lang);
+  const heading = (size) => landingHeading(lang, fonts, size);
+  const dir = lang === "ar" ? "rtl" : "ltr";
+  return (
+    <LandingLangContext.Provider value={lang}>
+      <div lang={lang} dir={dir} className="min-h-screen w-full" style={{ background: LP.bg, backgroundImage: LP.pageGradient, fontFamily: fonts.body, color: LP.text, overflowX: "clip" }}>
+        <header className="sticky top-0 z-50" style={{ background: "rgba(245,240,231,0.9)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${LP.line}` }}>
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+            <a href="/" dir="ltr" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", fontSize: 22, color: LP.text }}>eInvite<span style={{ color: LP.gold }}>.me</span></a>
+            <div className="flex items-center gap-2">
+              <LandingLangSwitcher lang={lang} onChange={changeLang} />
+              <button onClick={onLogIn} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ color: LP.text, border: `1px solid ${LP.outline}` }}>{t.nav?.logIn || "Log in"}</button>
+            </div>
+          </div>
+        </header>
+        <section className="px-4 pb-16 pt-12 sm:px-6 md:pt-20">
+          <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
+            <div>
+              <div className="mb-3 text-[11px] font-semibold uppercase" style={{ color: LP.goldSoft, letterSpacing: lang === "ar" || lang === "hy" ? 0 : "0.18em" }}>{y.eyebrow}</div>
+              <h1 style={heading("clamp(34px, 4.6vw, 54px)")}>{y.title}</h1>
+              <p className="mt-5 max-w-xl text-[16px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{y.body}</p>
+              <ul className="mt-6 space-y-2.5">
+                {y.points.map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-[14.5px]" style={{ color: LP.text }}><CheckCircle2 size={17} style={{ color: LP.gold, flexShrink: 0, marginTop: 2 }} /> {p}</li>
+                ))}
+              </ul>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <button onClick={onSignUp} className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}><MessageCircle size={17} /> {y.cta}</button>
+                <button onClick={onLogIn} className="text-[14px] underline underline-offset-4" style={{ color: LP.text2 }}>{t.nav?.logIn || "Log in"}</button>
+              </div>
+            </div>
+            <WhatsAppYesNoMockup m={y.mock} dir={dir} />
+          </div>
+        </section>
+        <section className="px-4 py-16 sm:px-6" style={{ background: LP.band }}>
+          <div className="mx-auto max-w-5xl">
+            <h2 className="text-center" style={heading("clamp(26px, 3.4vw, 38px)")}>{y.more}</h2>
+            <div className="mt-10 grid gap-5 md:grid-cols-3">
+              {y.steps.map(([title, body], i) => (
+                <div key={title} className="rounded-2xl p-6" style={{ background: LP.card, border: `1px solid ${LP.line}` }}>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: LP.gold, color: LP.onGold }}>{i + 1}</div>
+                  <div className="mt-4 text-[17px] font-semibold" style={{ color: LP.text }}>{title}</div>
+                  <p className="mt-2 text-[14px]" style={{ color: LP.text2, lineHeight: 1.65 }}>{body}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-10 text-center">
+              <button onClick={onSignUp} className="inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-semibold" style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}>{y.cta}</button>
+            </div>
+          </div>
+        </section>
+        <LiveChatWidget page="yes-no" />
+      </div>
+    </LandingLangContext.Provider>
+  );
+}
+
+// /yes-no for a logged-in client: everything this needs, on one page.
+function YesNoTool({ user, guestGroups, addGuestGroups, updateGuestGroup, deleteGuestGroup, slug, siteDomain, og, setOg, integrations, updateIntegrations, onSave, loaded, onLogout }) {
+  const [defaultTemplate] = useDefaultWaTemplate();
+  const [names, setNames] = useState(null); // null = not edited yet
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [basicsMsg, setBasicsMsg] = useState("");
+  const [newGuest, setNewGuest] = useState({ name: "", phone: "", extra: 0 });
+  const [addError, setAddError] = useState("");
+  const [showImport, setShowImport] = useState(false);
+  const [sending, setSending] = useState(() => new Set());
+  const [errors, setErrors] = useState({});
+  const [bulk, setBulk] = useState(null); // { done, total }
+  const savedNames = String(integrations?.messageNames || "").trim();
+  const namesValue = names ?? savedNames;
+  const waLang = integrations?.waTemplate?.stdLang || (/[؀-ۿ]/.test(savedNames) ? "ar" : "en");
+  const ready = !!(savedNames && og?.image && defaultTemplate);
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const field = { background: INK_3, color: IVORY };
+
+  const saveBasics = () => {
+    updateIntegrations({ messageNames: namesValue.trim() });
+    setNames(null);
+    onSave();
+    setBasicsMsg("Saved ✓");
+    setTimeout(() => setBasicsMsg(""), 2500);
+  };
+  const uploadPhoto = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = "";
+    if (!file) return;
+    setPhotoBusy(true); setBasicsMsg("");
+    try {
+      const url = await uploadImageToStorage(file);
+      setOg((o) => ({ ...o, image: url }));
+      onSave();
+    } catch (err) { setBasicsMsg(err.message || "Couldn't upload the photo."); } finally { setPhotoBusy(false); }
+  };
+  const addGuest = async (e) => {
+    e.preventDefault();
+    const name = newGuest.name.trim();
+    if (!name) return setAddError("Enter the guest's or family's name.");
+    if (String(newGuest.phone).replace(/\D/g, "").length < 7) return setAddError("Enter their WhatsApp number, with the country code (e.g. +961…).");
+    await addGuestGroups([{ id: uid(), name, lastName: "", members: [{ id: uid(), name, status: "pending" }], additionalGuests: Math.max(0, parseInt(newGuest.extra, 10) || 0), table: "", phone: newGuest.phone.trim(), invitationSent: false, invitationViewed: false, updatedAt: Date.now() }]);
+    setNewGuest({ name: "", phone: "", extra: 0 }); setAddError("");
+  };
+  const send = async (g) => {
+    if (!ready || sending.has(g.id)) return;
+    setSending((s) => new Set(s).add(g.id));
+    setErrors((x) => { const n = { ...x }; delete n[g.id]; return n; });
+    try {
+      const guestName = guestGroupName(g) || g.members?.[0]?.name || "Guest";
+      const link = `https://${siteDomain}/e/${slug}?g=${g.id}`;
+      await sendWhatsAppMessage({ to: g.phone, templateName: "__default__", languageCode: waLang, variables: [guestName, savedNames, link], headerImageUrl: og.image, fill: { name: guestName, names: savedNames, link }, slug, groupId: g.id });
+      updateGuestGroup(g.id, { whatsappTemplateSentAt: Date.now(), invitationSent: true });
+    } catch (err) {
+      setErrors((x) => ({ ...x, [g.id]: err.message || "Couldn't send." }));
+    } finally {
+      setSending((s) => { const n = new Set(s); n.delete(g.id); return n; });
+    }
+  };
+  const withPhone = guestGroups.filter((g) => String(g.phone || "").replace(/\D/g, "").length >= 7);
+  const notSent = withPhone.filter((g) => !g.whatsappTemplateSentAt);
+  const sendAll = async () => {
+    if (!notSent.length || bulk) return;
+    setBulk({ done: 0, total: notSent.length });
+    for (const g of notSent) {
+      await send(g);
+      setBulk((b) => ({ ...b, done: b.done + 1 }));
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    setBulk(null);
+  };
+  const replies = guestGroups.map((g) => ({ g, ...groupReply(g) }));
+  const stats = replies.reduce((a, r) => ({ coming: a.coming + r.coming, no: a.no + (r.state === "no" ? 1 : 0), waiting: a.waiting + (r.state === "pending" ? 1 : 0) }), { coming: 0, no: 0, waiting: 0 });
+  const badge = (state) => state === "yes" ? { bg: "rgba(47,122,85,0.12)", fg: UI_OK, label: "Coming" } : state === "no" ? { bg: "rgba(176,72,72,0.1)", fg: UI_ERROR, label: "Not coming" } : { bg: INK_3, fg: MUTED, label: "Waiting" };
+  const stepTitle = (n, title, done) => (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full text-[12.5px] font-bold" style={{ background: done ? UI_OK : GOLD, color: done ? "#fff" : INK }}>{done ? <Check size={14} /> : n}</span>
+      <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 21 }}>{title}</span>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen w-full" style={{ background: INK, color: IVORY, fontFamily: FONT_BODY }}>
+      <LightUiScope />
+      <header className="sticky top-0 z-30" style={{ background: INK, borderBottom: "1px solid rgba(201,164,76,0.14)" }}>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <div dir="ltr" style={{ fontFamily: "'Playfair Display', serif", fontSize: 21 }}>eInvite<span style={{ color: GOLD, fontStyle: "italic" }}>.me</span> <span className="text-[12px]" style={{ fontFamily: FONT_BODY, color: MUTED }}>· WhatsApp Yes / No</span></div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a href="/app" className="hidden rounded-full px-3.5 py-2 text-[12.5px] font-semibold sm:inline-flex" style={{ background: INK_3, color: IVORY }}>App</a>
+            <a href="/" className="hidden rounded-full px-3.5 py-2 text-[12.5px] font-semibold sm:inline-flex" style={{ background: INK_3, color: IVORY }}>Full builder</a>
+            <UiThemeToggle />
+            <button onClick={onLogout} title="Log out" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: INK_3, color: MUTED }}><LogOut size={16} /></button>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[1fr_320px]">
+        <div className="min-w-0 space-y-5">
+          {!loaded && <p className="text-[13px]" style={{ color: MUTED }}>Loading…</p>}
+          {loaded && !defaultTemplate && (
+            <p className="rounded-2xl p-4 text-[13px]" style={{ background: "rgba(176,72,72,0.08)", color: UI_ERROR }}>WhatsApp sending isn't switched on yet — the eInvite team is finishing the setup. You can already add your photo and guests.</p>
+          )}
+
+          <section className="rounded-2xl p-5" style={card}>
+            {stepTitle(1, "Your photo and names", !!(savedNames && og?.image))}
+            <div className="flex flex-wrap items-start gap-4">
+              <label className="relative flex h-28 w-44 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl" style={{ border: og?.image ? `2px solid ${GOLD}` : "2px dashed rgba(147,166,155,0.5)", background: og?.image ? `url(${og.image}) center/cover` : INK_3 }}>
+                {!og?.image && <span className="flex flex-col items-center gap-1 text-[12px]" style={{ color: MUTED }}><ImagePlus size={20} /> {photoBusy ? "Uploading…" : "Add your photo"}</span>}
+                {og?.image && <span className="absolute bottom-1.5 right-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-semibold" style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}>{photoBusy ? "Uploading…" : "Change"}</span>}
+                <input type="file" accept="image/*" onChange={uploadPhoto} className="hidden" disabled={photoBusy} />
+              </label>
+              <div className="min-w-[220px] flex-1">
+                <FieldLabel>Your names, as guests should read them</FieldLabel>
+                <input value={namesValue} onChange={(e) => setNames(e.target.value.slice(0, 120))} dir="auto" placeholder="e.g. Emma & Lucas" className="w-full rounded-xl px-3.5 py-3 text-[15px] outline-none" style={field} />
+                <p className="mt-1.5 text-[11.5px]" style={{ color: MUTED, lineHeight: 1.5 }}>The photo shows at the top of the WhatsApp message; your names go in “…the wedding of <b>{namesValue || "your names"}</b>”.</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <GoldButton onClick={saveBasics}><Check size={14} /> Save</GoldButton>
+                  {basicsMsg && <span className="text-[12px]" style={{ color: basicsMsg.startsWith("Saved") ? UI_OK : UI_ERROR }}>{basicsMsg}</span>}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl p-5" style={card}>
+            {stepTitle(2, "Your guests", withPhone.length > 0)}
+            <form onSubmit={addGuest} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
+              <input value={newGuest.name} onChange={(e) => setNewGuest((g) => ({ ...g, name: e.target.value.slice(0, 120) }))} dir="auto" placeholder="Name (e.g. The Kfoury Family)" className="min-w-0 rounded-xl px-3 py-2.5 text-[14px] outline-none" style={field} />
+              <input type="tel" value={newGuest.phone} onChange={(e) => setNewGuest((g) => ({ ...g, phone: e.target.value.slice(0, 40) }))} dir="ltr" placeholder="WhatsApp number (+961…)" className="min-w-0 rounded-xl px-3 py-2.5 text-[14px] outline-none" style={field} />
+              <div className="flex items-center justify-between gap-1 rounded-xl px-2" style={field}>
+                <span className="text-[11px]" style={{ color: MUTED }}>+Guests</span>
+                <button type="button" onClick={() => setNewGuest((g) => ({ ...g, extra: Math.max(0, g.extra - 1) }))} className="px-1.5 py-2"><Minus size={13} /></button>
+                <span className="w-4 text-center text-[13.5px] font-semibold">{newGuest.extra}</span>
+                <button type="button" onClick={() => setNewGuest((g) => ({ ...g, extra: Math.min(50, g.extra + 1) }))} className="px-1.5 py-2"><Plus size={13} /></button>
+              </div>
+              <GoldButton type="submit"><Plus size={14} /> Add</GoldButton>
+            </form>
+            {addError && <p className="mt-2 text-[12px]" style={{ color: UI_ERROR }}>{addError}</p>}
+            <button onClick={() => setShowImport((v) => !v)} className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: GOLD_SOFT }}>
+              <FileSpreadsheet size={14} /> {showImport ? "Hide import" : "Import from Excel or a photo of your list"}
+            </button>
+            {showImport && <div className="mt-3"><GuestImportPanel guestGroups={guestGroups} onAdd={addGuestGroups} compact /></div>}
+          </section>
+
+          <section className="rounded-2xl p-5" style={card}>
+            {stepTitle(3, "Send on WhatsApp", withPhone.length > 0 && notSent.length === 0)}
+            {!ready && (
+              <p className="mb-3 text-[12.5px]" style={{ color: MUTED }}>
+                {!og?.image || !savedNames ? "Add your photo and names in step 1 (and press Save) to send." : "Sending isn't switched on yet."}
+              </p>
+            )}
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <button onClick={sendAll} disabled={!ready || !notSent.length || !!bulk} className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[13.5px] font-semibold" style={{ background: "#25D366", color: "#0B2E1A", opacity: !ready || !notSent.length || bulk ? 0.5 : 1 }}>
+                <Send size={15} /> {bulk ? `Sending ${bulk.done} / ${bulk.total}…` : notSent.length ? `Send to everyone not sent yet (${notSent.length})` : "Everyone has received it"}
+              </button>
+              <select value={waLang} onChange={(e) => updateIntegrations({ waTemplate: { ...(integrations?.waTemplate || {}), stdLang: e.target.value } })} className="rounded-xl px-3 py-2.5 text-[12.5px] outline-none" style={field} title="Message language">
+                {[["en", "English"], ["ar", "العربية"], ["fr", "Français"], ["es", "Español"], ["hy", "Հայերեն"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              {guestGroups.length === 0 && <p className="py-4 text-center text-[13px]" style={{ color: MUTED }}>Your guests will appear here.</p>}
+              {replies.map(({ g, state, coming }) => {
+                const b = badge(state);
+                const hasPhone = String(g.phone || "").replace(/\D/g, "").length >= 7;
+                return (
+                  <div key={g.id} className="rounded-xl px-3.5 py-3" style={{ background: INK_3 }}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-[14px] font-semibold" dir="auto">{guestGroupName(g) || "Guest"}{Number(g.additionalGuests) > 0 && <span style={{ color: MUTED, fontWeight: 400 }}> +{g.additionalGuests}</span>}</div>
+                        <div className="text-[11.5px]" style={{ color: MUTED }} dir="ltr">{g.phone || "No number"}{g.whatsappTemplateSentAt ? ` · sent ${timeAgo(g.whatsappTemplateSentAt)}` : ""}{g.rsvpVia === "whatsapp" ? " · replied on WhatsApp" : ""}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: b.bg, color: b.fg }}>{b.label}{state === "yes" ? ` · ${coming}` : ""}</span>
+                        <button onClick={() => send(g)} disabled={!ready || !hasPhone || sending.has(g.id)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: g.whatsappTemplateSentAt ? INK_2 : "#25D366", color: g.whatsappTemplateSentAt ? IVORY : "#0B2E1A", opacity: !ready || !hasPhone ? 0.45 : 1 }}>
+                          <MessageCircle size={13} /> {sending.has(g.id) ? "Sending…" : g.whatsappTemplateSentAt ? "Send again" : "Send"}
+                        </button>
+                        <button onClick={() => { if (window.confirm(`Remove ${guestGroupName(g) || "this guest"}?`)) deleteGuestGroup(g.id); }} title="Remove" className="flex h-7 w-7 items-center justify-center rounded-full" style={{ color: MUTED }}><Trash2 size={13} /></button>
+                      </div>
+                    </div>
+                    {errors[g.id] && <p className="mt-1.5 text-[11.5px]" style={{ color: UI_ERROR }}>{errors[g.id]}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+        <aside className="space-y-5">
+          <div className="rounded-2xl p-5" style={card}>
+            <div className="mb-3 text-[13px] font-semibold">Replies</div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[["Coming", stats.coming, UI_OK], ["Not coming", stats.no, UI_ERROR], ["Waiting", stats.waiting, MUTED]].map(([l, v, col]) => (
+                <div key={l} className="rounded-xl py-3" style={{ background: INK_3 }}>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, color: col }}>{v}</div>
+                  <div className="text-[10.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.06em" }}>{l}</div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[11.5px]" style={{ color: MUTED, lineHeight: 1.55 }}>Updates by itself as guests tap Yes or No. Guests who say Yes get their check-in QR code in the chat — scan them at the door from the app's Check-in tab.</p>
+            <a href="/app" className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[12.5px] font-semibold" style={{ background: INK_3, color: IVORY }}><QrCode size={14} /> Open the app (check-in, notifications)</a>
+          </div>
+          <div className="rounded-2xl p-4" style={{ ...card, background: INK_3 }}>
+            <div className="mb-3 text-center text-[12px] font-semibold" style={{ color: MUTED }}>What your guests receive</div>
+            <WhatsAppYesNoMockup m={{ ...LANDING_TEXT.en.yesNo.mock, text: `You are warmly invited to celebrate the wedding of ${savedNames || "Emma & Lucas"}. Will you join us?` }} width={260} photo={og?.image || null} title={savedNames || "Emma & Lucas"} />
+          </div>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
 function LandingPhone() {
   const { t } = useLanding();
   return (
@@ -16142,6 +16486,23 @@ function LandingPage({ onSignUp, onLogIn }) {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      <section id="yes-no" className="px-4 py-20 sm:px-6" style={{ background: LP.band }}>
+        <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
+          <div>
+            <div className="mb-3 text-[11px] font-semibold uppercase" style={eyebrow}>{t.yesNo.eyebrow}</div>
+            <h2 style={heading("clamp(28px, 3.6vw, 40px)")}>{t.yesNo.title}</h2>
+            <p className="mt-4 text-[15px]" style={{ color: LP.text2, lineHeight: 1.7 }}>{t.yesNo.body}</p>
+            <ul className="mt-6 space-y-2.5">
+              {t.yesNo.points.map((p) => (
+                <li key={p} className="flex items-start gap-2.5 text-[14.5px]" style={{ color: LP.text }}><CheckCircle2 size={17} style={{ color: LP.gold, flexShrink: 0, marginTop: 2 }} /> {p}</li>
+              ))}
+            </ul>
+            <a href="/yes-no" className={`${primaryBtn} mt-8`} style={{ background: LP.gold, color: LP.onGold, boxShadow: LP.goldShadow }}><MessageCircle size={16} /> {t.yesNo.cta}</a>
+          </div>
+          <WhatsAppYesNoMockup m={t.yesNo.mock} dir={lang === "ar" ? "rtl" : "ltr"} />
         </div>
       </section>
 
@@ -17819,6 +18180,9 @@ export default function InvitationBuilder() {
     return () => { cancelled = true; };
   }, [builderDataMode]);
 
+  // /yes-no saves its photo and names once React has applied them.
+  const [yesNoSaveTick, setYesNoSaveTick] = useState(0);
+  useEffect(() => { if (yesNoSaveTick) saveDraft(); }, [yesNoSaveTick]);
   const saveDraft = async () => {
     if (!persistentStorage.available()) {
       setSaveStatus("unavailable");
@@ -18375,10 +18739,14 @@ export default function InvitationBuilder() {
       }
     }
   };
+  // From the latest list, so several updates in a row (sending to many
+  // guests one after another) don't overwrite each other.
   const updateGuestGroup = (id, patch) => {
-    const newList = guestGroups.map((g) => (g.id === id ? { ...g, ...patch, updatedAt: Date.now() } : g));
-    setGuestGroups(newList);
-    saveGuestGroupsDebounced(newList);
+    setGuestGroups((list) => {
+      const newList = list.map((g) => (g.id === id ? { ...g, ...patch, updatedAt: Date.now() } : g));
+      saveGuestGroupsDebounced(newList);
+      return newList;
+    });
   };
   const deleteGuestGroup = (id) => {
     const newList = guestGroups.filter((g) => g.id !== id);
@@ -19474,6 +19842,8 @@ export default function InvitationBuilder() {
     const skipLanding = !!pendingShopTemplate || !!prefillSignupEmail || (typeof window !== "undefined" && (window.location.hash.includes("access_token") || APP_PATH.test(window.location.pathname)));
     if (!skipLanding && !authFromLanding) {
       const openAuth = (screen) => { setBuilderDataMode("full"); setAuthFromLanding(screen); window.scrollTo(0, 0); };
+      // /yes-no: its own page; after logging in the visitor stays on /yes-no.
+      if (typeof window !== "undefined" && YES_NO_PATH.test(window.location.pathname)) return <YesNoLandingPage onSignUp={() => openAuth("signup")} onLogIn={() => openAuth("login")} />;
       return <LandingPage onSignUp={() => openAuth("signup")} onLogIn={() => openAuth("login")} />;
     }
     return (
@@ -19489,6 +19859,27 @@ export default function InvitationBuilder() {
           exitLabel="Back to home"
         />
       </div>
+    );
+  }
+
+  if (actingAsUser && typeof window !== "undefined" && YES_NO_PATH.test(window.location.pathname)) {
+    return (
+      <YesNoTool
+        user={actingAsUser}
+        guestGroups={guestGroups}
+        addGuestGroups={addGuestGroups}
+        updateGuestGroup={updateGuestGroup}
+        deleteGuestGroup={deleteGuestGroup}
+        slug={slug}
+        siteDomain={siteDomain}
+        og={og}
+        setOg={setOg}
+        integrations={integrations}
+        updateIntegrations={updateIntegrations}
+        onSave={() => setYesNoSaveTick((n) => n + 1)}
+        loaded={coreDataLoaded}
+        onLogout={() => { exitActingAs(); window.location.assign("/yes-no"); }}
+      />
     );
   }
 
