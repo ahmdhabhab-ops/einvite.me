@@ -12736,6 +12736,45 @@ function mergeShopTemplates(shopDesigns, mode) {
     .filter((t) => (mode === "website" ? t.editOnWebsite : !t.editOnWebsite));
 }
 
+// Turns a design card's preview to the next page every few seconds.
+function EmbedTour({ count, setIndex }) {
+  useEffect(() => {
+    if (count < 2) return;
+    const t = setInterval(() => setIndex((i) => (i + 1) % count), 3200);
+    return () => clearInterval(t);
+  }, [count]);
+  return null;
+}
+
+// A design's live invitation, shrunk to fit its card (not clickable — the
+// card around it opens the design).
+function LiveDesignFrame({ designId, name }) {
+  const boxRef = useRef(null);
+  const [scale, setScale] = useState(0);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const fit = () => setScale(el.clientWidth / 292);
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={boxRef} className="absolute inset-0 overflow-hidden" style={{ background: "#1F2A24" }}>
+      {scale > 0 && (
+        <iframe
+          src={`${designDemoPath(designId)}?embed=1&tour=1`}
+          title={`${name} — live preview`}
+          tabIndex={-1}
+          style={{ width: 292, height: 633, border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none", display: "block" }}
+        />
+      )}
+    </div>
+  );
+}
+
 function DesignThumb({ tpl, maxWidth = 180 }) {
   // Preview videos can be tens of MB each, so a card only starts loading
   // its video once it's close to being on screen, instead of every card
@@ -12743,7 +12782,7 @@ function DesignThumb({ tpl, maxWidth = 180 }) {
   const cardRef = useRef(null);
   const [nearScreen, setNearScreen] = useState(false);
   useEffect(() => {
-    if (!tpl.previewVideo || nearScreen) return;
+    if (!(tpl.previewVideo || tpl.hasDemo) || nearScreen) return;
     const el = cardRef.current;
     if (!el || typeof IntersectionObserver === "undefined") { setNearScreen(true); return; }
     const io = new IntersectionObserver((entries) => {
@@ -12751,12 +12790,14 @@ function DesignThumb({ tpl, maxWidth = 180 }) {
     }, { rootMargin: "200px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [tpl.previewVideo, nearScreen]);
+  }, [tpl.previewVideo, tpl.hasDemo, nearScreen]);
   return (
     <div ref={cardRef} className="relative mx-auto" style={{ width: "100%", maxWidth, background: "#000", borderRadius: 20, padding: 6, boxShadow: "0 10px 24px -8px rgba(0,0,0,0.6)" }}>
       <div className="absolute left-1/2 top-2 z-10 h-2.5 w-10 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />
       <div className="relative overflow-hidden" style={{ borderRadius: 15, aspectRatio: "9 / 19.5" }}>
-        {tpl.previewVideo ? (
+        {tpl.hasDemo && nearScreen ? (
+          <LiveDesignFrame designId={tpl.id} name={tpl.name} />
+        ) : tpl.previewVideo ? (
           nearScreen
             ? <video key={tpl.previewVideo} src={tpl.previewVideo} poster={tpl.coverImage || undefined} autoPlay muted loop playsInline preload="auto" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             : tpl.coverImage
@@ -12952,12 +12993,13 @@ function TemplateShopBody({ mode = "canva" }) {
 
         {selectedTemplate && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(10,12,10,0.75)" }}>
-            <div className="w-full max-w-sm overflow-hidden rounded-2xl" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, maxHeight: "90vh", overflowY: "auto" }}>
+            <style>{`.shop-design-modal{scrollbar-width:none}.shop-design-modal::-webkit-scrollbar{display:none}`}</style>
+            <div className="shop-design-modal w-full max-w-sm overflow-hidden rounded-2xl" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.3)`, maxHeight: "90vh", overflowY: "auto" }}>
               {selectedTemplate.hasDemo ? (
                 <div className="flex flex-col items-center px-4 pt-5" style={{ background: INK_3 }}>
                   <div style={{ background: "#0E120F", borderRadius: 30, padding: 6, boxShadow: "0 20px 40px -20px rgba(0,0,0,0.5)" }}>
                     <iframe
-                      src={designDemoPath(selectedTemplate.id)}
+                      src={`${designDemoPath(selectedTemplate.id)}?embed=1`}
                       title={`${selectedTemplate.name} — live preview`}
                       allow="autoplay"
                       style={{ display: "block", width: 270, height: 555, maxHeight: "60vh", border: "none", borderRadius: 24, background: "#1F2A24" }}
@@ -18595,7 +18637,12 @@ export default function InvitationBuilder() {
   const [guestView, setGuestView] = useState(null); // null = checking, false = not a guest link, { ... } = resolved
   const [guestLangOverride, setGuestLangOverride] = useState(null); // null = use the invitation's own default language; set once a guest explicitly picks one via the new language switcher
   const [guestActiveIndex, setGuestActiveIndex] = useState(0);
-  const [guestStarted, setGuestStarted] = useState(false);
+  // ?embed=1 — shown inside the shop (no scrollbars); &tour=1 — a design
+  // card's moving preview: already open, turning its pages by itself.
+  const embedParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const embedded = embedParams?.get("embed") === "1";
+  const embedTour = embedded && embedParams?.get("tour") === "1";
+  const [guestStarted, setGuestStarted] = useState(embedTour);
   const [djDashboardSlug, setDjDashboardSlug] = useState(null); // null = checking, false = not a DJ link, string = the slug
   const [checkinStaffSlug, setCheckinStaffSlug] = useState(null); // null = checking, false = not a check-in staff link, string = the slug
   const [networkingSlug, setNetworkingSlug] = useState(null); // null = checking, false = not a networking link, string = the slug
@@ -19158,6 +19205,7 @@ export default function InvitationBuilder() {
   }
 
   if (guestView && guestView.found) {
+    const embedStyle = embedded && <style>{`html,body{scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none}`}</style>;
     // The invitation's own saved settings — not whatever the Builder
     // happens to have loaded (which a guest's browser no longer loads).
     const guestSettings = guestView.ownSlug ? { swipeDirection, tornPhotoEdges } : {
@@ -19166,7 +19214,9 @@ export default function InvitationBuilder() {
     };
     return (
       <div className="relative">
-        {guestEnabledLanguages.length > 1 && (
+        {embedStyle}
+        {embedTour && <EmbedTour count={guestSteps.length} setIndex={setGuestActiveIndex} />}
+        {guestEnabledLanguages.length > 1 && !embedTour && (
           <GuestLanguageSwitcher
             current={guestLang}
             options={guestEnabledLanguages}
