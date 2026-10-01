@@ -14667,13 +14667,33 @@ const LP = {
 // LANDING_TEXT[lang].features.items (see landingText.js).
 const LANDING_FEATURE_ICONS = [Mail, Music2, CheckCircle2, MapPin, Gift, Video, Disc3, Handshake, Mic, QrCode, Globe, Sparkles, Calculator];
 
+// Where the visitor is, roughly, from their device's time zone (no lookup
+// needed): which country group they're in decides the home page's first
+// language and which WhatsApp number they see.
+const visitorTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } };
+const SPANISH_TIME_ZONES = new Set([
+  "Europe/Madrid", "Atlantic/Canary", "Africa/Ceuta",
+  "America/Mexico_City", "America/Cancun", "America/Merida", "America/Monterrey", "America/Matamoros", "America/Chihuahua", "America/Ciudad_Juarez", "America/Ojinaga", "America/Mazatlan", "America/Bahia_Banderas", "America/Hermosillo", "America/Tijuana",
+  "America/Guatemala", "America/Tegucigalpa", "America/El_Salvador", "America/Managua", "America/Costa_Rica", "America/Panama", "America/Havana", "America/Santo_Domingo", "America/Puerto_Rico",
+  "America/Bogota", "America/Caracas", "America/Guayaquil", "Pacific/Galapagos", "America/Lima", "America/La_Paz", "America/Santiago", "America/Punta_Arenas", "Pacific/Easter", "America/Asuncion", "America/Montevideo", "America/Buenos_Aires", "Africa/Malabo",
+]);
+const ARAB_TIME_ZONES = new Set([
+  "Asia/Beirut", "Asia/Damascus", "Asia/Amman", "Asia/Baghdad", "Asia/Kuwait", "Asia/Riyadh", "Asia/Bahrain", "Asia/Qatar", "Asia/Dubai", "Asia/Muscat", "Asia/Aden", "Asia/Gaza", "Asia/Hebron",
+  "Africa/Cairo", "Africa/Tripoli", "Africa/Tunis", "Africa/Algiers", "Africa/Casablanca", "Africa/El_Aaiun", "Africa/Khartoum", "Africa/Nouakchott", "Africa/Djibouti", "Africa/Mogadishu", "Indian/Comoro",
+]);
+const visitorInSpanishCountry = () => { const tz = visitorTimeZone(); return SPANISH_TIME_ZONES.has(tz) || tz.startsWith("America/Argentina/"); };
+// Unknown time zone counts as "Arab & Gulf", so the main number shows.
+const visitorOutsideArabWorld = () => { const tz = visitorTimeZone(); return !!tz && !ARAB_TIME_ZONES.has(tz); };
+
 // The home page speaks the same five languages as the invitations. The
-// visitor's choice is remembered in this browser; the first visit follows
-// the browser's own language when it's one of the five.
+// visitor's choice is remembered in this browser; the first visit opens in
+// Spanish in Spanish-speaking countries, otherwise follows the browser's
+// own language when it's one of the five.
 const LANDING_LANG_KEY = "einvite:landing-lang";
 function initialLandingLang() {
   const saved = lsGet(LANDING_LANG_KEY);
   if (LANDING_LANGS.includes(saved)) return saved;
+  if (visitorInSpanishCountry()) return "es";
   const prefs = typeof navigator !== "undefined" ? (navigator.languages || [navigator.language]) : [];
   for (const pref of prefs) {
     const code = String(pref || "").slice(0, 2).toLowerCase();
@@ -14810,6 +14830,9 @@ const withScheme = (v) => (/^[a-z0-9-]+(\.[a-z0-9-]+)+\//i.test(v.trim()) ? `htt
 const SITE_CONTACT_FIELDS = [
   { key: "whatsapp", label: "WhatsApp", icon: "whatsapp", color: "#25D366", placeholder: "+961 70 123 456",
     toUrl: (v) => (isUrl(v) ? v.trim() : withScheme(v) || (v.replace(/\D/g, "").length >= 7 ? `https://wa.me/${v.replace(/\D/g, "")}` : null)) },
+  { key: "whatsappIntl", label: "WhatsApp — outside the Arab & Gulf countries", icon: "whatsapp", color: "#25D366", placeholder: "+1 555 123 4567",
+    hint: "Visitors outside the Arab & Gulf countries see this number instead (WhatsApp and calls). Leave empty to show the number above to everyone.",
+    toUrl: (v) => (isUrl(v) ? v.trim() : withScheme(v) || (v.replace(/\D/g, "").length >= 7 ? `https://wa.me/${v.replace(/\D/g, "")}` : null)) },
   { key: "telegram", label: "Telegram", icon: "telegram", color: "#26A5E4", placeholder: "@username or t.me link",
     toUrl: (v) => (isUrl(v) ? v.trim() : withScheme(v) || `https://t.me/${stripHandle(v)}`) },
   { key: "instagram", label: "Instagram", icon: "instagram", color: "#E4405F", placeholder: "@username or link",
@@ -14825,8 +14848,18 @@ const SITE_CONTACT_FIELDS = [
 ];
 
 // Only the filled-in fields, as { ...field, value, url }.
-function siteContactLinks(contact) {
+// The contact details this visitor sees: outside the Arab & Gulf countries
+// the international number (when one is set) replaces the main one.
+function visitorContact(contact) {
+  if (!contact) return contact;
+  const intl = String(contact.whatsappIntl || "").trim();
+  const { whatsappIntl, ...rest } = contact;
+  return intl && visitorOutsideArabWorld() ? { ...rest, whatsapp: intl } : rest;
+}
+function siteContactLinks(rawContact) {
+  const contact = visitorContact(rawContact);
   return SITE_CONTACT_FIELDS
+    .filter((f) => f.key !== "whatsappIntl")
     .map((f) => {
       const value = (contact?.[f.key] || "").trim();
       return value ? { ...f, value, url: f.toUrl(value) } : null;
@@ -14925,7 +14958,8 @@ function AppNotificationsCard({ installed, isIos }) {
 // the invitation's own data, with a hand-over to a person.
 // The app's "We're here to help" card: WhatsApp and a phone call on the
 // same number, and email.
-function appHelpLinks(contact) {
+function appHelpLinks(rawContact) {
+  const contact = visitorContact(rawContact);
   const out = [];
   const wa = String(contact?.whatsapp || "").trim();
   const digits = wa.replace(/\D/g, "");
@@ -15517,6 +15551,7 @@ function SiteContactEditor() {
                   <TextInput value={value} onChange={(v) => { setForm((s) => ({ ...s, [f.key]: v })); if (status === "saved") setStatus("idle"); }} placeholder={f.placeholder} />
                 </div>
               </div>
+              {f.hint && <div className="mt-1 pl-11 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>{f.hint}</div>}
               {value.trim() && (
                 <div className="mt-1 pl-11 text-[10.5px]" style={{ color: url ? MUTED : UI_ERROR, fontFamily: FONT_BODY, wordBreak: "break-all" }}>
                   {url ? <>Opens: <a href={url} target="_blank" rel="noreferrer" className="underline">{url}</a></> : "That doesn't look right — check it again."}
