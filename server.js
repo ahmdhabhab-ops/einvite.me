@@ -763,6 +763,14 @@ app.post("/api/designs/submit", express.json({ limit: "512kb" }), async (req, re
       previewSlug: String(designer.invitationSlug || ""),
       design: JSON.parse(JSON.stringify(design)), status: "pending", submittedAt: Date.now(),
     };
+    // A copy of the designer's invitation as it is right now, so each
+    // submission keeps its own link (/e/design-sub-<id>) even after the
+    // designer goes on to make the next design in the same Builder.
+    const designerRaw = await kvRead(`einvite:invitation-${designer.id}`).catch(() => null);
+    if (designerRaw) {
+      await kvWrite(`einvite:design-demo-sub-${sub.id}`, JSON.stringify({ ...JSON.parse(designerRaw), guestGroups: [], tables: [], openInviteLinks: [] }));
+      sub.hasDemo = true;
+    }
     await kvWrite(SUBMISSIONS_KV, JSON.stringify([sub, ...(await readSubmissions())]));
     res.json({ submission: { ...sub, design: undefined } });
   } catch (err) { console.error("design submit failed:", err.message); res.status(502).json({ error: "Couldn't send the design — please try again." }); }
@@ -790,11 +798,13 @@ app.post("/api/designs/submissions/:id/review", requireAdminOnly, express.json({
       const shopRaw = await kvRead("einvite:shop-designs");
       const shop = shopRaw ? JSON.parse(shopRaw) : [];
       const design = { ...all[i].design, id: `shop-${randomUUID().replace(/-/g, "").slice(0, 10)}`, name, price, description: all[i].title || "", designedBy: all[i].designerName };
-      // The designer's own invitation becomes the design's live preview
-      // (/e/design-<id>), without their guests.
-      const designerRaw = all[i].designerId ? await kvRead(`einvite:invitation-${all[i].designerId}`).catch(() => null) : null;
-      if (designerRaw) {
-        await kvWrite(`einvite:design-demo-${design.id}`, JSON.stringify({ ...JSON.parse(designerRaw), guestGroups: [], tables: [], openInviteLinks: [] }));
+      // The copy of the designer's invitation taken when this design was
+      // sent becomes its live preview (/e/design-<id>), without guests.
+      // (Older submissions have none: their designer's invitation as it is now.)
+      const demoRaw = (await kvRead(`einvite:design-demo-sub-${all[i].id}`).catch(() => null))
+        || (all[i].designerId ? await kvRead(`einvite:invitation-${all[i].designerId}`).catch(() => null) : null);
+      if (demoRaw) {
+        await kvWrite(`einvite:design-demo-${design.id}`, JSON.stringify({ ...JSON.parse(demoRaw), guestGroups: [], tables: [], openInviteLinks: [] }));
         design.hasDemo = true;
       }
       await kvWrite("einvite:shop-designs", JSON.stringify([...shop, design]));

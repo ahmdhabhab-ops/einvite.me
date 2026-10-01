@@ -13768,7 +13768,7 @@ function DesignerSubmissionsStrip({ refreshKey }) {
           const st = SUBMISSION_STATUS[x.status] || SUBMISSION_STATUS.pending;
           return (
             <div key={x.id} className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
-              <span style={{ color: IVORY }}>{x.name || x.title || "Untitled"} <span style={{ color: MUTED }}>· {new Date(x.submittedAt).toLocaleDateString()}</span></span>
+              <span style={{ color: IVORY }}>{x.name || x.title || "Untitled"} <span style={{ color: MUTED }}>· {new Date(x.submittedAt).toLocaleDateString()}</span>{x.hasDemo && <a href={designDemoPath(`sub-${x.id}`)} target="_blank" rel="noreferrer" className="ml-1.5 underline" style={{ color: GOLD_SOFT }}>view</a>}</span>
               <span className="flex items-center gap-2">
                 {x.status === "approved" && <span style={{ color: MUTED }}>${x.price}</span>}
                 <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ background: st.bg, color: st.fg }}>{st.label}</span>
@@ -13829,7 +13829,9 @@ function DesignReviewPanel() {
                 </div>
                 <div className="text-[11.5px]" style={{ color: MUTED }}>by {x.designerName} · {new Date(x.submittedAt).toLocaleDateString()}</div>
                 {x.note && <p className="mt-1.5 text-[12px]" style={{ color: IVORY, lineHeight: 1.5 }}>“{x.note}”</p>}
-                {x.previewSlug && <a href={`/e/${x.previewSlug}`} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] underline" style={{ color: GOLD_SOFT }}>Open the designer's invitation <ExternalLink size={11} /></a>}
+                {x.hasDemo
+                  ? <a href={designDemoPath(`sub-${x.id}`)} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] underline" style={{ color: GOLD_SOFT }}>Open this design <ExternalLink size={11} /></a>
+                  : x.previewSlug && <a href={`/e/${x.previewSlug}`} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] underline" style={{ color: GOLD_SOFT }}>Open the designer's invitation <ExternalLink size={11} /></a>}
                 {x.status === "pending" && (
                   <div className="mt-3 space-y-2">
                     <div className="grid grid-cols-[1fr_90px] gap-2">
