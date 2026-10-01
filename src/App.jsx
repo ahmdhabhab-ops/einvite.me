@@ -9608,8 +9608,36 @@ function waTemplateVars(wt) {
 // Which WhatsApp message the automatic send (✈) uses: the standard wedding
 // invitation, or the couple's own template approved in Meta's WhatsApp
 // Manager (its variables filled with the guest's name, link, etc.).
+// The invitation template (with Yes / No buttons) the admin picked for every
+// client — their "Invitation with Yes / No" choice sends it.
+const WA_DEFAULT_TEMPLATE_KEY = "einvite:wa-default-template";
+let waDefaultTemplateCache = null;
+function useDefaultWaTemplate() {
+  const [name, setName] = useState(waDefaultTemplateCache || "");
+  useEffect(() => {
+    if (waDefaultTemplateCache !== null) return;
+    (async () => {
+      try {
+        const res = await persistentStorage.get(WA_DEFAULT_TEMPLATE_KEY, false);
+        waDefaultTemplateCache = String(res?.value || "").trim();
+        setName(waDefaultTemplateCache);
+      } catch {}
+    })();
+  }, []);
+  return [name, (v) => { waDefaultTemplateCache = v; setName(v); }];
+}
+
 // Admin: turning on Yes / No replies inside WhatsApp (Meta's webhook).
 function WhatsAppRepliesSetup() {
+  const [defaultTemplate, setDefaultTemplate] = useDefaultWaTemplate();
+  const [templateDraft, setTemplateDraft] = useState(null);
+  const [templateSaved, setTemplateSaved] = useState("");
+  const saveDefaultTemplate = async () => {
+    const v = String(templateDraft ?? defaultTemplate).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const ok = await persistentStorage.set(WA_DEFAULT_TEMPLATE_KEY, v, false);
+    if (ok) { setDefaultTemplate(v); setTemplateDraft(null); setTemplateSaved("Saved ✓ — clients now send this template"); }
+    else setTemplateSaved("Couldn't save — try again");
+  };
   const [info, setInfo] = useState(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
@@ -9633,6 +9661,16 @@ function WhatsAppRepliesSetup() {
       {error && <p className="mt-3 text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
       {info && (
         <>
+          <div className="mt-4 rounded-xl p-3" style={{ background: INK_3 }}>
+            <FieldLabel>Invitation template for all clients</FieldLabel>
+            <div className="flex items-center gap-2">
+              <div className="flex-1"><TextInput value={templateDraft ?? defaultTemplate} onChange={(v) => { setTemplateDraft(v); setTemplateSaved(""); }} placeholder="e.g. wedding_invite_yes_no" /></div>
+              <GoldButton onClick={saveDefaultTemplate}><Check size={14} /> Save</GoldButton>
+            </div>
+            <p className="mt-1.5 text-[11px]" style={{ color: templateSaved.startsWith("Saved") ? UI_OK : templateSaved ? UI_ERROR : MUTED, fontFamily: FONT_BODY, lineHeight: 1.5 }}>
+              {templateSaved || "The template's name in WhatsApp Manager. Clients just press send: it goes in their language when you've made that translation (same name), otherwise in English. Its variables: {{1}} guest's name, {{2}} the couple's names, {{3}} invitation link."}
+            </p>
+          </div>
           {row("Callback URL", info.url, "url")}
           {row("Verify token", info.verifyToken, "token")}
           <ol className="mt-4 list-decimal space-y-1.5 pl-5 text-[12px]" style={{ color: IVORY, fontFamily: FONT_BODY, lineHeight: 1.55 }}>
@@ -9656,6 +9694,7 @@ function WhatsAppRepliesSetup() {
 }
 
 function WhatsAppTemplateField({ integrations, updateIntegrations }) {
+  const [defaultTemplate] = useDefaultWaTemplate();
   const wt = integrations?.waTemplate || {};
   const set = (patch) => updateIntegrations({ waTemplate: { ...wt, ...patch } });
   // The templates Meta says this WhatsApp number can send, to pick from.
@@ -9686,7 +9725,7 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
         <SegmentedToggle
           value={wt.custom ? "custom" : "standard"}
           onChange={(v) => set({ custom: v === "custom" })}
-          options={[{ value: "standard", label: "Standard wedding" }, { value: "custom", label: "My own template" }]}
+          options={[{ value: "standard", label: defaultTemplate ? "Invitation with Yes / No" : "Standard wedding" }, { value: "custom", label: "My own template" }]}
         />
       </div>
       {!wt.custom && (
@@ -9698,7 +9737,7 @@ function WhatsAppTemplateField({ integrations, updateIntegrations }) {
             </select>
           </div>
           <p className="min-w-[220px] flex-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-            Sends the approved "wedding_invitation" template in this language ("wedding_invitation_reminder" for reminders). A language other than English needs its own translation of those templates approved in WhatsApp Manager first.
+            {defaultTemplate ? "Your photo (Settings → Share thumbnail), the guest's name, your names and their invitation link, with Yes / No buttons. A guest who taps Yes is marked as coming and gets their check-in QR code in the chat. Sent in this language when available, otherwise in English." : <>Sends the approved "wedding_invitation" template in this language ("wedding_invitation_reminder" for reminders). A language other than English needs its own translation of those templates approved in WhatsApp Manager first.</>}
           </p>
         </div>
       )}
@@ -11533,6 +11572,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
   // their invitation link.
   const waTemplate = integrations?.waTemplate || {};
   const customTemplateName = waTemplate.custom ? String(waTemplate.name || "").trim() : "";
+  const [defaultWaTemplate] = useDefaultWaTemplate();
   const sendAutomatedWhatsApp = async (group) => {
     if (!customTemplateName && !requireMessageNames()) return;
     if (!group.phone) {
@@ -11551,6 +11591,16 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
             headerImageUrl: waTemplate.imageHeader === false ? null : og?.image || null,
             fill: { name: guestName, names: messageNames, link: guestLink(group) },
             vars: Array.isArray(waTemplate.params) ? waTemplateVars(waTemplate) : undefined,
+            slug, groupId: group.id,
+          }
+        : defaultWaTemplate
+        ? {
+            to: group.phone,
+            templateName: "__default__", // the server picks the right language of the admin's Yes / No template
+            languageCode: waTemplate.stdLang || (/[\u0600-\u06FF]/.test(messageNames) ? "ar" : "en"),
+            variables: [guestName, messageNames, guestLink(group)],
+            headerImageUrl: og?.image || null,
+            fill: { name: guestName, names: messageNames, link: guestLink(group) },
             slug, groupId: group.id,
           }
         : {

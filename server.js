@@ -1658,8 +1658,24 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
   }
   const b = req.body || {};
   const to = String(b.to || "").replace(/[^0-9]/g, "");
-  const templateName = String(b.templateName || "");
-  const languageCode = /^[a-z]{2}(_[A-Z]{2})?$/.test(String(b.languageCode || "")) ? b.languageCode : "en";
+  let templateName = String(b.templateName || "");
+  let languageCode = /^[a-z]{2}(_[A-Z]{2})?$/.test(String(b.languageCode || "")) ? b.languageCode : "en";
+  // "__default__": the admin's chosen invitation template (Yes / No), in
+  // the asked language when it exists, otherwise English, otherwise any.
+  if (templateName === "__default__") {
+    try {
+      const name = String((await kvRead(WA_DEFAULT_TEMPLATE_KV)) || "").trim();
+      if (!/^[a-z0-9_]{1,100}$/.test(name)) return res.status(400).json({ error: "No invitation template is set yet — ask eInvite to set one." });
+      const approved = (await whatsappTemplatesRaw(name)).filter((t) => t.name === name && t.status === "APPROVED").map((t) => t.language);
+      if (!approved.length) return res.status(400).json({ error: `The invitation template "${name}" isn't approved in WhatsApp yet.` });
+      const want = languageCode.slice(0, 2);
+      languageCode = approved.find((l) => l === languageCode) || approved.find((l) => l.slice(0, 2) === want) || approved.find((l) => l.slice(0, 2) === "en") || approved[0];
+      templateName = name;
+    } catch (err) {
+      console.error("default template lookup failed:", err.message);
+      return res.status(502).json({ error: "Couldn't reach WhatsApp to find the invitation template — please try again." });
+    }
+  }
   const variables = (Array.isArray(b.variables) ? b.variables : []).slice(0, 5).map((v) => String(v ?? "").slice(0, 500));
   const headerImageUrl = /^https:\/\/[^\s]{1,1000}$/.test(String(b.headerImageUrl || "")) ? b.headerImageUrl : null;
   if (to.length < 6 || to.length > 16) return res.status(400).json({ error: "That phone number doesn't look right." });
@@ -1744,6 +1760,7 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
 // Meta; everything is then passed on to the whatsapp-webhook edge function
 // too, so the delivery ticks keep working.
 // ---------------------------------------------------------------------------
+const WA_DEFAULT_TEMPLATE_KV = "einvite:wa-default-template";
 const waMessageKey = (messageId) => `einvite:wa-msg-${createHmac("sha256", "wa-msg").update(String(messageId)).digest("hex").slice(0, 40)}`;
 const WA_APP_SECRET = (process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || "").trim();
 const WA_FORWARD_URL = (process.env.WHATSAPP_WEBHOOK_FORWARD_URL || `${SUPABASE_URL}/functions/v1/whatsapp-webhook`).trim();
