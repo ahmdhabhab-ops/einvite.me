@@ -1477,8 +1477,8 @@ const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key =
 // Server-only data (logins, invoices, keys…): read through their own
 // endpoints, never straight from the store by anyone but the admin.
 const ADMIN_ONLY_KV = (key) =>
-  /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys)$/.test(key) ||
-  /^einvite:(push-subs-|slim-backup-)/.test(key);
+  /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys|wa-verify-token)$/.test(key) ||
+  /^einvite:(push-subs-|slim-backup-|wa-msg-)/.test(key);
 
 app.get("/api/kv", async (req, res) => {
   const key = String(req.query.key || "");
@@ -1720,11 +1720,154 @@ app.post("/api/whatsapp/send", express.json({ limit: "16kb" }), async (req, res)
       }[code];
       return res.status(502).json({ error: hint ? `${hint} (${data?.error?.message || code})` : data?.error?.message || "Meta didn't accept the message." });
     }
-    res.json({ sent: true, messageId: data?.messages?.[0]?.id || null });
+    const messageId = data?.messages?.[0]?.id || null;
+    // Remember which guest this message went to, so a Yes / No tapped on
+    // it in WhatsApp can be recorded against them (see the webhook below).
+    const slug = String(b.slug || "");
+    const groupId = String(b.groupId || "");
+    if (messageId && SLUG_RE.test(slug) && /^[A-Za-z0-9_-]{1,64}$/.test(groupId) && (await ownsSlug(req, slug).catch(() => false))) {
+      const ownerId = await slugOwnerId(slug).catch(() => null);
+      if (ownerId) await kvWrite(waMessageKey(messageId), JSON.stringify({ ownerId, slug, groupId, phone: to, lang: languageCode.slice(0, 2), at: Date.now() })).catch((err) => console.error("WhatsApp message record failed:", err.message));
+    }
+    res.json({ sent: true, messageId });
   } catch (err) {
     console.error("WhatsApp send failed:", err.message);
     res.status(502).json({ error: "Couldn't reach WhatsApp — please try again." });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Yes / No in the WhatsApp chat. An invitation template with two quick-reply
+// buttons (Yes / No): the guest's tap comes back to this webhook, marks
+// their family as coming / not coming, and a Yes gets their check-in QR
+// code straight back in the chat. Set this URL as the WhatsApp webhook in
+// Meta; everything is then passed on to the whatsapp-webhook edge function
+// too, so the delivery ticks keep working.
+// ---------------------------------------------------------------------------
+const waMessageKey = (messageId) => `einvite:wa-msg-${createHmac("sha256", "wa-msg").update(String(messageId)).digest("hex").slice(0, 40)}`;
+const WA_APP_SECRET = (process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || "").trim();
+const WA_FORWARD_URL = (process.env.WHATSAPP_WEBHOOK_FORWARD_URL || `${SUPABASE_URL}/functions/v1/whatsapp-webhook`).trim();
+let waWebhookLastAt = 0;
+async function waVerifyToken() {
+  if (process.env.WHATSAPP_VERIFY_TOKEN) return process.env.WHATSAPP_VERIFY_TOKEN.trim();
+  let token = await kvRead("einvite:wa-verify-token");
+  if (!token) { token = randomBytes(18).toString("hex"); await kvWrite("einvite:wa-verify-token", token); }
+  return token;
+}
+const WA_YES = /^(yes|y|yeah|yep|oui|s[ií]|ok|okay|coming|attending|نعم|ايه|أيوه|ايوه|اكيد|أكيد|موافق|حاضر|سنحضر|այո)(?=\s|$)/i;
+const WA_NO = /^(no|n|nope|non|not coming|can'?t|لا|ما رح|لن|ոչ)(?=\s|$)/i;
+const waReplyStatus = (text) => {
+  const t = String(text || "").trim().replace(/[^\p{L}\p{N}' ]+/gu, " ").trim();
+  return WA_YES.test(t) ? "yes" : WA_NO.test(t) ? "no" : null;
+};
+const WA_TEXT = {
+  en: { qr: (n) => `Thank you${n ? `, ${n}` : ""}! 🎉 Here is your check-in QR code — show it at the door.`, no: "Thank you for letting us know — you'll be missed! 💛" },
+  ar: { qr: (n) => `شكراً${n ? ` ${n}` : ""}! 🎉 هذا رمز الدخول الخاص بكم — أظهروه عند الباب.`, no: "شكراً لإعلامنا — سنفتقدكم! 💛" },
+  fr: { qr: (n) => `Merci${n ? ` ${n}` : ""} ! 🎉 Voici votre QR code d'entrée — montrez-le à l'accueil.`, no: "Merci de nous avoir prévenus — vous nous manquerez ! 💛" },
+  es: { qr: (n) => `¡Gracias${n ? `, ${n}` : ""}! 🎉 Este es tu código QR de entrada — muéstralo en la puerta.`, no: "Gracias por avisarnos — ¡te extrañaremos! 💛" },
+  hy: { qr: (n) => `Շնորհակալություն${n ? `, ${n}` : ""}։ 🎉 Ահա ձեր մուտքի QR կոդը — ցույց տվեք այն մուտքի մոտ։`, no: "Շնորհակալություն տեղեկացնելու համար — մենք ձեզ կկարոտենք։ 💛" },
+};
+async function waSend(to, message) {
+  const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(WHATSAPP_PHONE_ID)}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, ...message }),
+  });
+  if (!r.ok) throw new Error(`WhatsApp reply failed (${r.status}): ${(await r.text().catch(() => "")).slice(0, 300)}`);
+}
+async function siteDomainForLinks() {
+  try { const d = JSON.parse((await kvRead(DRAFT_KEY)) || "{}"); if (d.siteDomain) return String(d.siteDomain).replace(/^https?:\/\//, "").replace(/\/.*$/, ""); } catch {}
+  return process.env.PUBLIC_SITE_DOMAIN || "cores.einvite.me";
+}
+// Marks the whole family as coming / not coming, like their own link would.
+async function applyWhatsappRsvp(sent, status) {
+  const key = `einvite:invitation-${sent.ownerId}`;
+  const raw = await kvRead(key);
+  if (!raw) return null;
+  const latest = JSON.parse(raw);
+  const groups = Array.isArray(latest.guestGroups) ? latest.guestGroups : [];
+  const existing = groups.find((g) => g.id === sent.groupId);
+  if (!existing) return null;
+  const members = (existing.members || []).length ? existing.members.map((m) => ({ ...m, status })) : [{ id: randomUUID().replace(/-/g, "").slice(0, 8), name: existing.name || "Guest", status }];
+  const group = { ...existing, members, invitationViewed: true, rsvpVia: "whatsapp", updatedAt: Date.now() };
+  latest.guestGroups = groups.map((g) => (g.id === group.id ? group : g));
+  await kvWrite(key, JSON.stringify(latest));
+  notifyOwner(sent.ownerId, rsvpNotice(group, status)).catch((err) => console.error("rsvp notification failed:", err.message));
+  return group;
+}
+const waSeen = new Map(); // incoming message id -> time (Meta can deliver a message twice)
+async function handleWhatsappMessage(msg) {
+  if (!msg?.id || waSeen.has(msg.id)) return;
+  waSeen.set(msg.id, Date.now());
+  if (waSeen.size > 5000) for (const [k, t] of waSeen) if (Date.now() - t > 3600000) waSeen.delete(k);
+  const text = msg.type === "button" ? msg.button?.payload || msg.button?.text
+    : msg.type === "interactive" ? msg.interactive?.button_reply?.title || msg.interactive?.button_reply?.id
+    : msg.type === "text" ? msg.text?.body : "";
+  const status = waReplyStatus(text);
+  const contextId = msg.context?.id;
+  if (!status || !contextId) return;
+  const raw = await kvRead(waMessageKey(contextId));
+  if (!raw) return;
+  const sent = JSON.parse(raw);
+  const from = String(msg.from || "").replace(/[^0-9]/g, "");
+  // Only the number the invitation went to can answer for that family.
+  if (!from || !(from.endsWith(sent.phone.slice(-8)) || sent.phone.endsWith(from.slice(-8)))) return;
+  const group = await applyWhatsappRsvp(sent, status);
+  if (!group) return;
+  const words = WA_TEXT[sent.lang] || WA_TEXT.en;
+  const name = String(group.name || (group.members || []).map((m) => m.name).filter((n) => n && n !== "Guest").slice(0, 3).join(", ") || "").slice(0, 80);
+  if (status === "no") { await waSend(from, { type: "text", text: { body: words.no } }); return; }
+  let token = (await restGet(`guest_checkins?guest_group_id=eq.${enc(group.id)}&select=token`).catch(() => []))[0]?.token;
+  if (!token) {
+    token = randomUUID();
+    const coming = (group.members || []).map((m) => m.name).filter(Boolean).join(", ") + (Number(group.additionalGuests) > 0 ? ` + ${Number(group.additionalGuests)}` : "");
+    await restSend("POST", "guest_checkins", { invitation_slug: sent.slug, guest_group_id: group.id, guest_names: (name || coming || "Guest").slice(0, 300), token });
+  }
+  const checkinLink = `https://${await siteDomainForLinks()}/checkin/${token}`;
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=24&format=png&data=${encodeURIComponent(checkinLink)}`;
+  await waSend(from, { type: "image", image: { link: qr, caption: words.qr(name) } });
+}
+
+app.get("/api/whatsapp/webhook", async (req, res) => {
+  try {
+    if (req.query["hub.mode"] === "subscribe" && sameSecret(String(req.query["hub.verify_token"] || ""), await waVerifyToken())) {
+      return res.type("text/plain").send(String(req.query["hub.challenge"] || ""));
+    }
+  } catch (err) { console.error("WhatsApp webhook verify failed:", err.message); }
+  res.sendStatus(403);
+});
+app.post("/api/whatsapp/webhook", express.raw({ type: () => true, limit: "1mb" }), async (req, res) => {
+  const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+  const signature = String(req.get("x-hub-signature-256") || "");
+  if (WA_APP_SECRET && !sameSecret(signature, `sha256=${createHmac("sha256", WA_APP_SECRET).update(body).digest("hex")}`)) return res.sendStatus(401);
+  res.sendStatus(200); // answer Meta straight away; the work happens after
+  waWebhookLastAt = Date.now();
+  if (WA_FORWARD_URL && WA_FORWARD_URL !== "off") {
+    fetch(WA_FORWARD_URL, { method: "POST", headers: { "Content-Type": "application/json", ...(signature ? { "X-Hub-Signature-256": signature } : {}) }, body })
+      .catch((err) => console.error("WhatsApp webhook forward failed:", err.message));
+  }
+  let payload = null;
+  try { payload = JSON.parse(body.toString("utf8")); } catch { return; }
+  if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) return;
+  for (const entry of payload?.entry || []) {
+    for (const change of entry?.changes || []) {
+      for (const msg of change?.value?.messages || []) {
+        await handleWhatsappMessage(msg).catch((err) => console.error("WhatsApp reply failed:", err.message));
+      }
+    }
+  }
+});
+// What the admin pastes into Meta to turn this on.
+app.get("/api/whatsapp/webhook-info", requireAdminOnly, async (req, res) => {
+  try {
+    res.set("cache-control", "no-store").json({
+      url: `https://${req.get("host")}/api/whatsapp/webhook`,
+      verifyToken: await waVerifyToken(),
+      appSecretSet: !!WA_APP_SECRET,
+      sendingReady: !!(WHATSAPP_TOKEN && WHATSAPP_PHONE_ID),
+      lastEventAt: waWebhookLastAt || null,
+    });
+  } catch (err) { res.status(502).json({ error: "Couldn't load the webhook details." }); }
 });
 
 // WhatsApp delivery ticks in the guest dashboard. The whatsapp_incoming
