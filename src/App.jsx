@@ -10,7 +10,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -2846,6 +2846,8 @@ function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
     ...(isClientPortal ? [] : [
       { key: "users", label: "Users", icon: Users },
       { key: "livechat", label: "Live Chat", icon: MessageCircle, badge: liveChatUnread },
+      { key: "invoices", label: "Invoices", icon: FileText },
+      { key: "team", label: "Team", icon: UserCog },
       { key: "contact", label: "Contact", icon: Globe },
     ]),
   ];
@@ -13296,7 +13298,8 @@ function LiveChatWidget({ page, defaultName = "", bottom = 20, openSignal = 0, p
 
 // Admin side: keeps the conversation list fresh (for the tab badge) while
 // the admin app is open, with the password saved in this browser.
-function useLiveChatAdmin(enabled) {
+function useLiveChatAdmin(enabled, shareWithTeam = true) {
+  const sharedKeyRef = useRef("");
   const [adminKey, setAdminKey] = useState(() => lsGet(LIVE_CHAT_ADMIN_KEY) || "");
   const [conversations, setConversations] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | ok | badKey | error
@@ -13310,6 +13313,11 @@ function useLiveChatAdmin(enabled) {
       const rows = await liveChatRpc("live_chat_admin_conversations", { p_key: key });
       setConversations(rows || []);
       setStatus("ok");
+      // The admin's working key is remembered on the server for the team.
+      if (shareWithTeam && sharedKeyRef.current !== key) {
+        sharedKeyRef.current = key;
+        apiJson("/api/staff/chat-key", { method: "POST", body: { key } }).catch(() => {});
+      }
     } catch (err) {
       setStatus(err.status === 401 || err.status === 403 ? "badKey" : "error");
     }
@@ -13346,6 +13354,320 @@ function useLiveChatAdmin(enabled) {
 }
 
 const LIVE_CHAT_PAGE_LABELS = { home: "Home page", shop: "Shop", designs: "Designs", builder: "Builder", privacy: "Privacy Policy" };
+
+// ---------------------------------------------------------------------------
+// Team (sales) accounts and invoices. The admin manages the team in the
+// "Team" tab; a sales account logs in at /sales and sees only the live
+// chat, the clients list and invoices.
+// ---------------------------------------------------------------------------
+const money = (n, cur = "USD") => { try { return new Intl.NumberFormat(undefined, { style: "currency", currency: cur }).format(Number(n) || 0); } catch { return `${cur} ${(Number(n) || 0).toFixed(2)}`; } };
+const escHtml = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// A clean A4 page of the invoice in a new window, ready to print or save as PDF.
+function printInvoice(inv) {
+  const w = window.open("", "_blank");
+  if (!w) { alert("Allow pop-ups for this site to print the invoice."); return; }
+  const rows = inv.items.map((it) => `<tr><td>${escHtml(it.description)}</td><td class="n">${it.qty}</td><td class="n">${money(it.unitPrice, inv.currency)}</td><td class="n">${money(it.qty * it.unitPrice, inv.currency)}</td></tr>`).join("");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(inv.number)}</title><style>
+    body{font-family:Inter,Arial,sans-serif;color:#1C3B33;margin:0;padding:40px;}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #BF914A;padding-bottom:18px}
+    .logo{font-family:'Playfair Display',Georgia,serif;font-size:28px}.logo span{color:#BF914A;font-style:italic}
+    h1{font-family:'Playfair Display',Georgia,serif;font-weight:400;font-size:30px;margin:0;text-align:right}
+    .muted{color:#5F6D65;font-size:12.5px;line-height:1.6}.grid{display:flex;justify-content:space-between;margin:26px 0}
+    table{width:100%;border-collapse:collapse;font-size:13.5px}th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#5F6D65;border-bottom:1px solid #ddd;padding:8px 6px}
+    td{padding:10px 6px;border-bottom:1px solid #eee}.n{text-align:right;white-space:nowrap}
+    .tot{margin-left:auto;width:280px;margin-top:16px;font-size:14px}.tot div{display:flex;justify-content:space-between;padding:5px 0}.tot .big{border-top:2px solid #1C3B33;font-weight:700;font-size:17px;padding-top:9px}
+    .status{display:inline-block;margin-top:6px;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;background:${inv.status === "paid" ? "#DCEFE4;color:#2F7A55" : inv.status === "void" ? "#eee;color:#888" : "#F6E7C8;color:#9C7433"}}
+    .notes{margin-top:30px;font-size:12.5px;color:#5F6D65;white-space:pre-wrap}@media print{body{padding:18mm}}
+  </style></head><body>
+    <div class="top"><div><div class="logo">eInvite<span>.me</span></div><div class="muted">${escHtml(SITE_ADDRESS)}</div></div>
+    <div><h1>Invoice</h1><div class="muted" style="text-align:right">${escHtml(inv.number)}<br>Issued ${escHtml(inv.issueDate)}${inv.dueDate ? `<br>Due ${escHtml(inv.dueDate)}` : ""}<br><span class="status">${escHtml(inv.status.toUpperCase())}</span></div></div></div>
+    <div class="grid"><div><div class="muted" style="text-transform:uppercase;letter-spacing:.08em;font-size:11px">Bill to</div><div style="font-size:15px;font-weight:600;margin-top:4px">${escHtml(inv.billTo.name)}</div><div class="muted">${escHtml(inv.billTo.email)}${inv.billTo.phone ? `<br>${escHtml(inv.billTo.phone)}` : ""}</div></div></div>
+    <table><thead><tr><th>Description</th><th class="n">Qty</th><th class="n">Price</th><th class="n">Amount</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="tot"><div><span>Subtotal</span><span>${money(inv.subtotal, inv.currency)}</span></div>${inv.discount ? `<div><span>Discount</span><span>−${money(inv.discount, inv.currency)}</span></div>` : ""}<div class="big"><span>Total</span><span>${money(inv.total, inv.currency)}</span></div></div>
+    ${inv.notes ? `<div class="notes">${escHtml(inv.notes)}</div>` : ""}
+    <script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+function InvoicesPanel({ isAdmin }) {
+  const [invoices, setInvoices] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [error, setError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const blank = () => ({ billTo: { name: "", email: "", phone: "", userId: "" }, items: [{ description: "", qty: 1, unitPrice: "" }], currency: "USD", issueDate: new Date().toISOString().slice(0, 10), dueDate: "", discount: "", notes: "" });
+  const [form, setForm] = useState(blank);
+  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const load = async () => {
+    try { setInvoices((await apiJson("/api/invoices")).invoices || []); } catch (err) { setError(err.message); setInvoices([]); }
+  };
+  useEffect(() => { load(); apiJson("/api/staff/users").then((d) => setClients(d.users || [])).catch(() => {}); }, []);
+  const total = form.items.reduce((n, it) => n + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0) - (Number(form.discount) || 0);
+  const setItem = (i, patch) => setForm((f) => ({ ...f, items: f.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }));
+  const save = async () => {
+    setSaving(true); setError("");
+    try {
+      const { invoice } = await apiJson("/api/invoices", { method: "POST", body: form });
+      setInvoices((list) => [invoice, ...(list || [])]); setCreating(false); setForm(blank());
+      printInvoice(invoice);
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  const setStatus = async (inv, status) => {
+    try { const { invoice } = await apiJson(`/api/invoices/${inv.id}`, { method: "PATCH", body: { status } }); setInvoices((list) => list.map((x) => (x.id === inv.id ? invoice : x))); } catch (err) { setError(err.message); }
+  };
+  const remove = async (inv) => {
+    if (!window.confirm(`Delete ${inv.number}? This can't be undone.`)) return;
+    try { await apiJson(`/api/invoices/${inv.id}`, { method: "DELETE" }); setInvoices((list) => list.filter((x) => x.id !== inv.id)); } catch (err) { setError(err.message); }
+  };
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const field = "w-full rounded-lg px-3 py-2.5 text-[13px] outline-none";
+  const fieldStyle = { background: INK_3, color: IVORY, fontFamily: FONT_BODY };
+  const shown = (invoices || []).filter((x) => filter === "all" || x.status === filter);
+  const sum = (st) => (invoices || []).filter((x) => x.status === st).reduce((n, x) => n + x.total, 0);
+  return (
+    <div className="mx-auto max-w-5xl" style={{ fontFamily: FONT_BODY }}>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: IVORY }}>Invoices</h2>
+          <p className="text-[12px]" style={{ color: MUTED }}>Unpaid {money(sum("unpaid"))} · Paid {money(sum("paid"))} (USD invoices)</p>
+        </div>
+        {!creating && <GoldButton onClick={() => setCreating(true)}><Plus size={14} /> New invoice</GoldButton>}
+      </div>
+      {error && <p className="mb-3 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+      {creating && (
+        <div className="mb-6 rounded-2xl p-5" style={card}>
+          <div className="mb-3 text-[14px] font-semibold" style={{ color: IVORY }}>New invoice</div>
+          <FieldLabel>Bill to — pick a client or type</FieldLabel>
+          <select value={form.billTo.userId} onChange={(e) => { const c = clients.find((x) => x.id === e.target.value); setForm((f) => ({ ...f, billTo: c ? { name: c.name, email: c.email, phone: c.phone, userId: c.id } : { ...f.billTo, userId: "" } })); }} className={field} style={fieldStyle}>
+            <option value="">— Someone else (type below) —</option>
+            {clients.map((c) => <option key={c.id} value={c.id}>{c.name} · {c.email}</option>)}
+          </select>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <input value={form.billTo.name} onChange={(e) => setForm((f) => ({ ...f, billTo: { ...f.billTo, name: e.target.value } }))} placeholder="Name *" className={field} style={fieldStyle} dir="auto" />
+            <input value={form.billTo.email} onChange={(e) => setForm((f) => ({ ...f, billTo: { ...f.billTo, email: e.target.value } }))} placeholder="Email" className={field} style={fieldStyle} />
+            <input value={form.billTo.phone} onChange={(e) => setForm((f) => ({ ...f, billTo: { ...f.billTo, phone: e.target.value } }))} placeholder="Phone" className={field} style={fieldStyle} />
+          </div>
+          <div className="mt-4"><FieldLabel>Items</FieldLabel></div>
+          <div className="space-y-2">
+            {form.items.map((it, i) => (
+              <div key={i} className="grid grid-cols-[1fr_70px_100px_32px] gap-2">
+                <input value={it.description} onChange={(e) => setItem(i, { description: e.target.value })} placeholder="e.g. Wedding invitation — premium design" className={field} style={fieldStyle} dir="auto" />
+                <input type="number" min={1} value={it.qty} onChange={(e) => setItem(i, { qty: e.target.value })} placeholder="Qty" className={field} style={fieldStyle} />
+                <input type="number" min={0} step="0.01" value={it.unitPrice} onChange={(e) => setItem(i, { unitPrice: e.target.value })} placeholder="Price" className={field} style={fieldStyle} />
+                <button onClick={() => setForm((f) => ({ ...f, items: f.items.length > 1 ? f.items.filter((_, j) => j !== i) : f.items }))} title="Remove" style={{ color: MUTED }}><X size={15} /></button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setForm((f) => ({ ...f, items: [...f.items, { description: "", qty: 1, unitPrice: "" }] }))} className="mt-2 text-[12px] font-semibold" style={{ color: GOLD_SOFT }}>+ Add item</button>
+          <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            <div><FieldLabel>Currency</FieldLabel><select value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))} className={field} style={fieldStyle}>{["USD", "EUR", "LBP", "GBP", "AED", "SAR"].map((c) => <option key={c}>{c}</option>)}</select></div>
+            <div><FieldLabel>Discount</FieldLabel><input type="number" min={0} value={form.discount} onChange={(e) => setForm((f) => ({ ...f, discount: e.target.value }))} placeholder="0" className={field} style={fieldStyle} /></div>
+            <div><FieldLabel>Issue date</FieldLabel><input type="date" value={form.issueDate} onChange={(e) => setForm((f) => ({ ...f, issueDate: e.target.value }))} className={field} style={fieldStyle} /></div>
+            <div><FieldLabel>Due date</FieldLabel><input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} className={field} style={fieldStyle} /></div>
+          </div>
+          <div className="mt-2"><FieldLabel>Notes (payment details, thanks…)</FieldLabel><textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={field} style={fieldStyle} dir="auto" /></div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: IVORY }}>Total {money(Math.max(0, total), form.currency)}</div>
+            <div className="flex gap-2">
+              <GhostButton onClick={() => { setCreating(false); setForm(blank()); }}>Cancel</GhostButton>
+              <GoldButton onClick={save} disabled={saving}><Check size={14} /> {saving ? "Saving…" : "Create & print"}</GoldButton>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="mb-3 flex gap-2">
+        {[["all", "All"], ["unpaid", "Unpaid"], ["paid", "Paid"], ["void", "Void"]].map(([k, l]) => (
+          <button key={k} onClick={() => setFilter(k)} className="rounded-full px-4 py-1.5 text-[12px] font-semibold" style={{ background: filter === k ? GOLD : INK_2, color: filter === k ? INK : IVORY, border: "1px solid rgba(201,164,76,0.25)" }}>{l}</button>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-2xl" style={card}>
+        {invoices === null && <p className="p-5 text-[13px]" style={{ color: MUTED }}>Loading…</p>}
+        {invoices && shown.length === 0 && <p className="p-5 text-[13px]" style={{ color: MUTED }}>No invoices yet.</p>}
+        {shown.map((inv) => (
+          <div key={inv.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5" style={{ borderTop: "1px solid rgba(147,166,155,0.15)" }}>
+            <div className="min-w-0">
+              <div className="text-[13.5px] font-semibold" style={{ color: IVORY }}>{inv.number} · <span dir="auto">{inv.billTo.name}</span></div>
+              <div className="text-[11.5px]" style={{ color: MUTED }}>{inv.issueDate} · by {inv.createdBy?.name || "—"}</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[14px] font-semibold" style={{ color: IVORY }}>{money(inv.total, inv.currency)}</span>
+              <select value={inv.status} onChange={(e) => setStatus(inv, e.target.value)} className="rounded-full px-3 py-1.5 text-[12px] font-semibold outline-none" style={{ background: inv.status === "paid" ? "rgba(47,122,85,0.14)" : inv.status === "void" ? INK_3 : "rgba(201,164,76,0.16)", color: inv.status === "paid" ? UI_OK : inv.status === "void" ? MUTED : GOLD_SOFT }}>
+                <option value="unpaid">Unpaid</option><option value="paid">Paid</option><option value="void">Void</option>
+              </select>
+              <button onClick={() => printInvoice(inv)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY }}><Printer size={13} /> Print / PDF</button>
+              {isAdmin && <button onClick={() => remove(inv)} title="Delete" style={{ color: UI_ERROR }}><Trash2 size={15} /></button>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StaffClientsPanel() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => { apiJson("/api/staff/users").then(setData).catch((err) => setError(err.message)); }, []);
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const list = (data?.users || []).filter((u) => !q.trim() || `${u.name} ${u.email} ${u.phone}`.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <div className="mx-auto max-w-5xl" style={{ fontFamily: FONT_BODY }}>
+      {error && <p className="mb-3 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        {[["Clients", data?.total], ["Active", data?.active], ["Waiting approval", data?.pending]].map(([l, v]) => (
+          <div key={l} className="rounded-2xl p-4" style={card}>
+            <div className="text-[11px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em" }}>{l}</div>
+            <div className="mt-1" style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, color: IVORY }}>{v ?? "—"}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mb-3 flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: INK_3 }}>
+        <Search size={15} style={{ color: MUTED }} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a name, email or phone" className="w-full bg-transparent text-[13.5px] outline-none" style={{ color: IVORY }} />
+      </div>
+      <div className="overflow-hidden rounded-2xl" style={card}>
+        {list.map((u) => (
+          <div key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3" style={{ borderTop: "1px solid rgba(147,166,155,0.15)" }}>
+            <div className="min-w-0">
+              <div className="text-[13.5px] font-semibold" dir="auto" style={{ color: IVORY }}>{u.name || "—"}</div>
+              <div className="text-[11.5px]" style={{ color: MUTED }}>{u.email}{u.phone ? ` · ${u.phone}` : ""}</div>
+            </div>
+            <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: u.status === "active" ? "rgba(47,122,85,0.12)" : "rgba(201,164,76,0.16)", color: u.status === "active" ? UI_OK : GOLD_SOFT }}>{u.status}</span>
+          </div>
+        ))}
+        {data && list.length === 0 && <p className="p-5 text-[13px]" style={{ color: MUTED }}>No clients found.</p>}
+      </div>
+    </div>
+  );
+}
+
+// Admin: the team's accounts.
+function TeamManager() {
+  const [staff, setStaff] = useState(null);
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => apiJson("/api/staff").then((d) => setStaff(d.staff || [])).catch((err) => { setError(err.message); setStaff([]); });
+  useEffect(() => { load(); }, []);
+  const add = async () => {
+    setBusy(true); setError("");
+    try { await apiJson("/api/staff", { method: "POST", body: form }); setForm({ name: "", email: "", password: "" }); load(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  const patch = async (m, body) => { try { await apiJson(`/api/staff/${m.id}`, { method: "PATCH", body }); load(); } catch (err) { setError(err.message); } };
+  const remove = async (m) => { if (!window.confirm(`Delete ${m.name}'s account?`)) return; try { await apiJson(`/api/staff/${m.id}`, { method: "DELETE" }); load(); } catch (err) { setError(err.message); } };
+  const card = { background: INK_2, border: "1px solid rgba(201,164,76,0.14)" };
+  const field = "w-full rounded-lg px-3 py-2.5 text-[13px] outline-none";
+  const fieldStyle = { background: INK_3, color: IVORY, fontFamily: FONT_BODY };
+  const loginUrl = `${window.location.origin}/sales`;
+  return (
+    <div className="mx-auto max-w-3xl" style={{ fontFamily: FONT_BODY }}>
+      <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: IVORY }}>Team</h2>
+      <p className="mb-5 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>
+        Sales accounts log in at <a href={loginUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: GOLD_SOFT }}>{loginUrl}</a> and see only the live chat, the clients list (read only) and invoices. Open the Live Chat tab here once so the team's chat works.
+      </p>
+      <div className="mb-6 rounded-2xl p-5" style={card}>
+        <div className="mb-3 text-[13.5px] font-semibold" style={{ color: IVORY }}>Add a sales account</div>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Name" className={field} style={fieldStyle} />
+          <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="Email" className={field} style={fieldStyle} />
+          <input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder="Password (8+ characters)" className={field} style={fieldStyle} />
+        </div>
+        {error && <p className="mt-2 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+        <div className="mt-3"><GoldButton onClick={add} disabled={busy}><Plus size={14} /> Add account</GoldButton></div>
+      </div>
+      <div className="overflow-hidden rounded-2xl" style={card}>
+        {staff === null && <p className="p-5 text-[13px]" style={{ color: MUTED }}>Loading…</p>}
+        {staff && staff.length === 0 && <p className="p-5 text-[13px]" style={{ color: MUTED }}>No team accounts yet.</p>}
+        {(staff || []).map((m) => (
+          <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5" style={{ borderTop: "1px solid rgba(147,166,155,0.15)" }}>
+            <div>
+              <div className="text-[13.5px] font-semibold" style={{ color: IVORY }}>{m.name} <span className="text-[11px] font-normal" style={{ color: MUTED }}>· sales</span></div>
+              <div className="text-[11.5px]" style={{ color: MUTED }}>{m.email}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => patch(m, { active: !m.active })} className="rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: m.active ? "rgba(47,122,85,0.12)" : INK_3, color: m.active ? UI_OK : MUTED }}>{m.active ? "Active" : "Disabled"}</button>
+              <button onClick={() => { const pw = window.prompt(`New password for ${m.name} (8+ characters):`); if (pw) patch(m, { password: pw }); }} className="rounded-full px-3 py-1.5 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY }}>Reset password</button>
+              <button onClick={() => remove(m)} title="Delete" style={{ color: UI_ERROR }}><Trash2 size={15} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The sales portal (/sales).
+function StaffPortal() {
+  const [me, setMe] = useState(undefined); // undefined = checking, null = logged out
+  const [tab, setTab] = useState("chat");
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [chatKeyState, setChatKeyState] = useState("loading"); // loading | ready | missing
+  const chat = useLiveChatAdmin(!!me && tab === "chat", false);
+  useEffect(() => { apiJson("/api/staff/me").then((d) => setMe(d.staff)).catch(() => setMe(null)); }, []);
+  useEffect(() => {
+    if (!me) return;
+    apiJson("/api/staff/chat-key").then(({ key }) => { if (key) { chat.saveKey(key); setChatKeyState("ready"); } else setChatKeyState("missing"); }).catch(() => setChatKeyState("missing"));
+  }, [me?.id]);
+  const login = async (e) => {
+    e.preventDefault(); setError("");
+    try { const d = await apiJson("/api/staff/login", { method: "POST", body: form }); setMe(d.staff); } catch (err) { setError(err.message); }
+  };
+  const logout = async () => { await apiJson("/api/staff/logout", { method: "POST" }).catch(() => {}); lsRemove(LIVE_CHAT_ADMIN_KEY); setMe(null); };
+  const shell = { minHeight: "100vh", background: INK, color: IVORY, fontFamily: FONT_BODY };
+  if (me === undefined) return <div style={shell}><LightUiScope /></div>;
+  if (!me) {
+    return (
+      <div className="flex items-center justify-center px-5" style={shell}>
+        <LightUiScope />
+        <form onSubmit={login} className="w-full max-w-sm rounded-2xl p-7" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.18)" }}>
+          <div dir="ltr" style={{ fontFamily: "'Playfair Display', serif", fontSize: 26 }}>eInvite<span style={{ color: GOLD, fontStyle: "italic" }}>.me</span></div>
+          <p className="mb-5 mt-1 text-[12.5px]" style={{ color: MUTED }}>Team login</p>
+          <FieldLabel>Email</FieldLabel>
+          <TextInput value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} placeholder="you@einvite.me" />
+          <div className="mt-3"><FieldLabel>Password</FieldLabel></div>
+          <TextInput type="password" value={form.password} onChange={(v) => setForm((f) => ({ ...f, password: v }))} placeholder="••••••••" />
+          {error && <p className="mt-3 text-[12px]" style={{ color: UI_ERROR }}>{error}</p>}
+          <button type="submit" className="mt-5 w-full rounded-full py-3 text-[14px] font-semibold" style={{ background: GOLD, color: INK }}>Log in</button>
+        </form>
+      </div>
+    );
+  }
+  const tabs = [["chat", "Live Chat", MessageCircle, chat.unreadCount], ["clients", "Clients", Users, 0], ["invoices", "Invoices", FileText, 0]];
+  return (
+    <div style={shell}>
+      <LightUiScope />
+      <header className="sticky top-0 z-30" style={{ background: INK, borderBottom: "1px solid rgba(201,164,76,0.14)" }}>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <div dir="ltr" style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>eInvite<span style={{ color: GOLD, fontStyle: "italic" }}>.me</span> <span className="text-[12px]" style={{ fontFamily: FONT_BODY, color: MUTED }}>· Team</span></div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-[12.5px] sm:inline" style={{ color: MUTED }}>{me.name}</span>
+            <UiThemeToggle />
+            <button onClick={logout} title="Log out" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: INK_3, color: MUTED }}><LogOut size={16} /></button>
+          </div>
+        </div>
+        <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-2">
+          {tabs.map(([k, l, Icon, badge]) => (
+            <button key={k} onClick={() => setTab(k)} className="flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: tab === k ? GOLD : "transparent", color: tab === k ? INK : IVORY }}>
+              <Icon size={15} /> {l} {badge > 0 && <span className="rounded-full px-1.5 text-[10px]" style={{ background: UI_ERROR, color: "#fff" }}>{badge}</span>}
+            </button>
+          ))}
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        {tab === "chat" && (chatKeyState === "missing"
+          ? <p className="rounded-2xl p-5 text-[13px]" style={{ background: INK_2, color: MUTED }}>The chat isn't shared with the team yet — ask the admin to open the Live Chat tab once.</p>
+          : chatKeyState === "ready" ? <LiveChatInbox chat={chat} /> : <p className="text-[13px]" style={{ color: MUTED }}>Loading…</p>)}
+        {tab === "clients" && <StaffClientsPanel />}
+        {tab === "invoices" && <InvoicesPanel isAdmin={false} />}
+      </main>
+    </div>
+  );
+}
 
 function LiveChatInbox({ chat }) {
   const { adminKey, saveKey, conversations, status, refresh, markRead, isUnread } = chat;
@@ -14303,7 +14625,7 @@ function AppAssistant({ messages, setMessages, onHandoff }) {
   );
 }
 
-function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loaded, onLogout }) {
+function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loaded, onLogout, builderHref = "/" }) {
   const [tab, setTab] = useState("home");
   const [installEvent, setInstallEvent] = useState(null);
   const [installed, setInstalled] = useState(() => typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true));
@@ -14428,7 +14750,7 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
 
             <div className="grid grid-cols-2 gap-3">
               <button onClick={share} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-[13px] font-semibold" style={card}><Share2 size={16} style={{ color: GOLD_SOFT }} /> Share invitation</button>
-              <a href="/" className="flex items-center justify-center gap-2 rounded-2xl p-4 text-[13px] font-semibold" style={card}><Pencil size={16} style={{ color: GOLD_SOFT }} /> Open builder</a>
+              <a href={builderHref} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-[13px] font-semibold" style={card}><Pencil size={16} style={{ color: GOLD_SOFT }} /> Open builder</a>
             </div>
           </div>
         )}
@@ -16395,7 +16717,7 @@ export default function InvitationBuilder() {
   }, [steps.length, activeIndex]);
 
   useEffect(() => {
-    if (actingAsUser && view === "users") setView("builder");
+    if (actingAsUser && ["users", "invoices", "team", "livechat", "contact"].includes(view)) setView("builder");
   }, [actingAsUser, view]);
 
   useEffect(() => {
@@ -18182,6 +18504,10 @@ export default function InvitationBuilder() {
   if (isShopPath) {
     return <TemplateShopPage mode="canva" />;
   }
+  // The team's (sales) portal.
+  if (typeof window !== "undefined" && /^\/sales(\/|$)/.test(window.location.pathname)) {
+    return <StaffPortal />;
+  }
 
   if (isDesignsPath === null) {
     return <AppLoadingScreen />; // still checking the URL
@@ -18351,18 +18677,21 @@ export default function InvitationBuilder() {
     );
   }
 
-  // The phone app (/app) for a logged-in client.
-  if (actingAsUser && typeof window !== "undefined" && APP_PATH.test(window.location.pathname)) {
+  // The phone app: /app for a logged-in client, /admin/app for the admin
+  // (with their own invitation, to try it).
+  const adminApp = isAdminPath && !actingAsUser && typeof window !== "undefined" && /^\/admin\/app(\/|$)/.test(window.location.pathname);
+  if (adminApp || (actingAsUser && typeof window !== "undefined" && APP_PATH.test(window.location.pathname))) {
     return (
       <ClientApp
-        user={actingAsUser}
-        title={[c.cover.name1, c.cover.name2].filter(Boolean).join(" & ") || actingAsUser.name || "Your invitation"}
+        user={actingAsUser || { name: "Admin", email: "" }}
+        title={[c.cover.name1, c.cover.name2].filter(Boolean).join(" & ") || actingAsUser?.name || "Your invitation"}
         schedule={rsvpSchedule}
         guestGroups={guestGroups}
         slug={slug}
         siteDomain={siteDomain}
         loaded={coreDataLoaded}
-        onLogout={() => { exitActingAs(); window.location.assign("/app"); }}
+        builderHref={adminApp ? "/admin" : "/"}
+        onLogout={() => { if (adminApp) { window.location.assign("/admin"); return; } exitActingAs(); window.location.assign("/app"); }}
       />
     );
   }
@@ -18399,8 +18728,8 @@ export default function InvitationBuilder() {
             {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
             {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
             {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
-            {actingAsUser && (
-              <a href="/app" title="Open the phone app (replies, guests, voice messages, check-in)" className="flex h-10 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}>
+            {(actingAsUser || isAdminPath) && (
+              <a href={actingAsUser ? "/app" : "/admin/app"} title="Open the phone app (replies, guests, voice messages, check-in)" className="flex h-10 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold" style={{ background: INK_3, color: IVORY, border: `1px solid rgba(201,164,76,0.3)`, fontFamily: FONT_BODY }}>
                 <Smartphone size={15} style={{ color: GOLD_SOFT }} /> App
               </a>
             )}
@@ -18932,6 +19261,8 @@ export default function InvitationBuilder() {
         {view === "livechat" && !actingAsUser && <LiveChatInbox chat={liveChat} />}
 
         {view === "contact" && !actingAsUser && <SiteContactEditor />}
+        {view === "invoices" && !actingAsUser && <InvoicesPanel isAdmin />}
+        {view === "team" && !actingAsUser && <TeamManager />}
 
         {view === "users" && !actingAsUser && (
           <UsersView
