@@ -1376,12 +1376,14 @@ const WHATSAPP_TEMPLATE_NAME = "wedding_invitation";
 const WHATSAPP_REMINDER_TEMPLATE_NAME = "wedding_invitation_reminder"; // sent via the paid "Send Reminder" feature, once unlocked
 const WHATSAPP_TEMPLATE_LANGUAGE = "en"; // confirmed via Meta's own template list — do not change without re-checking there first
 
-async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl, fill, vars }) {
+async function sendWhatsAppMessage({ to, templateName, languageCode, variables, headerImageUrl, fill, vars, slug, groupId }) {
   // Through the app's own server (logged-in users only) once it's set up.
   // `fill` ({ name, names, link }) lets the server fill a couple's own
   // template exactly as it's written in Meta; `vars` says which of those
   // goes in each of its variables.
-  if (await serverAuthReady()) return apiJson("/api/whatsapp/send", { method: "POST", body: { to, templateName, languageCode, variables, headerImageUrl, fill, vars } });
+  // slug + groupId: which guest this is, so their Yes / No tapped in the
+  // chat is recorded (and a Yes gets their check-in QR back).
+  if (await serverAuthReady()) return apiJson("/api/whatsapp/send", { method: "POST", body: { to, templateName, languageCode, variables, headerImageUrl, fill, vars, slug, groupId } });
   const res = await fetch(`${EDGE_FUNCTIONS_URL}/clever-api`, {
     method: "POST",
     headers: supabaseHeaders,
@@ -9606,6 +9608,53 @@ function waTemplateVars(wt) {
 // Which WhatsApp message the automatic send (✈) uses: the standard wedding
 // invitation, or the couple's own template approved in Meta's WhatsApp
 // Manager (its variables filled with the guest's name, link, etc.).
+// Admin: turning on Yes / No replies inside WhatsApp (Meta's webhook).
+function WhatsAppRepliesSetup() {
+  const [info, setInfo] = useState(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState("");
+  useEffect(() => { apiJson("/api/whatsapp/webhook-info").then(setInfo).catch((err) => setError(err.message)); }, []);
+  const copy = async (what, text) => { if (await copyToClipboard(text)) { setCopied(what); setTimeout(() => setCopied(""), 2000); } };
+  const row = (label, value, what) => (
+    <div className="mt-3">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 select-all truncate rounded-lg px-3 py-2.5 text-[12.5px]" style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }}>{value}</span>
+        <GhostButton onClick={() => copy(what, value)}><Copy size={13} /> {copied === what ? "Copied!" : "Copy"}</GhostButton>
+      </div>
+    </div>
+  );
+  return (
+    <div className="mx-auto max-w-xl rounded-2xl p-6 sm:p-7" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.15)` }}>
+      <h2 className="mb-1 text-lg" style={{ fontFamily: FONT_DISPLAY, fontStyle: "italic", color: IVORY }}>Yes / No inside WhatsApp</h2>
+      <p className="text-[12px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
+        Send the invitation with a template that has two quick-reply buttons, “Yes” and “No”. When a guest taps Yes they're marked as coming and get their check-in QR code straight back in the chat; No marks them as not coming.
+      </p>
+      {error && <p className="mt-3 text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
+      {info && (
+        <>
+          {row("Callback URL", info.url, "url")}
+          {row("Verify token", info.verifyToken, "token")}
+          <ol className="mt-4 list-decimal space-y-1.5 pl-5 text-[12px]" style={{ color: IVORY, fontFamily: FONT_BODY, lineHeight: 1.55 }}>
+            <li>In Meta for Developers, open your app → WhatsApp → Configuration → Webhook → Edit.</li>
+            <li>Paste the Callback URL and the Verify token above, then Verify and save.</li>
+            <li>Under “Webhook fields”, subscribe to <b>messages</b>.</li>
+            <li>In WhatsApp Manager, make a template with a photo at the top and two Quick reply buttons: <b>Yes</b> and <b>No</b> (in the template's language, e.g. نعم / لا). Once it's Active, choose it in the guest Dashboard (“Your own template”).</li>
+          </ol>
+          <p className="mt-3 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.55 }}>
+            Delivery ticks keep working: everything this receives is passed on to the whatsapp-webhook function as before.
+            {!info.appSecretSet && " For extra safety, add WHATSAPP_APP_SECRET (Meta app → Settings → Basic → App secret) to the app's environment in Dokploy."}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3 text-[11.5px]" style={{ fontFamily: FONT_BODY }}>
+            <span style={{ color: info.sendingReady ? UI_OK : UI_ERROR }}>{info.sendingReady ? "✓ WhatsApp sending is set up" : "✗ WhatsApp sending isn't set up"}</span>
+            <span style={{ color: info.lastEventAt ? UI_OK : MUTED }}>{info.lastEventAt ? `✓ Last message from Meta: ${new Date(info.lastEventAt).toLocaleString()}` : "Nothing received from Meta yet (since the last restart)"}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function WhatsAppTemplateField({ integrations, updateIntegrations }) {
   const wt = integrations?.waTemplate || {};
   const set = (patch) => updateIntegrations({ waTemplate: { ...wt, ...patch } });
@@ -11502,6 +11551,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
             headerImageUrl: waTemplate.imageHeader === false ? null : og?.image || null,
             fill: { name: guestName, names: messageNames, link: guestLink(group) },
             vars: Array.isArray(waTemplate.params) ? waTemplateVars(waTemplate) : undefined,
+            slug, groupId: group.id,
           }
         : {
             to: group.phone,
@@ -11509,6 +11559,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
             languageCode: waTemplate.stdLang || WHATSAPP_TEMPLATE_LANGUAGE,
             variables: [guestName, messageNames, guestLink(group)],
             headerImageUrl: og?.image || null,
+            slug, groupId: group.id,
           });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
       updateGuestGroup(group.id, { whatsappTemplateSentAt: Date.now(), invitationSent: true });
@@ -11547,6 +11598,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
         languageCode: waTemplate.stdLang || WHATSAPP_TEMPLATE_LANGUAGE,
         variables: [guestGroupName(group) || group.members[0]?.name || "Guest", messageNames, guestLink(group)],
         headerImageUrl: og?.image || null,
+        slug, groupId: group.id,
       });
       setWhatsappResults((r) => ({ ...r, [group.id]: "sent" }));
       updateGuestGroup(group.id, { whatsappReminderSentAt: Date.now() });
@@ -19985,7 +20037,12 @@ export default function InvitationBuilder() {
 
         {view === "livechat" && !actingAsUser && <LiveChatInbox chat={liveChat} />}
 
-        {view === "contact" && !actingAsUser && <SiteContactEditor />}
+        {view === "contact" && !actingAsUser && (
+          <>
+            <SiteContactEditor />
+            <div className="mt-6"><WhatsAppRepliesSetup /></div>
+          </>
+        )}
         {view === "invoices" && !actingAsUser && <InvoicesPanel isAdmin />}
         {view === "team" && !actingAsUser && <TeamManager />}
         {view === "review" && !actingAsUser && <DesignReviewPanel />}
