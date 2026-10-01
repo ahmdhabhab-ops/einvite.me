@@ -534,6 +534,75 @@ app.post("/api/guests/from-image", requireMember, limitGuestOcr, express.json({ 
   }
 });
 
+// The app's assistant: answers the host's questions about their own guest
+// list (who's coming, who isn't, how many, who hasn't replied) from their
+// invitation's data, and says when they'd rather talk to a person.
+const assistantHits = new Map(); // owner -> { count, since }
+app.post("/api/assistant", requireMember, express.json({ limit: "64kb" }), async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: "The assistant isn't switched on yet: OPENAI_API_KEY needs to be set on the app in Dokploy." });
+  const ownerId = pushOwnerOf(req);
+  if (!ownerId) return res.status(401).json({ error: "Please log in." });
+  const now = Date.now();
+  const h = assistantHits.get(ownerId);
+  const cur = h && now - h.since < 3600000 ? h : { count: 0, since: now };
+  if (ownerId !== "__owner__" && cur.count >= 80) return res.status(429).json({ error: "You've asked a lot in the last hour — please try again a bit later." });
+  assistantHits.set(ownerId, { count: cur.count + 1, since: cur.since });
+  const history = (Array.isArray(req.body?.messages) ? req.body.messages : [])
+    .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .slice(-12).map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
+  if (!history.length || history[history.length - 1].role !== "user") return res.status(400).json({ error: "Ask a question." });
+  try {
+    const raw = await kvRead(`einvite:invitation-${ownerId}`);
+    const inv = raw ? JSON.parse(raw) : {};
+    const groups = Array.isArray(inv.guestGroups) ? inv.guestGroups : [];
+    const cover = Object.values(inv.content || {})[0]?.cover || {};
+    const rows = groups.map((g) => {
+      const ms = (g.members || []).map((m) => ({ name: String(m.name || ""), status: m.status || "pending" }));
+      const yes = ms.filter((m) => m.status === "yes").length;
+      return {
+        family: String(g.name || ms[0]?.name || "Guest"),
+        members: ms,
+        extraGuests: Number(g.additionalGuests) || 0,
+        comingCount: yes ? yes + (Number(g.additionalGuests) || 0) : 0,
+        phone: String(g.phone || ""),
+        table: String(g.table || ""),
+        replied: ms.some((m) => m.status !== "pending"),
+        lastUpdate: g.updatedAt ? new Date(g.updatedAt).toISOString().slice(0, 16) : "",
+      };
+    });
+    const totals = {
+      families: rows.length,
+      peopleComing: rows.reduce((n, r) => n + r.comingCount, 0),
+      peopleNotComing: rows.reduce((n, r) => n + r.members.filter((m) => m.status === "no").length, 0),
+      familiesNotReplied: rows.filter((r) => !r.replied).length,
+    };
+    const facts = { event: { names: [cover.name1, cover.name2].filter(Boolean).join(" & "), date: inv.rsvpSchedule?.date || "", time: inv.rsvpSchedule?.time || "" }, totals, guests: rows.slice(0, 600) };
+    const r = await fetch(`${process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: "You are the eInvite.me assistant inside the host's phone app. The host is organising an event and you help with their guest replies. Answer ONLY from the JSON data below (today is " + new Date().toISOString().slice(0, 10) + "); never invent guests or numbers. A family's comingCount = members who said yes plus their extraGuests. Be short and clear, use lists for names. Reply in the same language and style the host writes in (Arabic, Lebanese Arabizi, English, French...). If the host asks to talk to a person / the team / sales / support, or asks for something you can't do from this data (payments, changing the design, technical problems), say you're connecting them to the team and set handoff to true. Reply with only JSON: {\"reply\": \"...\", \"handoff\": false}.\n\nDATA:\n" + JSON.stringify(facts),
+          },
+          ...history,
+        ],
+      }),
+    });
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
+    const data = await r.json();
+    const out = JSON.parse(data.choices?.[0]?.message?.content || "{}");
+    res.json({ reply: String(out.reply || "").slice(0, 6000) || "Sorry, I couldn't answer that.", handoff: out.handoff === true });
+  } catch (err) {
+    console.error("assistant failed:", err.message);
+    res.status(502).json({ error: "The assistant didn't respond — please try again." });
+  }
+});
+
 // Upload a new video: the raw file is the request body.
 app.post("/api/video/optimize", requireMember, express.raw({ type: () => true, limit: VIDEO_MAX_UPLOAD }), (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) return res.status(400).json({ error: "No video received." });

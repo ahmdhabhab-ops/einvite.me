@@ -13156,8 +13156,15 @@ function ChatBubble({ mine, body, time }) {
 
 // Floating "Chat with us" button for visitors. `page` says where they
 // wrote from (home / shop / builder), shown to the admin in the inbox.
-function LiveChatWidget({ page, defaultName = "", bottom = 20 }) {
+function LiveChatWidget({ page, defaultName = "", bottom = 20, openSignal = 0, prefill = "" }) {
   const [open, setOpen] = useState(false);
+  // Another part of the page can open the chat with a message ready to send
+  // (the app's assistant handing over to a person).
+  useEffect(() => {
+    if (!openSignal) return;
+    setOpen(true);
+    if (prefill) setInput(prefill.slice(0, 2000));
+  }, [openSignal]);
   const [conversationId, setConversationId] = useState(() => lsGet(LIVE_CHAT_ID_KEY));
   const [name, setName] = useState(() => lsGet(LIVE_CHAT_NAME_KEY) || defaultName);
   const [messages, setMessages] = useState([]);
@@ -14232,6 +14239,70 @@ function AppNotificationsCard({ installed, isIos }) {
   );
 }
 
+// The app's AI assistant: questions about the guest list, answered from
+// the invitation's own data, with a hand-over to a person.
+function AppAssistant({ messages, setMessages, onHandoff }) {
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const endRef = useRef(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages.length, busy]);
+  const ask = async (text) => {
+    const q = String(text || "").trim();
+    if (!q || busy) return;
+    const next = [...messages, { role: "user", content: q }];
+    setMessages(next); setInput(""); setError(""); setBusy(true);
+    try {
+      const { reply, handoff } = await apiJson("/api/assistant", { method: "POST", body: { messages: next.slice(-12) } });
+      setMessages((m) => [...m, { role: "assistant", content: reply, handoff }]);
+      if (handoff) onHandoff(q);
+    } catch (err) {
+      setError(err.message || "The assistant didn't respond.");
+    } finally { setBusy(false); }
+  };
+  const chips = ["Who is coming?", "Who said no?", "How many people are coming?", "Who hasn't replied yet?"];
+  return (
+    <div className="rounded-2xl p-4" style={{ background: INK_2, border: "1px solid rgba(201,164,76,0.14)" }}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "rgba(201,164,76,0.16)" }}><Sparkles size={17} style={{ color: GOLD_SOFT }} /></span>
+          <div>
+            <div className="text-[13.5px] font-semibold" style={{ color: IVORY }}>Assistant</div>
+            <div className="text-[11px]" style={{ color: MUTED }}>Ask about your replies, in any language</div>
+          </div>
+        </div>
+        <button onClick={() => onHandoff(messages.filter((m) => m.role === "user").slice(-1)[0]?.content || "")} className="flex-shrink-0 rounded-full px-3 py-2 text-[11.5px] font-semibold" style={{ background: INK_3, color: IVORY, border: "1px solid rgba(201,164,76,0.3)" }}>
+          Talk to a person
+        </button>
+      </div>
+      <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-1">
+        {messages.length === 0 && (
+          <div className="flex flex-wrap gap-2 py-1">
+            {chips.map((c) => (
+              <button key={c} onClick={() => ask(c)} className="rounded-full px-3 py-2 text-[12px]" style={{ background: INK_3, color: IVORY }}>{c}</button>
+            ))}
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <div dir="auto" className="max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13px]" style={{ background: m.role === "user" ? GOLD : INK_3, color: m.role === "user" ? INK : IVORY, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+              {m.content}
+              {m.handoff && <div className="mt-1.5 text-[11px]" style={{ opacity: 0.75 }}>The chat with our team is open below ↓</div>}
+            </div>
+          </div>
+        ))}
+        {busy && <div className="text-[12px]" style={{ color: MUTED }}>Thinking…</div>}
+        <div ref={endRef} />
+      </div>
+      {error && <p className="mt-2 text-[11.5px]" style={{ color: UI_ERROR }}>{error}</p>}
+      <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="mt-3 flex items-center gap-2">
+        <input value={input} onChange={(e) => setInput(e.target.value.slice(0, 1000))} dir="auto" placeholder="e.g. Who is coming from the Haddad family?" className="min-w-0 flex-1 rounded-full px-4 py-2.5 text-[13.5px] outline-none" style={{ background: INK_3, color: IVORY }} />
+        <button type="submit" disabled={busy || !input.trim()} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full" style={{ background: GOLD, color: INK, opacity: busy || !input.trim() ? 0.5 : 1 }}><Send size={16} /></button>
+      </form>
+    </div>
+  );
+}
+
 function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loaded, onLogout }) {
   const [tab, setTab] = useState("home");
   const [installEvent, setInstallEvent] = useState(null);
@@ -14239,6 +14310,14 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
   const [contact, setContact] = useState(null);
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
+  const [aiMessages, setAiMessages] = useState([]);
+  const [chatSignal, setChatSignal] = useState(0);
+  const [chatPrefill, setChatPrefill] = useState("");
+  const handoff = (question) => {
+    setChatPrefill(`Hi, I'd like to talk to someone from the team.${question ? `
+(I asked the assistant: "${question}")` : ""}`);
+    setChatSignal((n) => n + 1);
+  };
   const cd = useCountdown(schedule?.date, schedule?.time);
   useEffect(() => {
     navigator.serviceWorker?.register("/sw.js").catch(() => {});
@@ -14264,7 +14343,7 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
     { key: "guests", label: "Guests", icon: Users },
     { key: "voice", label: "Voice", icon: Mic },
     { key: "checkin", label: "Check-in", icon: QrCode },
-    { key: "contact", label: "Contact", icon: MessageCircle },
+    { key: "contact", label: "Chat", icon: MessageCircle },
   ];
   const list = replies
     .filter((r) => filter === "all" || r.state === filter)
@@ -14404,6 +14483,7 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
 
         {tab === "contact" && (
           <div className="space-y-4">
+            <AppAssistant messages={aiMessages} setMessages={setAiMessages} onHandoff={handoff} />
             <div className="rounded-2xl p-5" style={card}>
               <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22 }}>We're here to help</div>
               <p className="mt-1 text-[12.5px]" style={{ color: MUTED, lineHeight: 1.6 }}>Reach the eInvite team any time — or tap the chat bubble below to write to us here.</p>
@@ -14417,7 +14497,7 @@ function ClientApp({ user, title, schedule, guestGroups, slug, siteDomain, loade
                 {siteContactLinks(contact).length === 0 && <p className="text-[12.5px]" style={{ color: MUTED }}>Use the chat below to reach us.</p>}
               </div>
             </div>
-            <LiveChatWidget page="app" defaultName={[user?.name, user?.email].filter(Boolean).join(" · ").slice(0, 80)} bottom={92} />
+            <LiveChatWidget page="app" defaultName={[user?.name, user?.email].filter(Boolean).join(" · ").slice(0, 80)} bottom={92} openSignal={chatSignal} prefill={chatPrefill} />
           </div>
         )}
       </main>
