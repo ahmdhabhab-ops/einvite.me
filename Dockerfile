@@ -31,6 +31,7 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server.js ./server.js
+COPY whatsapp-inbox-forwarder.js ./whatsapp-inbox-forwarder.js
 COPY blog ./blog
 
 EXPOSE 3000
