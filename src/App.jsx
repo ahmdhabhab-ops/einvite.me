@@ -11529,6 +11529,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
   // webhook ("sent" | "delivered" | "read" | "failed"). Refreshed
   // periodically so the checkmarks update without a manual page reload.
   const [whatsappDeliveryStatus, setWhatsappDeliveryStatus] = useState({});
+  const [whatsappDeliveryErrors, setWhatsappDeliveryErrors] = useState({}); // phone -> why it wasn't delivered
   const guestPhonesRef = useRef([]);
   guestPhonesRef.current = guestGroups.map((g) => (g.phone || "").replace(/[^0-9]/g, "")).filter(Boolean);
 
@@ -11541,8 +11542,8 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
           if (!guestPhonesRef.current.length) return;
           const res = await fetch("/api/whatsapp-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phones: guestPhonesRef.current }) });
           if (!res.ok) return;
-          const { statuses } = await res.json();
-          if (!cancelled) setWhatsappDeliveryStatus(statuses || {});
+          const { statuses, errors } = await res.json();
+          if (!cancelled) { setWhatsappDeliveryStatus(statuses || {}); setWhatsappDeliveryErrors(errors || {}); }
           return;
         }
         const res = await fetch(
@@ -12144,10 +12145,11 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
                             title={
                               whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "Read" :
                               whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "delivered" ? "Delivered" :
-                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? "Failed to deliver" : "Sent"
+                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? `Failed to deliver${whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")] ? `: ${whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")]}` : ""}` : "Sent"
                             }
+                            onClick={() => { const why = whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")]; if (why) alert(`Not delivered to ${g.phone}:\n\n${why}`); }}
                             className="flex h-5 w-5 items-center justify-center"
-                            style={{ color: whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "#53BDEB" : whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? UI_ERROR : "rgba(147,166,155,0.7)" }}
+                            style={{ color: whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "#53BDEB" : whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? UI_ERROR : "rgba(147,166,155,0.7)", cursor: whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")] ? "pointer" : "default" }}
                           >
                             {whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? <XCircle size={12} /> :
                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "sent" ? <Check size={12} /> : <CheckCheck size={12} />}
