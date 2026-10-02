@@ -1944,13 +1944,14 @@ app.post("/api/whatsapp-status", express.json({ limit: "64kb" }), async (req, re
     const r = await fetch(`${SUPABASE_URL}/rest/v1/whatsapp_incoming?direction=eq.status&from_number=in.(${phones.join(",")})&select=from_number,message_type,received_at&order=received_at.asc`, { headers: serviceHeaders });
     if (!r.ok) throw new Error(`whatsapp_incoming read failed (${r.status})`);
     const statuses = {};
-    for (const row of await r.json()) statuses[row.from_number] = row.message_type; // latest wins
+    const times = {}; // when that latest status came in, so an older message's status isn't shown for a newer send
+    for (const row of await r.json()) { statuses[row.from_number] = row.message_type; times[row.from_number] = Date.parse(row.received_at) || null; } // latest wins
     const errors = {};
     try {
       const all = JSON.parse((await kvRead(WA_ERRORS_KV)) || "{}");
       for (const p of phones) if (all[p] && statuses[p] === "failed") errors[p] = `${waErrorText(all[p])}${all[p].code ? ` (${all[p].code})` : ""}`;
     } catch {}
-    res.set("cache-control", "no-store").json({ statuses, errors });
+    res.set("cache-control", "no-store").json({ statuses, errors, times });
   } catch (err) {
     console.error("whatsapp status failed:", err.message);
     res.status(502).json({ error: "failed" });
