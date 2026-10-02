@@ -11434,6 +11434,62 @@ function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
   );
 }
 
+// Where a guest's WhatsApp invitation is, like WhatsApp's own ticks: a dash
+// (not sent), ✓ sent, green ✓✓ delivered, blue ✓✓ read, red ✗ not
+// delivered (with why). A status older than the latest send is ignored.
+function whatsappDeliveryState(g, statuses, times) {
+  const phone = String(g.phone || "").replace(/[^0-9]/g, "");
+  const st = phone ? statuses[phone] : null;
+  const at = phone ? times[phone] : null;
+  const fresh = st && (!g.whatsappTemplateSentAt || !at || at >= g.whatsappTemplateSentAt - 60000);
+  if (g.whatsappTemplateSentAt || fresh) {
+    if (fresh && ["failed", "read", "delivered", "sent"].includes(st)) return st;
+    return "sent";
+  }
+  return g.invitationSent ? "manual" : "none";
+}
+// The latest WhatsApp delivery status of these numbers, refreshed every 15s.
+function useWhatsappDelivery(phones) {
+  const [data, setData] = useState({ statuses: {}, errors: {}, times: {} });
+  const ref = useRef([]);
+  ref.current = [...new Set(phones.map((p) => String(p || "").replace(/[^0-9]/g, "")).filter((p) => p.length >= 6))];
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!ref.current.length || document.hidden) return;
+      try {
+        const res = await fetch("/api/whatsapp-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phones: ref.current }) });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setData({ statuses: d.statuses || {}, errors: d.errors || {}, times: d.times || {} });
+      } catch {}
+    };
+    load();
+    const t = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+  return data;
+}
+function DeliveryTicks({ state, error, onToggleManual }) {
+  const look = {
+    none: { icon: <Minus size={14} />, color: "rgba(147,166,155,0.55)", title: "Not sent yet — click to mark as sent (if you sent it yourself)" },
+    manual: { icon: <Check size={14} />, color: "rgba(147,166,155,0.85)", title: "Marked as sent by you — click to unmark" },
+    sent: { icon: <Check size={15} />, color: "rgba(147,166,155,0.95)", title: "Sent — waiting for WhatsApp to confirm it reached their phone" },
+    delivered: { icon: <CheckCheck size={16} />, color: UI_OK, title: "Delivered to their phone" },
+    read: { icon: <CheckCheck size={16} />, color: "#34B7F1", title: "Read" },
+    failed: { icon: <XCircle size={15} />, color: UI_ERROR, title: `Not delivered${error ? `: ${error}` : ""} — click for details` },
+  }[state] || {};
+  const click = () => {
+    if (state === "failed") alert(`Not delivered.\n\n${error || "WhatsApp couldn't deliver this message."}`);
+    else if (state === "none" || state === "manual") onToggleManual?.();
+  };
+  return (
+    <button onClick={click} title={look.title} className="inline-flex items-center justify-center" style={{ color: look.color, cursor: state === "sent" || state === "delivered" || state === "read" ? "default" : "pointer" }}>
+      {look.icon}
+    </button>
+  );
+}
+
 function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
   const staffAccessKeys = useAccessKeys(slug); // the check-in staff link's secret key
   const [filter, setFilter] = useState("all");
@@ -11530,6 +11586,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
   // periodically so the checkmarks update without a manual page reload.
   const [whatsappDeliveryStatus, setWhatsappDeliveryStatus] = useState({});
   const [whatsappDeliveryErrors, setWhatsappDeliveryErrors] = useState({}); // phone -> why it wasn't delivered
+  const [whatsappDeliveryTimes, setWhatsappDeliveryTimes] = useState({}); // phone -> when that status came in
   const guestPhonesRef = useRef([]);
   guestPhonesRef.current = guestGroups.map((g) => (g.phone || "").replace(/[^0-9]/g, "")).filter(Boolean);
 
@@ -11542,8 +11599,8 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
           if (!guestPhonesRef.current.length) return;
           const res = await fetch("/api/whatsapp-status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phones: guestPhonesRef.current }) });
           if (!res.ok) return;
-          const { statuses, errors } = await res.json();
-          if (!cancelled) { setWhatsappDeliveryStatus(statuses || {}); setWhatsappDeliveryErrors(errors || {}); }
+          const { statuses, errors, times } = await res.json();
+          if (!cancelled) { setWhatsappDeliveryStatus(statuses || {}); setWhatsappDeliveryErrors(errors || {}); setWhatsappDeliveryTimes(times || {}); }
           return;
         }
         const res = await fetch(
@@ -12026,7 +12083,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
                     (<span style={{ color: CHART_COLORS.yes }}>●</span> yes <span style={{ color: CHART_COLORS.no }}>●</span> no <span style={{ color: "#9AA8A0" }}>●</span> pending)
                   </span>
                 </th>
-                <th className="px-1 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Sent</th>
+                <th className="px-1 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }} title="– not sent · ✓ sent · green ✓✓ delivered · blue ✓✓ read · red ✗ not delivered (click it to see why)">Sent<div className="mt-0.5 whitespace-nowrap text-[8.5px] font-normal normal-case" style={{ letterSpacing: 0 }}><span>✓</span> <span style={{ color: UI_OK }}>✓✓</span> <span style={{ color: "#34B7F1" }}>✓✓</span> <span style={{ color: UI_ERROR }}>✗</span></div></th>
                 <th className="px-1 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Viewed</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Link</th>
               </tr>
@@ -12101,9 +12158,11 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
                       <RsvpBadges members={g.members} />
                     </td>
                     <td className="px-1 py-0.5 text-center">
-                      <button onClick={() => updateGuestGroup(g.id, (g.invitationSent || g.whatsappTemplateSentAt) ? { invitationSent: false, whatsappTemplateSentAt: null } : { invitationSent: true })} title={(g.invitationSent || g.whatsappTemplateSentAt) ? "Marked as sent — click to unmark" : "Not sent yet — click to mark as sent"}>
-                        {(g.invitationSent || g.whatsappTemplateSentAt) ? <CheckCircle2 size={14} color={CHART_COLORS.yes} /> : <XCircle size={14} color="rgba(147,166,155,0.4)" />}
-                      </button>
+                      <DeliveryTicks
+                        state={whatsappDeliveryState(g, whatsappDeliveryStatus, whatsappDeliveryTimes)}
+                        error={whatsappDeliveryErrors[String(g.phone || "").replace(/[^0-9]/g, "")]}
+                        onToggleManual={() => updateGuestGroup(g.id, g.invitationSent ? { invitationSent: false } : { invitationSent: true })}
+                      />
                     </td>
                     <td className="px-1 py-0.5 text-center">
                       <button onClick={() => updateGuestGroup(g.id, { invitationViewed: !g.invitationViewed })} title={g.invitationViewed ? "Marked as viewed — click to unmark" : "Not viewed yet — click to mark as viewed"}>
@@ -12128,32 +12187,17 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
                           <button
                             onClick={() => sendAutomatedWhatsApp(g)}
                             disabled={sendingWhatsAppIds.has(g.id)}
-                            title={(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "Sent!" : whatsappResults[g.id] === "error" ? `Failed${whatsappErrors[g.id] ? `: ${whatsappErrors[g.id]}` : ""} — click to retry` : "Send the invitation automatically (WhatsApp API)"}
+                            title={whatsappResults[g.id] === "error" ? `Couldn't send${whatsappErrors[g.id] ? `: ${whatsappErrors[g.id]}` : ""} — click to retry` : g.whatsappTemplateSentAt ? "Send the WhatsApp invitation again (see the Sent column for delivery)" : "Send the invitation automatically (WhatsApp API)"}
                             className="flex h-7 w-7 items-center justify-center rounded-lg"
                             style={{
                               border: "1px solid rgba(201,164,76,0.45)",
-                              background: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? "rgba(143,191,163,0.2)" : whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
-                              color: (whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? CHART_COLORS.yes : whatsappResults[g.id] === "error" ? UI_ERROR : GOLD_SOFT,
+                              background: whatsappResults[g.id] === "error" ? "rgba(226,155,155,0.2)" : INK_3,
+                              color: whatsappResults[g.id] === "error" ? UI_ERROR : GOLD_SOFT,
                               opacity: sendingWhatsAppIds.has(g.id) ? 0.5 : 1,
                             }}
                           >
-                            {(whatsappResults[g.id] === "sent" || g.whatsappTemplateSentAt) ? <CheckCircle2 size={13} /> : whatsappResults[g.id] === "error" ? <XCircle size={13} /> : <Send size={13} />}
+                            {whatsappResults[g.id] === "error" ? <XCircle size={13} /> : <Send size={13} />}
                           </button>
-                        )}
-                        {g.phone && whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] && (
-                          <span
-                            title={
-                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "Read" :
-                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "delivered" ? "Delivered" :
-                              whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? `Failed to deliver${whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")] ? `: ${whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")]}` : ""}` : "Sent"
-                            }
-                            onClick={() => { const why = whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")]; if (why) alert(`Not delivered to ${g.phone}:\n\n${why}`); }}
-                            className="flex h-5 w-5 items-center justify-center"
-                            style={{ color: whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "read" ? "#53BDEB" : whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? UI_ERROR : "rgba(147,166,155,0.7)", cursor: whatsappDeliveryErrors[g.phone.replace(/[^0-9]/g, "")] ? "pointer" : "default" }}
-                          >
-                            {whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "failed" ? <XCircle size={12} /> :
-                             whatsappDeliveryStatus[g.phone.replace(/[^0-9]/g, "")] === "sent" ? <Check size={12} /> : <CheckCheck size={12} />}
-                          </span>
                         )}
                       </div>
                     </td>
@@ -15085,6 +15129,7 @@ function YesNoTool({ user, guestGroups, addGuestGroups, updateGuestGroup, delete
   };
   const replies = guestGroups.map((g) => ({ g, ...groupReply(g) }));
   const stats = replies.reduce((a, r) => ({ coming: a.coming + r.coming, no: a.no + (r.state === "no" ? 1 : 0), waiting: a.waiting + (r.state === "pending" ? 1 : 0) }), { coming: 0, no: 0, waiting: 0 });
+  const delivery = useWhatsappDelivery(guestGroups.map((g) => g.phone));
   const badge = (state) => state === "yes" ? { bg: "rgba(47,122,85,0.12)", fg: UI_OK, label: "Coming" } : state === "no" ? { bg: "rgba(176,72,72,0.1)", fg: UI_ERROR, label: "Not coming" } : { bg: INK_3, fg: MUTED, label: "Waiting" };
   const stepTitle = (n, title, done) => (
     <div className="mb-3 flex items-center gap-2.5">
@@ -15181,7 +15226,10 @@ function YesNoTool({ user, guestGroups, addGuestGroups, updateGuestGroup, delete
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-[14px] font-semibold" dir="auto">{guestGroupName(g) || "Guest"}{Number(g.additionalGuests) > 0 && <span style={{ color: MUTED, fontWeight: 400 }}> +{g.additionalGuests}</span>}</div>
-                        <div className="text-[11.5px]" style={{ color: MUTED }} dir="ltr">{g.phone || "No number"}{g.whatsappTemplateSentAt ? ` · sent ${timeAgo(g.whatsappTemplateSentAt)}` : ""}{g.rsvpVia === "whatsapp" ? " · replied on WhatsApp" : ""}</div>
+                        <div className="flex items-center gap-1.5 text-[11.5px]" style={{ color: MUTED }} dir="ltr">
+                          {g.whatsappTemplateSentAt && <DeliveryTicks state={whatsappDeliveryState(g, delivery.statuses, delivery.times)} error={delivery.errors[String(g.phone || "").replace(/[^0-9]/g, "")]} />}
+                          <span>{g.phone || "No number"}{g.whatsappTemplateSentAt ? ` · ${{ sent: "sent", delivered: "delivered", read: "read", failed: "not delivered" }[whatsappDeliveryState(g, delivery.statuses, delivery.times)] || "sent"} · ${timeAgo(g.whatsappTemplateSentAt)}` : ""}{g.rsvpVia === "whatsapp" ? " · replied on WhatsApp" : ""}</span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: b.bg, color: b.fg }}>{b.label}{state === "yes" ? ` · ${coming}` : ""}</span>
