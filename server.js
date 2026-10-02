@@ -1477,7 +1477,7 @@ const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key =
 // Server-only data (logins, invoices, keys…): read through their own
 // endpoints, never straight from the store by anyone but the admin.
 const ADMIN_ONLY_KV = (key) =>
-  /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys|wa-verify-token)$/.test(key) ||
+  /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys|wa-verify-token|wa-errors)$/.test(key) ||
   /^einvite:(push-subs-|slim-backup-|wa-msg-)/.test(key);
 
 app.get("/api/kv", async (req, res) => {
@@ -1871,9 +1871,53 @@ app.post("/api/whatsapp/webhook", express.raw({ type: () => true, limit: "1mb" }
       for (const msg of change?.value?.messages || []) {
         await handleWhatsappMessage(msg).catch((err) => console.error("WhatsApp reply failed:", err.message));
       }
+      await noteWhatsappFailures(change?.value?.statuses || []).catch((err) => console.error("WhatsApp status note failed:", err.message));
     }
   }
 });
+// Why a message didn't reach a guest (Meta's "failed" status), kept per
+// phone number so the dashboard can say it in plain words; cleared once a
+// later message to that number is delivered.
+const WA_ERRORS_KV = "einvite:wa-errors";
+async function noteWhatsappFailures(statuses) {
+  if (!statuses.length) return;
+  const raw = await kvRead(WA_ERRORS_KV);
+  const all = raw ? JSON.parse(raw) : {};
+  let changed = false;
+  for (const st of statuses) {
+    const phone = String(st?.recipient_id || "").replace(/[^0-9]/g, "");
+    if (!phone) continue;
+    if (st.status === "failed") {
+      const e = (st.errors || [])[0] || {};
+      all[phone] = { code: Number(e.code) || null, title: String(e.title || e.message || "").slice(0, 200), details: String(e.error_data?.details || "").slice(0, 300), at: Date.now() };
+      changed = true;
+      console.error("WhatsApp delivery failed:", phone.slice(0, 4) + "…", e.code, e.title);
+    } else if ((st.status === "delivered" || st.status === "read") && all[phone]) {
+      delete all[phone];
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const entries = Object.entries(all).sort((x, y) => y[1].at - x[1].at).slice(0, 3000);
+  await kvWrite(WA_ERRORS_KV, JSON.stringify(Object.fromEntries(entries)));
+}
+const WA_ERROR_TEXT = {
+  131049: "WhatsApp didn't deliver this marketing message: Meta limits how many marketing messages one person gets. Try again later, or use a Utility template.",
+  131050: "This person has stopped marketing messages from your WhatsApp number.",
+  130472: "Meta held this one back (the number is part of a WhatsApp experiment). Try again later.",
+  131026: "Couldn't deliver: the number may not be on WhatsApp, or they haven't accepted WhatsApp's latest terms.",
+  131047: "More than 24 hours since they last wrote — only an approved template can be sent.",
+  131052: "WhatsApp couldn't load the photo at the top — upload the share photo again.",
+  131053: "WhatsApp couldn't load the photo at the top — upload the share photo again.",
+  131042: "There's a payment problem on the WhatsApp Business account.",
+  131031: "The WhatsApp Business account is locked.",
+  131021: "That's the business's own number — send to a different one.",
+  131000: "Something went wrong on WhatsApp's side. Try again.",
+  132000: "The message's variables don't match the template.",
+  132001: "This template doesn't exist (or isn't approved) in that language.",
+};
+const waErrorText = (e) => WA_ERROR_TEXT[e.code] || [e.title, e.details].filter(Boolean).join(" — ") || "WhatsApp couldn't deliver this message.";
+
 // What the admin pastes into Meta to turn this on.
 app.get("/api/whatsapp/webhook-info", requireAdminOnly, async (req, res) => {
   try {
@@ -1901,7 +1945,12 @@ app.post("/api/whatsapp-status", express.json({ limit: "64kb" }), async (req, re
     if (!r.ok) throw new Error(`whatsapp_incoming read failed (${r.status})`);
     const statuses = {};
     for (const row of await r.json()) statuses[row.from_number] = row.message_type; // latest wins
-    res.set("cache-control", "no-store").json({ statuses });
+    const errors = {};
+    try {
+      const all = JSON.parse((await kvRead(WA_ERRORS_KV)) || "{}");
+      for (const p of phones) if (all[p] && statuses[p] === "failed") errors[p] = `${waErrorText(all[p])}${all[p].code ? ` (${all[p].code})` : ""}`;
+    } catch {}
+    res.set("cache-control", "no-store").json({ statuses, errors });
   } catch (err) {
     console.error("whatsapp status failed:", err.message);
     res.status(502).json({ error: "failed" });
