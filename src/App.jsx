@@ -11563,11 +11563,17 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
     { name: "Awaiting reply", value: pending, color: CHART_COLORS.pending },
   ];
 
+  // (guestGroupName, not groupFullName: that one is defined further down,
+  // so using it here crashed the page as soon as something was typed.)
   const filtered = guestGroups
-    .filter((g) => (filter === "all" ? true : g.members.some((m) => m.status === filter)))
+    .filter((g) => (filter === "all" ? true : (g.members || []).some((m) => m?.status === filter)))
     .filter((g) => {
-      const q = search.toLowerCase();
-      return !q || groupFullName(g).toLowerCase().includes(q) || g.members.some((m) => m.name.toLowerCase().includes(q));
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      const digits = q.replace(/[^0-9]/g, "");
+      return String(guestGroupName(g) || "").toLowerCase().includes(q)
+        || (g.members || []).some((m) => String(m?.name || "").toLowerCase().includes(q))
+        || (digits.length >= 3 && String(g.phone || "").replace(/[^0-9]/g, "").includes(digits));
     });
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -12064,7 +12070,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg px-3 py-1.5" style={{ background: INK_3, flex: 1, minWidth: 160 }}>
             <Search size={12} style={{ color: MUTED }} />
-            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Search by name" className="w-full bg-transparent text-[12px] outline-none" style={{ color: IVORY, fontFamily: FONT_BODY }} />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Search by name or phone" className="w-full bg-transparent text-[12px] outline-none" style={{ color: IVORY, fontFamily: FONT_BODY }} />
           </div>
           {["all", "yes", "no", "pending"].map((f) => (
             <GhostButton key={f} active={filter === f} onClick={() => { setFilter(f); setPage(0); }}>
