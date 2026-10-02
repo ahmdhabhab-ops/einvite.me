@@ -22,6 +22,7 @@ import { randomUUID, timingSafeEqual, createHmac, scrypt, randomBytes } from "no
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 import webpush from "web-push";
+import { createInboxForwarder } from "./whatsapp-inbox-forwarder.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "dist");
@@ -1797,6 +1798,16 @@ const waMessageKey = (messageId) => `einvite:wa-msg-${createHmac("sha256", "wa-m
 const WA_APP_SECRET = (process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET || "").trim();
 const WA_FORWARD_URL = (process.env.WHATSAPP_WEBHOOK_FORWARD_URL || `${SUPABASE_URL}/functions/v1/whatsapp-webhook`).trim();
 let waWebhookLastAt = 0;
+// Copy of every verified webhook for the eInvite Inbox (inbox.einvite.me).
+// Off unless WHATSAPP_INBOX_FORWARD_URL is set; failures never touch the flow below.
+const inboxForwarder = createInboxForwarder({
+  url: process.env.WHATSAPP_INBOX_FORWARD_URL || "",
+  queueDir: process.env.WHATSAPP_INBOX_QUEUE_DIR || "/data/whatsapp-inbox-outbox",
+});
+if (inboxForwarder.enabled) {
+  if (!WA_APP_SECRET) console.error("WHATSAPP_INBOX_FORWARD_URL is set but no app secret is configured: the Inbox rejects unsigned webhooks, so nothing will reach it.");
+  inboxForwarder.start();
+}
 async function waVerifyToken() {
   if (process.env.WHATSAPP_VERIFY_TOKEN) return process.env.WHATSAPP_VERIFY_TOKEN.trim();
   let token = await kvRead("einvite:wa-verify-token");
@@ -1889,6 +1900,8 @@ app.post("/api/whatsapp/webhook", express.raw({ type: () => true, limit: "1mb" }
   const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
   const signature = String(req.get("x-hub-signature-256") || "");
   if (WA_APP_SECRET && !sameSecret(signature, `sha256=${createHmac("sha256", WA_APP_SECRET).update(body).digest("hex")}`)) return res.sendStatus(401);
+  // Stored on disk before answering Meta, but only as a copy: if it can't be stored we still answer 200 so invitations/RSVPs keep working.
+  await inboxForwarder.enqueue(body, signature);
   res.sendStatus(200); // answer Meta straight away; the work happens after
   waWebhookLastAt = Date.now();
   if (WA_FORWARD_URL && WA_FORWARD_URL !== "off") {
