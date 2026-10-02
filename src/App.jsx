@@ -11434,6 +11434,32 @@ function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
   );
 }
 
+// The guest list as the server has it, folded into the one on screen: each
+// family keeps its newer version (a guest's reply), "viewed" marks come in,
+// and families that appeared since the last sync (open-link replies) are
+// added. Returns the same array when nothing changed.
+function mergeServerGuestGroups(local, server, syncedAt) {
+  const byId = new Map(server.filter((g) => g?.id).map((g) => [g.id, g]));
+  let changed = false;
+  const merged = local.map((g) => {
+    const sv = byId.get(g.id);
+    if (!sv) return g;
+    const viewedAt = Math.max(Number(g.viewedAt) || 0, Number(sv.viewedAt) || 0) || undefined;
+    let next = g;
+    if ((Number(sv.updatedAt) || 0) > (Number(g.updatedAt) || 0)) {
+      next = { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, updatedAt: sv.updatedAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
+    } else if ((Number(sv.viewedAt) || 0) > (Number(g.viewedAt) || 0) && (Number(sv.viewedAt) || 0) > (Number(g.updatedAt) || 0)) {
+      next = { ...g, invitationViewed: true, viewedAt };
+    }
+    if (next !== g) changed = true;
+    return next;
+  });
+  const localIds = new Set(local.map((g) => g.id));
+  const added = server.filter((g) => g?.id && !localIds.has(g.id) && Math.max(Number(g.updatedAt) || 0, Number(g.viewedAt) || 0) > syncedAt);
+  if (added.length) changed = true;
+  return changed ? [...added, ...merged] : local;
+}
+
 // Where a guest's WhatsApp invitation is, like WhatsApp's own ticks: a dash
 // (not sent), ✓ sent, green ✓✓ delivered, blue ✓✓ read, red ✗ not
 // delivered (with why). A status older than the latest send is ignored.
@@ -17802,13 +17828,41 @@ export default function InvitationBuilder() {
     swipeDirection: "vertical", tornPhotoEdges: false, viewStyle: "cards",
   });
 
+  // Replies and "viewed" marks arrive on the server while the Builder is
+  // open; this brings them into the guest list every 20 seconds.
+  const guestsSyncedAtRef = useRef(Date.now());
+  useEffect(() => {
+    if (builderDataMode !== "full") return;
+    let cancelled = false;
+    const tick = async () => {
+      if (document.hidden || !coreLoadCompletedRef.current || !persistentStorage.available()) return;
+      const startedAt = Date.now();
+      try {
+        const res = await persistentStorage.get(invitationKey(activeInvitationId), false);
+        if (cancelled || !res?.value) return;
+        const serverGroups = JSON.parse(res.value)?.guestGroups;
+        if (!Array.isArray(serverGroups)) return;
+        const since = guestsSyncedAtRef.current;
+        setGuestGroups((local) => {
+          const next = mergeServerGuestGroups(local, serverGroups, since);
+          return next === local ? local : next;
+        });
+        guestsSyncedAtRef.current = startedAt;
+      } catch {}
+    };
+    const t = setInterval(tick, 20000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [builderDataMode, activeInvitationId]);
+
   const getActiveSnapshot = () => ({
     content, timeline, locations, pageBackgrounds, music, rsvpSchedule, registry, enabledSteps, pageOrder,
     defaultLang, enabledLanguages, layouts, customBlocks, og, guestGroups, tables, rsvpSettings, integrations, intro,
     swipeDirection, tornPhotoEdges, viewStyle, openInviteLinks, venueElements,
+    guestsSyncedAt: guestsSyncedAtRef.current, // lets the server keep guests who replied after this
   });
 
   const applySnapshot = (snap) => {
+    guestsSyncedAtRef.current = Date.now();
     setContent(mergeContentWithDefaults(snap.content)); setTimeline(snap.timeline); setLocations(snap.locations);
     setPageBackgrounds(snap.pageBackgrounds); setMusic(snap.music); setRsvpSchedule(snap.rsvpSchedule);
     setRegistry(snap.registry); setEnabledSteps(snap.enabledSteps); setPageOrder(snap.pageOrder);
@@ -19626,6 +19680,14 @@ export default function InvitationBuilder() {
   // place — the live state if it's this device's own invitation, or the
   // correct client's slot in invitationsStore otherwise (without touching
   // whatever invitation is currently loaded for editing).
+  // Opening a personal link marks that family as "viewed" (once per browser).
+  useEffect(() => {
+    if (!guestView?.found || guestView.demo || !guestView.groupId || !guestView.userId || embedded) return;
+    const key = `einvite:viewed-${guestView.userId}-${guestView.groupId}`;
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch {}
+    fetch("/api/guest/viewed", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ownerId: guestView.userId, groupId: guestView.groupId }) }).catch(() => {});
+  }, [guestView?.found, guestView?.groupId, guestView?.userId]);
+
   const submitGuestViewRsvp = async ({ names, declinedNames, familyName, status, additionalGuests }) => {
     if (!guestView?.found) return null;
     if (guestView.demo) return null; // a design's preview: nothing to save

@@ -1501,6 +1501,33 @@ app.get("/api/kv", async (req, res) => {
   }
 });
 
+// Guests answer (and open their link) on the server while the couple may
+// have the Builder open with an older copy of the list. When that older
+// copy is saved, each family keeps whichever version is newer, and families
+// that appeared after the Builder last synced (an open-link reply) stay.
+function mergeGuestGroupsOnSave(incomingValue, serverValue) {
+  let incoming, server;
+  try { incoming = JSON.parse(incomingValue); server = JSON.parse(serverValue); } catch { return incomingValue; }
+  if (!Array.isArray(incoming?.guestGroups) || !Array.isArray(server?.guestGroups)) return incomingValue;
+  const byId = new Map(server.guestGroups.filter((g) => g?.id).map((g) => [g.id, g]));
+  const seen = new Set();
+  const merged = incoming.guestGroups.map((g) => {
+    const sv = g?.id ? byId.get(g.id) : null;
+    if (!sv) return g;
+    seen.add(g.id);
+    const viewedAt = Math.max(Number(g.viewedAt) || 0, Number(sv.viewedAt) || 0) || undefined;
+    if ((Number(sv.updatedAt) || 0) > (Number(g.updatedAt) || 0)) {
+      return { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, updatedAt: sv.updatedAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
+    }
+    const viewedSince = (Number(sv.viewedAt) || 0) > (Number(g.updatedAt) || 0);
+    return { ...g, invitationViewed: !!(g.invitationViewed || viewedSince), ...(viewedAt ? { viewedAt } : {}) };
+  });
+  const syncedAt = Number(incoming.guestsSyncedAt) || 0;
+  const added = syncedAt ? server.guestGroups.filter((g) => g?.id && !seen.has(g.id) && !incoming.guestGroups.some((x) => x?.id === g.id) && Math.max(Number(g.updatedAt) || 0, Number(g.viewedAt) || 0) > syncedAt) : [];
+  return JSON.stringify({ ...incoming, guestGroups: [...added, ...merged] });
+}
+const INVITATION_KEY_RE = /^einvite:invitation-[A-Za-z0-9_-]+$/;
+
 app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
   const key = String(req.body?.key || "");
   const value = req.body?.value;
@@ -1508,10 +1535,15 @@ app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
   if (!authReady) return res.status(503).json({ error: "not ready" });
   const who = requestRole(req);
   try {
+    const withLatestGuests = async () => {
+      if (!INVITATION_KEY_RE.test(key)) return value;
+      const current = await kvRead(key).catch(() => null);
+      return current ? mergeGuestGroupsOnSave(value, current) : value;
+    };
     if (who.role === "admin") {
-      await kvWrite(key, value);
+      await kvWrite(key, await withLatestGuests());
     } else if (who.role === "client" && key === `einvite:invitation-${who.userId}`) {
-      await kvWrite(key, value);
+      await kvWrite(key, await withLatestGuests());
     } else if (who.role === "client" && key === DRAFT_KEY) {
       const incoming = JSON.parse(value);
       const raw = await kvRead(DRAFT_KEY);
@@ -2090,6 +2122,37 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
   } catch (err) {
     console.error("guest rsvp failed:", err.message);
     res.status(502).json({ error: "Couldn't save your response — please try again." });
+  }
+});
+
+// A guest opened their personal link: the dashboard's "Viewed" ticks.
+const viewedHits = new Map(); // ip -> { count, since }
+app.post("/api/guest/viewed", express.json({ limit: "2kb" }), async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  const ip = clientIp(req);
+  const now = Date.now();
+  const hit = viewedHits.get(ip);
+  if (hit && now - hit.since < 60000 && hit.count >= 30) return res.status(429).json({ error: "slow down" });
+  viewedHits.set(ip, hit && now - hit.since < 60000 ? { count: hit.count + 1, since: hit.since } : { count: 1, since: now });
+  const ownerId = String(req.body?.ownerId || "");
+  const groupId = String(req.body?.groupId || "");
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(ownerId) || !/^[A-Za-z0-9_-]{1,64}$/.test(groupId)) return res.status(400).json({ error: "bad request" });
+  try {
+    const key = `einvite:invitation-${ownerId}`;
+    const raw = await kvRead(key);
+    if (!raw) return res.json({ ok: false });
+    const latest = JSON.parse(raw);
+    const groups = Array.isArray(latest.guestGroups) ? latest.guestGroups : [];
+    const g = groups.find((x) => x.id === groupId);
+    if (!g) return res.json({ ok: false });
+    if (!g.invitationViewed || !g.viewedAt) {
+      latest.guestGroups = groups.map((x) => (x.id === groupId ? { ...x, invitationViewed: true, viewedAt: now } : x));
+      await kvWrite(key, JSON.stringify(latest));
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("guest viewed failed:", err.message);
+    res.status(502).json({ error: "failed" });
   }
 });
 
