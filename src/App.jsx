@@ -11290,6 +11290,22 @@ function parseCsvText(text) {
 // Dashboard: add many guest families at once, from an Excel / CSV file or
 // from a photo of a written list (read by AI). Everything is shown for a
 // check first; families already on the list are left unticked.
+// Contacts exported as a vCard (.vcf) file — one guest per card, with
+// their name and first phone number.
+function guestsFromVcard(text) {
+  const unfolded = String(text || "").replace(/\r\n/g, "\n").replace(/\n[ \t]/g, "");
+  return unfolded.split(/BEGIN:VCARD/i).slice(1).map((card) => {
+    const lines = card.split("\n");
+    const value = (re) => { const line = lines.find((l) => re.test(l)); return line ? line.slice(line.indexOf(":") + 1).trim() : ""; };
+    let name = value(/^(item\d+\.)?FN[;:]/i);
+    if (!name) { const n = value(/^(item\d+\.)?N[;:]/i).split(";"); name = [n[1], n[0]].filter(Boolean).join(" ").trim(); }
+    const phone = value(/^(item\d+\.)?TEL[;:]/i).replace(/[^0-9+]/g, "");
+    return { name: name.replace(/\\,/g, ",").slice(0, 120), members: [], phone, extra: 0 };
+  }).filter((g) => g.name || g.phone).map((g) => ({ ...g, name: g.name || g.phone }));
+}
+// The phone's own contact picker (Android Chrome); iPhones use a .vcf file.
+const contactPickerSupported = () => typeof navigator !== "undefined" && "contacts" in navigator && typeof navigator.contacts?.select === "function";
+
 function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -11298,7 +11314,7 @@ function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
   const existingPhones = new Set(guestGroups.map((g) => String(g.phone || "").replace(/[^0-9]/g, "")).filter((p) => p.length >= 6));
   const existingNames = new Set(guestGroups.map((g) => String(guestGroupName(g) || "").trim().toLowerCase()).filter(Boolean));
   const preview = (list, source) => {
-    if (!list.length) { setError(source === "photo" ? "No guest names could be read from that photo." : "No guests found in that file."); return; }
+    if (!list.length) { setError(source === "photo" ? "No guest names could be read from that photo." : source === "contacts" ? "No contacts were chosen." : "No guests found in that file."); return; }
     setRows(list.map((g) => {
       const digits = g.phone.replace(/[^0-9]/g, "");
       const dup = (digits.length >= 6 && existingPhones.has(digits)) || existingNames.has(g.name.trim().toLowerCase());
@@ -11311,6 +11327,7 @@ function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
     setError(""); setDone(""); setRows(null); setBusy("file");
     try {
       if (/\.xls$/i.test(file.name)) throw new Error("Old .xls files aren't supported — in Excel choose File → Save As → .xlsx (or CSV) and upload that.");
+      if (/\.vcf$/i.test(file.name) || /vcard/i.test(file.type)) { preview(guestsFromVcard(await file.text()), "contacts"); return; }
       let sheetRows;
       if (/\.csv$/i.test(file.name) || file.type === "text/csv") sheetRows = parseCsvText((await file.text()).replace(/^﻿/, ""));
       else { const { readSheet } = await import("read-excel-file/browser"); sheetRows = await readSheet(file); }
@@ -11348,6 +11365,19 @@ function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
     setRows(null);
     setDone(`${groups.length} famil${groups.length === 1 ? "y" : "ies"} added to the guest list.`);
   };
+  const onContacts = async () => {
+    setError(""); setDone(""); setRows(null); setBusy("contacts");
+    try {
+      const picked = await navigator.contacts.select(["name", "tel"], { multiple: true });
+      preview((picked || []).map((c) => {
+        const phone = String((c.tel || [])[0] || "").replace(/[^0-9+]/g, "");
+        const name = String((c.name || [])[0] || "").trim();
+        return { name: (name || phone).slice(0, 120), members: [], phone, extra: 0 };
+      }).filter((g) => g.name), "contacts");
+    } catch (err) {
+      if (err?.name !== "AbortError") setError("Couldn't open your contacts — allow access and try again.");
+    } finally { setBusy(""); }
+  };
   const template = () => downloadTextFile("guest-list-template.csv", "﻿Name,Members,Phone,Extra guests\nThe Kfoury Family,\"Peter Kfoury, Martine Kfoury\",+96170123456,1\nAhmad Habhab,,+96171234567,0\n");
   const cell = { background: INK_3, color: IVORY, fontFamily: FONT_BODY };
   return (
@@ -11356,14 +11386,25 @@ function GuestImportPanel({ guestGroups, onAdd, compact = false }) {
         <div className="min-w-[220px] flex-1">
           <h3 className="text-[13px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Import guests</h3>
           <p className="mt-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY, lineHeight: 1.6 }}>
-            Upload an Excel / CSV file, or a photo of a written or printed list — the names are read for you. You check them before they're added.
+            {contactPickerSupported() ? "Pick them from your phone's contacts, upload" : "Upload"} an Excel / CSV file, or a photo of a written or printed list — the names are read for you. You check them before they're added.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {contactPickerSupported() && (
+            <button type="button" onClick={onContacts} disabled={!!busy} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: "#25D366", color: "#0B2E1A", fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }}>
+              <Users size={14} /> {busy === "contacts" ? "Opening…" : "From my contacts"}
+            </button>
+          )}
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }}>
             <FileSpreadsheet size={14} /> {busy === "file" ? "Reading…" : "Excel / CSV"}
             <input type="file" accept=".xlsx,.csv,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onSheet} disabled={!!busy} className="hidden" />
           </label>
+          {!contactPickerSupported() && (
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.5)`, fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }} title="On iPhone: Contacts → choose a contact or a list → Share → save to Files, then pick the .vcf file here">
+              <Users size={14} /> Contacts file (.vcf)
+              <input type="file" accept=".vcf,text/vcard,text/x-vcard" onChange={onSheet} disabled={!!busy} className="hidden" />
+            </label>
+          )}
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-[12.5px] font-semibold" style={{ color: GOLD_SOFT, border: `1px solid rgba(201,164,76,0.5)`, fontFamily: FONT_BODY, opacity: busy ? 0.6 : 1 }}>
             <ScanText size={14} /> {busy === "photo" ? "Reading the photo…" : "From a photo"}
             <input type="file" accept="image/*" onChange={onPhoto} disabled={!!busy} className="hidden" />
