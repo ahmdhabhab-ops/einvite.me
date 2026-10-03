@@ -10197,21 +10197,22 @@ function MembersEditor({ group, onChange }) {
   );
 }
 
+// One clear word per family: Pending until someone answers, then Yes or No.
+// It updates by itself because the dashboard polls the server for new RSVPs.
+// For bigger families it also shows how many of them are coming (e.g. 2/3).
 function RsvpBadges({ members }) {
   const yes = members.filter((m) => m.status === "yes").length;
   const no = members.filter((m) => m.status === "no").length;
-  const pending = members.filter((m) => m.status === "pending").length;
-  const circle = (value, color, title) => (
-    <span title={title} className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold leading-none" style={{ background: color, color: "#0B120E" }}>
-      {value}
-    </span>
-  );
+  const pending = members.length - yes - no;
+  const state = yes > 0 ? "yes" : no > 0 && pending === 0 ? "no" : "pending";
+  const label = state === "yes" ? "Yes" : state === "no" ? "No" : "Pending";
+  const color = state === "yes" ? CHART_COLORS.yes : state === "no" ? CHART_COLORS.no : "#C9D1CC";
+  const title = `${yes} attending · ${no} declined · ${pending} awaiting response`;
   return (
-    <div className="flex items-center gap-1">
-      {circle(yes, CHART_COLORS.yes, `${yes} attending`)}
-      {circle(no, CHART_COLORS.no, `${no} declined`)}
-      {pending > 0 && circle(pending, "#9AA8A0", `${pending} awaiting response`)}
-    </div>
+    <span title={title} className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-4" style={{ background: color, color: "#0B120E", fontFamily: FONT_BODY }}>
+      {label}
+      {state === "yes" && members.length > 1 && <span className="font-normal opacity-75">{yes}/{members.length}</span>}
+    </span>
   );
 }
 
@@ -12151,10 +12152,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Phone</th>
                 <th className="px-2 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>+ Guests</th>
                 <th className="px-2 py-2 text-left text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>
-                  RSVPs
-                  <span className="ml-1.5 font-normal normal-case" style={{ color: "rgba(147,166,155,0.7)", fontSize: 9 }}>
-                    (<span style={{ color: CHART_COLORS.yes }}>●</span> yes <span style={{ color: CHART_COLORS.no }}>●</span> no <span style={{ color: "#9AA8A0" }}>●</span> pending)
-                  </span>
+                  RSVP
                 </th>
                 <th className="px-1 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }} title="– not sent · ✓ sent · green ✓✓ delivered · blue ✓✓ read · red ✗ not delivered (click it to see why)">Sent<div className="mt-0.5 whitespace-nowrap text-[8.5px] font-normal normal-case" style={{ letterSpacing: 0 }}><span>✓</span> <span style={{ color: UI_OK }}>✓✓</span> <span style={{ color: "#34B7F1" }}>✓✓</span> <span style={{ color: UI_ERROR }}>✗</span></div></th>
                 <th className="px-1 py-2 text-center text-[9.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.08em", fontFamily: FONT_BODY }}>Viewed</th>
