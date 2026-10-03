@@ -11535,7 +11535,63 @@ function DeliveryTicks({ state, error, onToggleManual }) {
   );
 }
 
-function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
+// Every reply ever received (and every reply set by hand, and every family
+// with a reply that was removed from the list), newest first, from the
+// server's own record (/api/rsvp-log), which no edit to the list changes.
+const RSVP_VIA_LABEL = { link: "Their link", "open-link": "Open invitation link", quick: "Yes/No page", whatsapp: "WhatsApp", manual: "Set by hand", removed: "Removed from the list" };
+function ReplyHistoryList({ owner, compact = false }) {
+  const [entries, setEntries] = useState(null);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const load = () => {
+    setError("");
+    apiJson(`/api/rsvp-log${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`).then((d) => setEntries(d.entries || [])).catch((e) => setError(e.message || "Couldn't load the reply history."));
+  };
+  useEffect(load, [owner]);
+  const color = (st) => (st === "yes" ? CHART_COLORS.yes : st === "no" ? CHART_COLORS.no : "#C9D1CC");
+  const shown = (entries || [])
+    .filter((e) => filter === "all" || (filter === "removed" ? e.via === "removed" : e.status === filter && e.via !== "removed"))
+    .filter((e) => !query.trim() || JSON.stringify([e.family, e.phone, (e.members || []).map((m) => m.name)]).toLowerCase().includes(query.trim().toLowerCase()));
+  return (
+    <div className={compact ? "" : "rounded-2xl p-5"} style={compact ? {} : { background: INK_2, border: "1px solid rgba(201,164,76,0.12)" }}>
+      {!compact && (
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[15px] font-semibold" style={{ color: IVORY, fontFamily: FONT_BODY }}>Reply history</h3>
+          <GhostButton onClick={load}>Refresh</GhostButton>
+        </div>
+      )}
+      <p className="mb-3 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Every reply, with who, what, when and how it came in. Kept even if the guest list is changed later.</p>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {[["all", "All"], ["yes", "Yes"], ["no", "No"], ["removed", "Removed"]].map(([k, l]) => (
+          <button key={k} onClick={() => setFilter(k)} className="rounded-full px-3 py-1 text-[11.5px] font-semibold" style={{ background: filter === k ? GOLD : INK_3, color: filter === k ? INK : MUTED, fontFamily: FONT_BODY }}>{l}</button>
+        ))}
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search a name or phone" className="min-w-0 flex-1 rounded-full px-3 py-1.5 text-[12px] outline-none" style={{ background: INK_3, color: IVORY, fontFamily: FONT_BODY }} />
+      </div>
+      {error && <p className="text-[12px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>}
+      {!entries && !error && <p className="text-[12px]" style={{ color: MUTED }}>Loading…</p>}
+      {entries && !shown.length && <p className="py-3 text-[12.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{entries.length ? "Nothing matches." : "No replies recorded yet. New replies will appear here."}</p>}
+      <div className="flex flex-col">
+        {shown.slice(0, 500).map((e, i) => (
+          <div key={`${e.at}-${e.groupId}-${i}`} className="flex items-start justify-between gap-3 py-2.5" style={{ borderTop: i ? "1px solid rgba(147,166,155,0.15)" : "none", fontFamily: FONT_BODY }}>
+            <div className="min-w-0">
+              <div className="truncate text-[13px] font-semibold" dir="auto" style={{ color: IVORY }}>{e.family}{e.phone ? <span className="ml-2 font-normal" style={{ color: MUTED }} dir="ltr">{e.phone}</span> : null}</div>
+              <div className="text-[11px]" style={{ color: MUTED }}>
+                {new Date(e.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {RSVP_VIA_LABEL[e.via] || e.via}{e.by ? ` (${e.by})` : ""}
+              </div>
+              {(e.members || []).length > 1 && <div className="mt-0.5 text-[11px]" dir="auto" style={{ color: MUTED }}>{e.members.map((m) => `${m.name} ${m.status === "yes" ? "✓" : m.status === "no" ? "✗" : "…"}`).join(" · ")}</div>}
+            </div>
+            <span className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ background: e.via === "removed" ? INK_3 : color(e.status), color: e.via === "removed" ? MUTED : "#0B120E" }}>
+              {e.via === "removed" ? `Was ${e.status === "yes" ? "Yes" : e.status === "no" ? "No" : "Pending"}` : e.status === "yes" ? `Yes${e.coming ? ` · ${e.coming}` : ""}` : e.status === "no" ? "No" : "Pending"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardView({ historyOwner, guestGroups, addGuestGroup, addGuestGroups, updateGuestGroup, deleteGuestGroup, moveGuestGroup, tables, addTable, updateTable, deleteTable, assignGuestToTable, integrations, updateIntegrations, coupleTitle, slug, siteDomain, og, openInviteLinks, addOpenInviteLink, deleteOpenInviteLink, venueElements, addVenueElement, updateVenueElement, deleteVenueElement }) {
   const staffAccessKeys = useAccessKeys(slug); // the check-in staff link's secret key
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -11878,12 +11934,13 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
         </div>
       )}
 
-      <div className="mb-6 flex gap-2">
+      <div className="mb-6 flex flex-wrap gap-2">
         <GhostButton active={subTab === "guests"} onClick={() => setSubTab("guests")}>Guest List</GhostButton>
         <GhostButton active={subTab === "seating"} onClick={() => setSubTab("seating")}>Table Seating</GhostButton>
         <GhostButton active={subTab === "checkin"} onClick={() => setSubTab("checkin")}>Check-in</GhostButton>
         <GhostButton active={subTab === "voice"} onClick={() => setSubTab("voice")}>Voice Messages</GhostButton>
         <GhostButton active={subTab === "networking"} onClick={() => setSubTab("networking")}>Guest Networking</GhostButton>
+        <GhostButton active={subTab === "history"} onClick={() => setSubTab("history")}>Reply History</GhostButton>
       </div>
 
       {integrations && (
@@ -11961,6 +12018,8 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
         <VoiceMessagesPanel slug={slug} />
       ) : subTab === "networking" ? (
         <NetworkingApprovalPanel slug={slug} />
+      ) : subTab === "history" ? (
+        <ReplyHistoryList owner={historyOwner} />
       ) : (
         <>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -15784,8 +15843,14 @@ function AppAssistant({ messages, setMessages, onHandoff }) {
   );
 }
 
-function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, siteDomain, loaded, onLogout, builderHref = "/" }) {
+function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, siteDomain, loaded, onLogout, builderHref = "/", historyOwner }) {
   const [tab, setTab] = useState("home");
+  const [sheet, setSheet] = useState(null); // "notifications" | "history" | null
+  const [notifOn, setNotifOn] = useState(false);
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
+    navigator.serviceWorker.ready.then((reg) => reg.pushManager?.getSubscription()).then((sub) => setNotifOn(!!sub && Notification.permission === "granted")).catch(() => {});
+  }, [sheet]);
   const [adding, setAdding] = useState(false);
   const [newGuest, setNewGuest] = useState({ name: "", members: "", phone: "", extra: 0 });
   const [addError, setAddError] = useState("");
@@ -15822,16 +15887,17 @@ function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, site
   const deepRef = useRef(false);
   const popRef = useRef(false);
   useEffect(() => {
-    const deep = tab !== "home" || adding;
+    const deep = tab !== "home" || adding || !!sheet;
     if (deep && !deepRef.current) window.history.pushState({ appDeep: true }, "");
     else if (!deep && deepRef.current && !popRef.current) window.history.back();
     popRef.current = false;
     deepRef.current = deep;
-  }, [tab, adding]);
+  }, [tab, adding, sheet]);
   useEffect(() => {
     const onPop = () => {
       if (!deepRef.current) return;
       popRef.current = true;
+      setSheet(null);
       setAdding(false);
       setTab("home");
       window.scrollTo(0, 0);
@@ -15878,10 +15944,33 @@ function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, site
           <div className="truncate" style={{ fontFamily: "'Playfair Display', serif", fontSize: 21 }}>{title}</div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setSheet("notifications")} title="Notifications" aria-label="Notifications" className="relative flex h-10 w-10 items-center justify-center rounded-full" style={{ background: INK_3, color: notifOn ? UI_OK : GOLD_SOFT }}>
+            {notifOn ? <BellRing size={17} /> : <Bell size={17} />}
+            {!notifOn && <span className="absolute right-2 top-2 h-2 w-2 rounded-full" style={{ background: UI_ERROR }} />}
+          </button>
           <UiThemeToggle />
           <button onClick={onLogout} title="Log out" className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: INK_3, color: MUTED }}><LogOut size={16} /></button>
         </div>
       </header>
+
+      {sheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" style={{ background: "rgba(0,0,0,0.45)" }} onClick={() => setSheet(null)}>
+          <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-t-3xl p-5 sm:rounded-3xl" style={{ background: INK, paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[16px] font-semibold">{sheet === "notifications" ? "Notifications" : "Reply history"}</span>
+              <button onClick={() => setSheet(null)} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: INK_3, color: MUTED }}><X size={16} /></button>
+            </div>
+            {sheet === "notifications" ? (
+              <>
+                <AppNotificationsCard installed={installed} isIos={isIos} />
+                <p className="mt-3 text-[12px]" style={{ color: MUTED, lineHeight: 1.6 }}>You'll get a notification on this phone for every reply: who is coming, who can't make it, from their link, the open invitation link or WhatsApp. Turn it on on each phone you use.</p>
+              </>
+            ) : (
+              <ReplyHistoryList owner={historyOwner} compact />
+            )}
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-xl px-4 pt-4">
         {!loaded && <p className="py-10 text-center text-[13px]" style={{ color: MUTED }}>Loading your invitation…</p>}
@@ -15930,7 +16019,10 @@ function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, site
             <div className="rounded-2xl p-4" style={card}>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[13px] font-semibold">Latest replies</span>
-                <button onClick={() => setTab("guests")} className="text-[12px]" style={{ color: GOLD_SOFT }}>See all</button>
+                <span className="flex gap-3">
+                  <button onClick={() => setSheet("history")} className="text-[12px]" style={{ color: GOLD_SOFT }}>History</button>
+                  <button onClick={() => setTab("guests")} className="text-[12px]" style={{ color: GOLD_SOFT }}>See all</button>
+                </span>
               </div>
               {recent.length === 0 && <p className="py-3 text-[12.5px]" style={{ color: MUTED }}>No replies yet — they'll appear here as guests answer.</p>}
               {recent.map(({ g, state, coming }) => {
@@ -20049,6 +20141,7 @@ export default function InvitationBuilder() {
         siteDomain={siteDomain}
         loaded={coreDataLoaded}
         builderHref={adminApp ? "/admin" : "/"}
+        historyOwner={activeInvitationId}
         onLogout={() => { if (adminApp) { window.location.assign("/admin"); return; } exitActingAs(); window.location.assign("/app"); }}
       />
     );
@@ -20608,6 +20701,7 @@ export default function InvitationBuilder() {
 
         {view === "dashboard" && (
           <DashboardView
+            historyOwner={activeInvitationId}
             guestGroups={guestGroups}
             addGuestGroup={addGuestGroup}
             addGuestGroups={addGuestGroups}

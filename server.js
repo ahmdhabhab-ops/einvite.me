@@ -1486,7 +1486,7 @@ const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key =
 // endpoints, never straight from the store by anyone but the admin.
 const ADMIN_ONLY_KV = (key) =>
   /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys|wa-verify-token|wa-errors)$/.test(key) ||
-  /^einvite:(push-subs-|slim-backup-|wa-msg-|mcp-|bridal-)/.test(key);
+  /^einvite:(push-subs-|slim-backup-|wa-msg-|mcp-|bridal-|rsvp-log-)/.test(key);
 
 app.get("/api/kv", async (req, res) => {
   const key = String(req.query.key || "");
@@ -1542,6 +1542,68 @@ function mergeGuestGroupsOnSave(incomingValue, serverValue) {
 }
 const INVITATION_KEY_RE = /^einvite:invitation-[A-Za-z0-9_-]+$/;
 
+// ---------------------------------------------------------------------------
+// Reply history: every guest reply (link, open link, quick reply, WhatsApp
+// Yes/No), every reply the couple sets by hand, and every family with a
+// reply that a save removed from the list, kept per invitation in
+// einvite:rsvp-log-<owner>. Nothing in the app edits it, so even if a
+// guest list is overwritten, who answered what and when can still be seen.
+// ---------------------------------------------------------------------------
+const rsvpLogKey = (ownerId) => `einvite:rsvp-log-${ownerId}`;
+const RSVP_LOG_MAX = 2000;
+const rsvpLogChains = new Map();
+function rsvpFamilyName(g) {
+  const ms = Array.isArray(g?.members) ? g.members : [];
+  return String(g?.name || g?.lastName || ms.map((m) => m?.name).filter((n) => n && n !== "Guest").slice(0, 4).join(", ") || "Guest").slice(0, 120);
+}
+function rsvpEntry(g, via, extra = {}) {
+  const ms = Array.isArray(g?.members) ? g.members : [];
+  const yes = ms.filter((m) => m?.status === "yes").length;
+  const no = ms.filter((m) => m?.status === "no").length;
+  const status = yes ? "yes" : ms.length && no === ms.length ? "no" : "pending";
+  return {
+    at: Date.now(), via, groupId: String(g?.id || ""), family: rsvpFamilyName(g), status,
+    coming: yes ? yes + (Number(g?.additionalGuests) || 0) : 0,
+    members: ms.slice(0, 20).map((m) => ({ name: String(m?.name || "").slice(0, 80), status: String(m?.status || "pending") })),
+    ...(g?.phone ? { phone: String(g.phone).slice(0, 40) } : {}),
+    ...extra,
+  };
+}
+// Appends entries for one invitation, one write at a time.
+function logRsvp(ownerId, entries) {
+  if (!ownerId || !entries.length) return Promise.resolve();
+  const key = rsvpLogKey(ownerId);
+  const run = (rsvpLogChains.get(key) || Promise.resolve()).then(async () => {
+    const raw = await kvRead(key).catch(() => null);
+    let list = [];
+    try { list = raw ? JSON.parse(raw) : []; } catch {}
+    await kvWrite(key, JSON.stringify([...entries.reverse(), ...(Array.isArray(list) ? list : [])].slice(0, RSVP_LOG_MAX)));
+  }).catch((err) => console.error("rsvp log write failed:", err.message));
+  rsvpLogChains.set(key, run);
+  return run;
+}
+// What a save changed that the history should keep: replies set by hand,
+// and families that had replied but are gone from the saved list.
+function rsvpChangesOnSave(serverValue, savedValue, who) {
+  let before, after;
+  try { before = JSON.parse(serverValue); after = JSON.parse(savedValue); } catch { return []; }
+  const oldGroups = Array.isArray(before?.guestGroups) ? before.guestGroups : [];
+  const newGroups = Array.isArray(after?.guestGroups) ? after.guestGroups : [];
+  if (!Array.isArray(after?.guestGroups)) return [];
+  const byId = new Map(oldGroups.filter((g) => g?.id).map((g) => [g.id, g]));
+  const out = [];
+  for (const g of newGroups) {
+    const prev = byId.get(g?.id);
+    if (g?.rsvpVia === "manual" && (Number(g.rsvpAt) || 0) > (Number(prev?.rsvpAt) || 0)) out.push(rsvpEntry(g, "manual", { by: who }));
+  }
+  const kept = new Set(newGroups.map((g) => g?.id));
+  for (const g of oldGroups) {
+    if (!g?.id || kept.has(g.id)) continue;
+    if ((g.members || []).some((m) => m?.status === "yes" || m?.status === "no")) out.push(rsvpEntry(g, "removed", { by: who }));
+  }
+  return out;
+}
+
 app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
   const key = String(req.body?.key || "");
   const value = req.body?.value;
@@ -1552,7 +1614,9 @@ app.put("/api/kv", express.json({ limit: "25mb" }), async (req, res) => {
     const withLatestGuests = async () => {
       if (!INVITATION_KEY_RE.test(key)) return value;
       const current = await kvRead(key).catch(() => null);
-      return current ? mergeGuestGroupsOnSave(value, current) : value;
+      const merged = current ? mergeGuestGroupsOnSave(value, current) : value;
+      if (current) logRsvp(key.slice("einvite:invitation-".length), rsvpChangesOnSave(current, merged, who.role === "admin" ? "admin" : "couple"));
+      return merged;
     };
     if (who.role === "admin") {
       await kvWrite(key, await withLatestGuests());
@@ -1866,6 +1930,7 @@ async function applyWhatsappRsvp(sent, status) {
   const group = { ...existing, members, invitationViewed: true, rsvpVia: "whatsapp", updatedAt: now, rsvpAt: now };
   latest.guestGroups = groups.map((g) => (g.id === group.id ? group : g));
   await kvWrite(key, JSON.stringify(latest));
+  logRsvp(sent.ownerId, [rsvpEntry(group, "whatsapp")]);
   notifyOwner(sent.ownerId, rsvpNotice(group, status)).catch((err) => console.error("rsvp notification failed:", err.message));
   return group;
 }
@@ -2050,6 +2115,22 @@ function pushKeys() {
 const pushSubsKey = (ownerId) => `einvite:push-subs-${ownerId}`;
 // Whose notifications a request manages: a client's own, or the admin's.
 const pushOwnerOf = (req) => { const who = authReady ? requestRole(req) : { role: "admin" }; return who.role === "client" ? who.userId : who.role === "admin" ? "__owner__" : null; };
+// The reply history of the caller's invitation (the admin passes ?owner=).
+app.get("/api/rsvp-log", async (req, res) => {
+  if (!authReady) return res.status(503).json({ error: "not ready" });
+  const who = requestRole(req);
+  const owner = who.role === "client" ? who.userId : who.role === "admin" ? String(req.query.owner || "__owner__") : null;
+  if (!owner) return res.status(401).json({ error: "Please log in." });
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(owner)) return res.status(400).json({ error: "bad owner" });
+  try {
+    const raw = await kvRead(rsvpLogKey(owner));
+    res.set("cache-control", "no-store").json({ entries: raw ? JSON.parse(raw) : [] });
+  } catch (err) {
+    console.error("rsvp log read failed:", err.message);
+    res.status(502).json({ error: "Couldn't load the reply history." });
+  }
+});
+
 app.get("/api/push/key", async (_req, res) => {
   try { res.json({ publicKey: (await pushKeys()).publicKey }); } catch (err) { console.error("push keys:", err.message); res.status(503).json({ error: "Notifications aren't available right now." }); }
 });
@@ -2145,6 +2226,7 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
     }
     await kvWrite(key, JSON.stringify(latest));
     res.json({ group });
+    logRsvp(ownerId, [rsvpEntry(group, b.quick ? "quick" : b.groupId && groups.some((g) => g.id === String(b.groupId)) ? "link" : "open-link")]);
     notifyOwner(ownerId, rsvpNotice(group, status)).catch((err) => console.error("rsvp notification failed:", err.message));
   } catch (err) {
     console.error("guest rsvp failed:", err.message);
