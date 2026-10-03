@@ -7,8 +7,25 @@
 const FAL_HOST_RE = /^([a-z0-9-]+\.)*fal\.(run|ai|media)$/i;
 export const TRY_ON_MODEL = "fal-ai/image-apps-v2/virtual-try-on";
 
+// The key, read forgivingly: FAL_KEY (or FAL_API_KEY / FAL_AI_KEY), even
+// with spaces around the name or quotes around the value, as Dokploy's
+// Environment box keeps whatever was typed.
+const FAL_KEY_NAMES = ["FAL_KEY", "FAL_API_KEY", "FAL_AI_KEY", "FALAI_KEY"];
+function falKeyName() {
+  return Object.keys(process.env).find((k) => FAL_KEY_NAMES.includes(k.trim().toUpperCase()) && falKeyValue(k)) || null;
+}
+function falKeyValue(name) {
+  return String(process.env[name] || "").trim().replace(/^["']|["']$/g, "").trim();
+}
+const falKey = () => { const n = falKeyName(); return n ? falKeyValue(n) : ""; };
+
 export function falConfigured() {
-  return !!String(process.env.FAL_KEY || "").trim();
+  return !!falKey();
+}
+// For the admin panel: which setting the key came from (never the key).
+export function falKeySource() {
+  const n = falKeyName();
+  return n ? n.trim() : null;
 }
 
 function falHost(url) {
@@ -20,7 +37,7 @@ function falHost(url) {
 
 function redact(s) {
   let out = String(s || "").replace(/Key\s+[^\s"']+/gi, "Key [hidden]");
-  const key = String(process.env.FAL_KEY || "").trim();
+  const key = falKey();
   if (key) out = out.split(key).join("[hidden]");
   return out.slice(0, 300);
 }
@@ -42,7 +59,7 @@ const allowedBase = (url) => falHost(url) || (!!testBase() && url.startsWith(tes
 
 async function falFetch(url, init = {}) {
   if (!allowedBase(url)) throw new FalError(`refused to send the key to ${new URL(url).host}`);
-  const key = String(process.env.FAL_KEY || "").trim();
+  const key = falKey();
   if (!key) throw new FalError("FAL_KEY is not set", { userMessage: "AI Bridal Studio isn't set up yet." });
   const res = await fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: `Key ${key}`, accept: "application/json" }, signal: init.signal || AbortSignal.timeout(30000) });
   const text = await res.text();

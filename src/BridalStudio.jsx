@@ -556,13 +556,14 @@ function ShopForm({ initial, onSave, onCancel, setError }) {
 export function BridalAdminPanel() {
   const [shops, setShops] = useState(null);
   const [usage, setUsage] = useState(null);
+  const [usageError, setUsageError] = useState("");
   const [error, setError] = useState("");
   const [editingShop, setEditingShop] = useState(null); // "new" | id
   const [editingDress, setEditingDress] = useState(null); // { shopId, id | "new" }
   const [openShop, setOpenShop] = useState(null);
   const load = () => {
     api("/api/bridal/admin/shops").then((d) => setShops(d.shops)).catch((e) => setError(e.message === "network" ? "Couldn't reach the server." : e.message));
-    api("/api/bridal/admin/usage").then(setUsage).catch(() => {});
+    api("/api/bridal/admin/usage").then((u) => { setUsage(u); setUsageError(""); }).catch((e) => setUsageError(e.message === "network" ? "Couldn't reach the server." : e.message));
   };
   useEffect(load, []);
   const run = async (fn) => { setError(""); try { await fn(); load(); return true; } catch (e) { setError(e.message); return false; } };
@@ -577,10 +578,12 @@ export function BridalAdminPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-[20px]" style={{ fontFamily: SERIF }}>AI Bridal Studio</h2>
-            <p className="text-[13px]" style={{ color: C.text2 }}>Try-on with fal.ai ({usage?.model}). Page: <a href="/bridal-studio" target="_blank" rel="noreferrer" className="underline">/bridal-studio</a></p>
+            <p className="text-[13px]" style={{ color: C.text2 }}>Try-on with fal.ai{usage?.model ? ` (${usage.model})` : ""}. Page: <a href="/bridal-studio" target="_blank" rel="noreferrer" className="underline">/bridal-studio</a></p>
           </div>
-          <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ background: usage?.ready ? C.okBg : C.errorBg, color: usage?.ready ? C.green : C.error }}>{usage?.ready ? "fal.ai connected" : "FAL_KEY missing"}</span>
+          {usage && <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ background: usage.ready ? C.okBg : C.errorBg, color: usage.ready ? C.green : C.error }}>{usage.ready ? `fal.ai connected (${usage.keySetting})` : "FAL_KEY missing"}</span>}
         </div>
+        {usage && !usage.ready && <p className="mt-3 rounded-2xl px-3.5 py-2.5 text-[12.5px]" style={{ background: C.errorBg, color: C.error }}>The server doesn't see the fal.ai key. In Dokploy, open this app (einvite.me) → Environment and add a line FAL_KEY=… with your fal.ai key, Save, then Redeploy. The key must be on this same app, not on another app or in Supabase.</p>}
+        {usageError && <ErrorBox>Couldn't load usage: {usageError}</ErrorBox>}
         {usage && (
           <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {[["This month's attempts", m?.attempts || 0], ["Previews made", m?.succeeded || 0], ["Failed", m?.failed || 0], ["Cost this month", `$${(m?.costUsd || 0).toFixed(2)}`]].map(([l, v]) => (
