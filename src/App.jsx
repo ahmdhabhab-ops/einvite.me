@@ -4680,7 +4680,6 @@ function RsvpDesignCard({ active, onClick, title, caption, children }) {
 
 function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSettings, lang }) {
   const personalMode = rsvpSettings.personalMode === "count" ? "count" : "names";
-  const personalSwitch = rsvpSettings.personalSwitch === "text" ? "text" : "icons";
   const mini = { fontFamily: FONT_BODY };
   const tag = (label) => <div className="mb-0.5 text-[5.5px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.06em", ...mini }}>{label}</div>;
   const pills = (
@@ -4810,29 +4809,6 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
               options={[{ value: "optional", label: "Optional" }, { value: "required", label: "Required" }]}
             />
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-[12px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Reply buttons next to each name</div>
-              <div className="text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>On a family's own link</div>
-            </div>
-            <SegmentedToggle
-              value={personalSwitch}
-              onChange={(v) => updateRsvpSettings({ personalSwitch: v })}
-              options={[{ value: "icons", label: "✓ / ✕" }, { value: "text", label: "Words" }]}
-            />
-          </div>
-          {personalSwitch === "text" && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <FieldLabel>"Coming" word</FieldLabel>
-                <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="Yes" />
-              </div>
-              <div>
-                <FieldLabel>"Not coming" word</FieldLabel>
-                <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="No" />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -4847,8 +4823,18 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
           <TextInput value={c.noLabel} onChange={(v) => updateContent({ noLabel: v })} />
         </div>
       </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Button next to each name: coming</FieldLabel>
+          <TextInput value={c.personalYes || ""} onChange={(v) => updateContent({ personalYes: v })} placeholder="✓" />
+        </div>
+        <div>
+          <FieldLabel>Button next to each name: not coming</FieldLabel>
+          <TextInput value={c.personalNo || ""} onChange={(v) => updateContent({ personalNo: v })} placeholder="✕" />
+        </div>
+      </div>
       <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Button wording is per language; the event date lives on the Countdown page.
+        Write ✓ / ✕, Yes / No or any word you like. Leave the name buttons empty to show ✓ and ✕. Wording is per language; the event date lives on the Countdown page.
       </p>
 
       {(() => {
@@ -7365,8 +7351,9 @@ function RsvpSlide({ content, bg, fontDisplay, fontScript, t, layout, editMode, 
     const onYes = { background: yesBg || (light ? GOLD : EMERALD), color: yesText || (light ? INK : PAPER) };
     const onNo = { background: noBg || ROSE, color: noText || PAPER };
     const off = { background: "transparent", color: text, opacity: 0.5 };
-    // The couple's choice: ✓ / ✕ icons, or words ("Yes" / "No" or their own).
-    const words = rsvpSettings.personalSwitch === "text";
+    // ✓ / ✕ icons unless the couple wrote their own words for the name
+    // buttons (older saves picked "Words" with a toggle, which still counts).
+    const words = rsvpSettings.personalSwitch === "text" || !!(content.personalYes || "").trim() || !!(content.personalNo || "").trim();
     const yesWord = (content.personalYes || "").trim() || t.personalYes || "Yes";
     const noWord = (content.personalNo || "").trim() || t.personalNo || "No";
     const elegant = skin === "elegant";
