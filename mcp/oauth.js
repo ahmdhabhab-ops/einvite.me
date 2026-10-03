@@ -21,7 +21,7 @@
 // random, stored hashed, and replaced on every use. Authorization codes
 // live in memory for 5 minutes (one server instance).
 
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, verify as cryptoVerify, constants as cryptoConstants } from "node:crypto";
 import express from "express";
 
 export const SCOPES = {
@@ -93,15 +93,27 @@ export function createOAuth(opts) {
     response_types_supported: ["code"],
     response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
-    token_endpoint_auth_methods_supported: ["none"],
+    // ChatGPT's client metadata document may use either (OpenAI's plugin
+    // auth guide): a public client, or a signed client assertion.
+    token_endpoint_auth_methods_supported: ["none", "private_key_jwt"],
+    token_endpoint_auth_signing_alg_values_supported: ["RS256", "PS256", "ES256", "EdDSA"],
     revocation_endpoint_auth_methods_supported: ["none"],
     code_challenge_methods_supported: ["S256"],
     client_id_metadata_document_supported: true,
     authorization_response_iss_parameter_supported: true,
     service_documentation: `${baseUrl}/`,
   });
-  const wwwAuthenticate = (error) =>
-    `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp"${error ? `, error="${error}"` : ""}, scope="${Object.keys(SCOPES).join(" ")}"`;
+  // Bearer challenge (RFC 6750 / RFC 9728): where to sign in, and which
+  // scopes are needed. Accepts an error code, or { error, description, scope }.
+  const quote = (v) => String(v).replace(/[\\"]/g, "").replace(/[\r\n]/g, " ");
+  const wwwAuthenticate = (opt) => {
+    const o = typeof opt === "string" || !opt ? { error: opt } : opt;
+    const parts = [`resource_metadata="${baseUrl}/.well-known/oauth-protected-resource/mcp"`];
+    if (o.error) parts.push(`error="${quote(o.error)}"`);
+    if (o.description) parts.push(`error_description="${quote(o.description)}"`);
+    parts.push(`scope="${quote(o.scope || Object.keys(SCOPES).join(" "))}"`);
+    return `Bearer ${parts.join(", ")}`;
+  };
 
   // --- clients ----------------------------------------------------------
   // Dynamic registration keeps nothing on the server: the client id itself
@@ -138,7 +150,7 @@ export function createOAuth(opts) {
       let u;
       try { u = new URL(clientId); } catch { return null; }
       const host = u.hostname.toLowerCase();
-      if (!cimdHosts.some((h) => host === h || host.endsWith(`.${h}`)) || u.port) return null;
+      if (!cimdHosts.some((h) => host === h || host.endsWith(`.${h}`)) || u.port || u.hash || u.username || u.pathname.length < 2) return null;
       const hit = cimdCache.get(clientId);
       if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.doc;
       try {
@@ -148,13 +160,78 @@ export function createOAuth(opts) {
         const d = JSON.parse(text);
         if (d.client_id !== clientId || !Array.isArray(d.redirect_uris)) return null;
         const method = d.token_endpoint_auth_method || "none";
-        if (method !== "none") return null; // private_key_jwt isn't supported here
-        const doc = { id: clientId, name: String(d.client_name || host).slice(0, 80), redirectUris: d.redirect_uris.map(String) };
+        if (!["none", "private_key_jwt"].includes(method)) return null;
+        if (method === "private_key_jwt" && !d.jwks?.keys && !String(d.jwks_uri || "").startsWith("https://")) return null;
+        const doc = { id: clientId, name: String(d.client_name || host).slice(0, 80), redirectUris: d.redirect_uris.map(String), authMethod: method, jwks: d.jwks?.keys ? d.jwks : null, jwksUri: d.jwks_uri || null };
         cimdCache.set(clientId, { at: Date.now(), doc });
         return doc;
       } catch { return null; }
     }
     return null;
+  }
+
+  // --- client authentication (private_key_jwt, RFC 7523) -----------------
+  const ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+  const usedJtis = new Map(); // jti -> expiry
+  const jwksCache = new Map(); // uri -> { at, keys }
+  async function clientKeys(client) {
+    if (client.jwks?.keys) return client.jwks.keys;
+    const uri = String(client.jwksUri || "");
+    let u;
+    try { u = new URL(uri); } catch { return []; }
+    const host = u.hostname.toLowerCase();
+    if (u.protocol !== "https:" || u.port || !cimdHosts.some((h) => host === h || host.endsWith(`.${h}`))) return [];
+    const hit = jwksCache.get(uri);
+    if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.keys;
+    try {
+      const r = await fetchImpl(uri, { redirect: "error", signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } });
+      const text = r.ok ? await r.text() : "";
+      const keys = text && text.length < 65536 ? JSON.parse(text).keys || [] : [];
+      jwksCache.set(uri, { at: Date.now(), keys });
+      return keys;
+    } catch { return []; }
+  }
+  function verifySignature(alg, jwk, data, sig) {
+    const key = createPublicKey({ key: jwk, format: "jwk" });
+    if (alg === "RS256") return cryptoVerify("sha256", data, { key, padding: cryptoConstants.RSA_PKCS1_PADDING }, sig);
+    if (alg === "PS256") return cryptoVerify("sha256", data, { key, padding: cryptoConstants.RSA_PKCS1_PSS_PADDING, saltLength: 32 }, sig);
+    if (alg === "ES256") return cryptoVerify("sha256", data, { key, dsaEncoding: "ieee-p1363" }, sig);
+    if (alg === "EdDSA") return cryptoVerify(null, data, key, sig);
+    return false;
+  }
+  // The client id from a valid client assertion of this client, or null.
+  async function verifyClientAssertion(assertion, client) {
+    const parts = String(assertion || "").split(".");
+    if (parts.length !== 3) return null;
+    let header, claims;
+    try { header = JSON.parse(Buffer.from(parts[0], "base64url").toString()); claims = JSON.parse(Buffer.from(parts[1], "base64url").toString()); } catch { return null; }
+    if (!["RS256", "PS256", "ES256", "EdDSA"].includes(header.alg)) return null;
+    const now = Math.floor(Date.now() / 1000);
+    const aud = [].concat(claims.aud || []);
+    if (claims.iss !== client.id || claims.sub !== client.id) return null;
+    if (!aud.some((a) => a === `${baseUrl}/oauth/token` || a === baseUrl)) return null;
+    if (!(claims.exp > now) || claims.exp > now + 600 || (claims.nbf && claims.nbf > now + 60)) return null;
+    if (!claims.jti || usedJtis.has(`${client.id} ${claims.jti}`)) return null;
+    const keys = (await clientKeys(client)).filter((k) => !header.kid || k.kid === header.kid);
+    const data = Buffer.from(`${parts[0]}.${parts[1]}`);
+    const sig = Buffer.from(parts[2], "base64url");
+    const ok = keys.some((k) => { try { return verifySignature(header.alg, k, data, sig); } catch { return false; } });
+    if (!ok) return null;
+    usedJtis.set(`${client.id} ${claims.jti}`, claims.exp * 1000);
+    for (const [j, exp] of usedJtis) if (exp < Date.now()) usedJtis.delete(j);
+    return client.id;
+  }
+  // Which client is calling the token endpoint, checked the way it registered.
+  async function authenticateClient(b) {
+    const assertion = b.client_assertion_type === ASSERTION_TYPE ? String(b.client_assertion || "") : "";
+    let clientId = String(b.client_id || "");
+    if (!clientId && assertion) {
+      try { clientId = JSON.parse(Buffer.from(assertion.split(".")[1] || "", "base64url").toString()).iss || ""; } catch {}
+    }
+    const client = await resolveClient(clientId);
+    if (!client) return null;
+    if (client.authMethod === "private_key_jwt") return (await verifyClientAssertion(assertion, client)) ? client : null;
+    return client;
   }
 
   // --- tokens -----------------------------------------------------------
@@ -175,14 +252,14 @@ export function createOAuth(opts) {
   const refreshKvKey = (token) => `einvite:mcp-refresh-${sha256(token).toString("hex")}`;
   async function issueRefreshToken(userId, clientId, scopes) {
     const token = `eivr.${b64url(randomBytes(32))}`;
-    await kvWrite(refreshKvKey(token), JSON.stringify({ userId, clientId, scopes, exp: Date.now() + REFRESH_TTL_MS }));
+    await kvWrite(refreshKvKey(token), JSON.stringify({ userId, clientId, scopes, res: resource, exp: Date.now() + REFRESH_TTL_MS }));
     return token;
   }
   async function useRefreshToken(token) {
     if (!/^eivr\.[A-Za-z0-9_-]{30,60}$/.test(String(token || ""))) return null;
     const raw = await kvRead(refreshKvKey(token));
     const rec = raw ? JSON.parse(raw) : null;
-    if (!rec || rec.used || !(rec.exp > Date.now())) return null;
+    if (!rec || rec.used || !(rec.exp > Date.now()) || (rec.res && rec.res !== resource)) return null;
     await kvWrite(refreshKvKey(token), JSON.stringify({ ...rec, used: Date.now() }));
     return rec;
   }
@@ -197,7 +274,10 @@ export function createOAuth(opts) {
     const known = asked.filter((s) => SCOPES[s]);
     return known.length ? [...new Set(known)] : null;
   }
-  const sameResource = (r) => !r || String(r).replace(/\/+$/, "") === resource;
+  // The resource the client named is this MCP server (scheme and host
+  // compared case-insensitively, a trailing slash ignored).
+  const canonical = (r) => { try { const u = new URL(String(r)); if (u.hash) return null; return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, "")}`.toLowerCase(); } catch { return null; } };
+  const sameResource = (r) => !r || canonical(r) === canonical(resource);
 
   // Checks an authorization request. Errors that mustn't go back to an
   // unverified redirect URI are shown on the page instead.
@@ -363,7 +443,9 @@ ${who}
         const rec = codes.get(String(b.code || ""));
         codes.delete(String(b.code || ""));
         if (!rec || rec.exp < Date.now()) return err(400, "invalid_grant", "The code is invalid or expired.");
-        if (rec.clientId !== String(b.client_id || "") || rec.redirectUri !== String(b.redirect_uri || "")) return err(400, "invalid_grant", "client_id or redirect_uri doesn't match.");
+        const client = await authenticateClient(b);
+        if (!client) return err(401, "invalid_client", "Client authentication failed.");
+        if (rec.clientId !== client.id || rec.redirectUri !== String(b.redirect_uri || "")) return err(400, "invalid_grant", "client_id or redirect_uri doesn't match.");
         const verifier = String(b.code_verifier || "");
         if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) || !sameString(b64url(sha256(verifier)), rec.challenge)) return err(400, "invalid_grant", "PKCE verification failed.");
         if (!sameResource(b.resource)) return err(400, "invalid_target", `resource must be ${resource}`);
@@ -372,8 +454,10 @@ ${who}
         return res.json({ access_token: issueAccessToken(user.id, rec.clientId, rec.scopes), token_type: "Bearer", expires_in: ACCESS_TTL_S, refresh_token: await issueRefreshToken(user.id, rec.clientId, rec.scopes), scope: rec.scopes.join(" ") });
       }
       if (b.grant_type === "refresh_token") {
+        const client = await authenticateClient(b);
+        if (!client) return err(401, "invalid_client", "Client authentication failed.");
         const rec = await useRefreshToken(b.refresh_token);
-        if (!rec || rec.clientId !== String(b.client_id || "")) return err(400, "invalid_grant", "The refresh token is invalid or expired.");
+        if (!rec || rec.clientId !== client.id) return err(400, "invalid_grant", "The refresh token is invalid or expired.");
         if (!sameResource(b.resource)) return err(400, "invalid_target", `resource must be ${resource}`);
         const asked = b.scope ? parseScopes(b.scope) : rec.scopes;
         if (!asked || asked.some((s) => !rec.scopes.includes(s))) return err(400, "invalid_scope", "Can't widen the granted scopes.");

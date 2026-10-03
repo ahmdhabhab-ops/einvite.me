@@ -3,7 +3,7 @@
 // particular that one account can never see or change another's invitation.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, generateKeyPairSync, sign as cryptoSign } from "node:crypto";
 import express from "express";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -12,6 +12,9 @@ import { createMcpHandler, rsvpSummary } from "../mcp/tools.js";
 
 const REDIRECT = "http://localhost:9/callback";
 const kv = new Map();
+const kvKeys = () => kv.keys();
+const kvGet = (k) => kv.get(k);
+const kvSet = (k, v) => kv.set(k, v);
 const DRAFT_KEY = "einvite:draft-core";
 const users = [
   { id: "alice001", name: "Alice", email: "alice@test.dev", role: "normal", status: "active", invitationSlug: null, packageTier: null },
@@ -33,6 +36,19 @@ kv.set("einvite:invitation-bob00001", JSON.stringify({ content: { en: { cover: {
 kv.set("einvite:invitation-fred0001", JSON.stringify({ content: { en: { cover: { name1: "Fred", name2: "Maya" } } }, defaultLang: "en", enabledLanguages: ["en"], rsvpSchedule: { date: "2027-01-01" }, guestGroups: [] }));
 
 let base, server, sessionCookieUser = null;
+const cimdDocs = new Map();
+// A client that signs its token requests (private_key_jwt), like a CIMD client may.
+const CIMD_ID = "https://client.test/oauth/client.json";
+const { privateKey: cimdKey, publicKey: cimdPub } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+cimdDocs.set(CIMD_ID, { client_id: CIMD_ID, client_name: "ChatGPT", redirect_uris: [REDIRECT], token_endpoint_auth_method: "private_key_jwt", jwks: { keys: [{ ...cimdPub.export({ format: "jwk" }), kid: "k1", alg: "ES256", use: "sig" }] } });
+const PUBLIC_CIMD_ID = "https://client.test/public.json";
+cimdDocs.set(PUBLIC_CIMD_ID, { client_id: PUBLIC_CIMD_ID, client_name: "Public client", redirect_uris: [REDIRECT], token_endpoint_auth_method: "none" });
+function clientAssertion({ aud, jti = randomBytes(8).toString("hex"), exp = Math.floor(Date.now() / 1000) + 120, key = cimdKey } = {}) {
+  const h = Buffer.from(JSON.stringify({ alg: "ES256", kid: "k1", typ: "JWT" })).toString("base64url");
+  const p = Buffer.from(JSON.stringify({ iss: CIMD_ID, sub: CIMD_ID, aud: aud || `${base}/oauth/token`, jti, exp, iat: Math.floor(Date.now() / 1000) })).toString("base64url");
+  const sig = cryptoSign("sha256", Buffer.from(`${h}.${p}`), { key, dsaEncoding: "ieee-p1363" }).toString("base64url");
+  return `${h}.${p}.${sig}`;
+}
 const getDraft = () => JSON.parse(kv.get(DRAFT_KEY));
 const findUser = async (id) => getDraft().users.find((u) => u.id === id) || null;
 const userAllowed = (u) => (!u ? "Account not found." : u.role === "designer" ? "Designer accounts can't use the ChatGPT plugin." : u.status !== "active" ? (u.status === "pending" ? "This account is still waiting for approval." : "This account is frozen.") : true);
@@ -44,6 +60,9 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
   const oauth = createOAuth({
     baseUrl: base, secret: "test-secret", extraRedirects: [REDIRECT],
+    // ChatGPT-style client metadata documents, served by a fake fetch.
+    cimdHosts: ["client.test"],
+    fetchImpl: async (url) => (cimdDocs.has(url) ? new Response(JSON.stringify(cimdDocs.get(url)), { status: 200 }) : new Response("", { status: 404 })),
     checkPassword: async (email, pw) => (passwords[email] === pw ? getDraft().users.find((u) => u.email === email) : null),
     sessionUserId: () => sessionCookieUser,
     findUser, userAllowed,
@@ -347,4 +366,77 @@ test("tampered, foreign or frozen-account tokens stop working", async () => {
 test("rsvpSummary handles empty and odd data", () => {
   assert.deepEqual(rsvpSummary({}).families, { total: 0, attending: 0, declined: 0, no_reply: 0 });
   assert.equal(rsvpSummary({ guestGroups: [{ members: [] }] }).families.no_reply, 1);
+});
+
+test("tools carry securitySchemes at the top level for ChatGPT", async () => {
+  // Read the raw response: the SDK client drops fields it doesn't know.
+  const { access_token } = await signIn("alice@test.dev", "alice-pw");
+  const r = await fetch(`${base}/mcp`, { method: "POST", headers: { authorization: `Bearer ${access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream", "mcp-protocol-version": "2025-06-18" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) });
+  const { result } = await r.json();
+  assert.equal(result.tools.length, 4);
+  for (const t of result.tools) {
+    assert.ok(Array.isArray(t.securitySchemes) && t.securitySchemes[0].type === "oauth2", t.name);
+    assert.deepEqual(t.securitySchemes, t._meta.securitySchemes);
+  }
+});
+
+test("a missing permission comes back as a ChatGPT re-auth challenge", async () => {
+  const client = await mcp((await signIn("bob@test.dev", "bob-pw", "invitations:read")).access_token);
+  const r = await client.callTool({ name: "update_invitation_draft", arguments: { invitation_id: "bob-lina", partner1_name: "R" } });
+  assert.equal(r.isError, true);
+  const challenge = r._meta?.["mcp/www_authenticate"]?.[0] || "";
+  assert.match(challenge, /^Bearer /);
+  assert.match(challenge, /error="insufficient_scope"/);
+  assert.match(challenge, /scope="invitations:read invitations:write"/);
+  assert.match(challenge, /resource_metadata="[^"]+\/\.well-known\/oauth-protected-resource\/mcp"/);
+  await client.close();
+});
+
+async function codeFor(clientId, challenge, extra = {}) {
+  const req = await formReq(authorizeUrl(clientId, challenge, extra));
+  assert.ok(req, "authorize page shown");
+  const r = await postAuthorize({ req, action: "login", email: "alice@test.dev", password: "alice-pw" });
+  return new URL(r.location).searchParams.get("code");
+}
+
+test("CIMD client with private_key_jwt: signed token requests only", async () => {
+  const { verifier, challenge } = pkce();
+  const page = await (await fetch(authorizeUrl(CIMD_ID, challenge))).text();
+  assert.match(page, /ChatGPT wants to use your eInvite\.me account/);
+  // no assertion
+  let code = await codeFor(CIMD_ID, challenge);
+  assert.equal((await token({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: CIMD_ID, code_verifier: verifier })).status, 401);
+  // signed with another key
+  const other = generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey;
+  code = await codeFor(CIMD_ID, challenge);
+  assert.equal((await token({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: CIMD_ID, code_verifier: verifier, client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", client_assertion: clientAssertion({ key: other }) })).status, 401);
+  // wrong audience
+  code = await codeFor(CIMD_ID, challenge);
+  assert.equal((await token({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: CIMD_ID, code_verifier: verifier, client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", client_assertion: clientAssertion({ aud: "https://elsewhere.example/token" }) })).status, 401);
+  // valid
+  code = await codeFor(CIMD_ID, challenge);
+  const assertion = clientAssertion();
+  const ok = await token({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, code_verifier: verifier, resource: `${base.toUpperCase().replace("HTTP://", "http://")}/mcp`, client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", client_assertion: assertion });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  // the same assertion can't be replayed
+  const replay = await token({ grant_type: "refresh_token", refresh_token: ok.body.refresh_token, client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", client_assertion: assertion });
+  assert.equal(replay.status, 401);
+  const refreshed = await token({ grant_type: "refresh_token", refresh_token: ok.body.refresh_token, client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", client_assertion: clientAssertion() });
+  assert.equal(refreshed.status, 200, JSON.stringify(refreshed.body));
+});
+
+test("CIMD public client works without an assertion; unknown hosts are refused", async () => {
+  const { verifier, challenge } = pkce();
+  const code = await codeFor(PUBLIC_CIMD_ID, challenge);
+  assert.equal((await token({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: PUBLIC_CIMD_ID, code_verifier: verifier, resource: `${base}/mcp/` })).status, 200);
+  assert.equal((await fetch(authorizeUrl("https://evil.example/client.json", challenge), { redirect: "manual" })).status, 400);
+  assert.equal((await fetch(authorizeUrl("https://client.test/", challenge), { redirect: "manual" })).status, 400, "a client id needs a path");
+});
+
+test("refresh tokens only work for the server that issued them", async () => {
+  const t = await signIn("alice@test.dev", "alice-pw");
+  const raw = [...kvKeys()].find((k) => k.startsWith("einvite:mcp-refresh-") && JSON.parse(kvGet(k)).clientId === t.clientId && !JSON.parse(kvGet(k)).used);
+  const rec = JSON.parse(kvGet(raw));
+  kvSet(raw, JSON.stringify({ ...rec, res: "https://staging.example/mcp" }));
+  assert.equal((await token({ grant_type: "refresh_token", refresh_token: t.refresh_token, client_id: t.clientId })).status, 400);
 });

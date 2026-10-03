@@ -3168,7 +3168,12 @@ app.get(["/sw.js", "/manifest.webmanifest"], (req, res) => {
 // so turning it on is a deliberate settings change. See mcp/README.md.
 // ---------------------------------------------------------------------------
 const MCP_PUBLIC_URL = String(process.env.MCP_PUBLIC_URL || "").trim().replace(/\/+$/, "");
-const MCP_SECRET = process.env.MCP_TOKEN_SECRET || (SUPABASE_SERVICE_KEY ? createHmac("sha256", SUPABASE_SERVICE_KEY).update("einvite-mcp-tokens").digest() : "");
+// Its own secret, set on the server only (never derived from another key).
+// At least 32 random bytes; see mcp/README.md for how to make one.
+const MCP_SECRET = String(process.env.MCP_TOKEN_SECRET || "").trim();
+const mcpSecretStrong = (v) => v.length >= 43 && new Set(v).size >= 16;
+// Optional: only these accounts may connect (for staging or a soft launch).
+const MCP_ALLOWED_EMAILS = new Set(String(process.env.MCP_ALLOWED_EMAILS || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean));
 // Domain check for the plugin directory submission: the token OpenAI's
 // portal shows, served as-is.
 app.get("/.well-known/openai-apps-challenge", (_req, res) => {
@@ -3177,11 +3182,16 @@ app.get("/.well-known/openai-apps-challenge", (_req, res) => {
   res.set("cache-control", "no-store").type("text/plain").send(token);
 });
 if (process.env.MCP_ENABLED === "1") {
-  if (!/^https?:\/\/[^/]+$/.test(MCP_PUBLIC_URL) || !MCP_SECRET || !serviceHeaders) {
-    console.error("chatgpt plugin: not started — needs MCP_PUBLIC_URL (like https://cores.einvite.me) and the Supabase service key");
+  // https only, except a local test address.
+  const mcpUrlOk = /^https:\/\/[^/]+$/.test(MCP_PUBLIC_URL) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(MCP_PUBLIC_URL);
+  if (!mcpUrlOk || !serviceHeaders) {
+    console.error("chatgpt plugin: not started — needs MCP_PUBLIC_URL (an https origin like https://cores.einvite.me) and the Supabase service key");
+  } else if (!mcpSecretStrong(MCP_SECRET)) {
+    console.error("chatgpt plugin: not started — MCP_TOKEN_SECRET must be set to a long random value (at least 32 random bytes, e.g. from `openssl rand -base64 48`)");
   } else {
     // A plugin user: an active client account (not a designer account).
-    const userAllowed = (u) => (!u ? "Account not found." : u.role === "designer" ? "Designer accounts can't use the ChatGPT plugin." : u.status !== "active" ? (u.status === "pending" ? "This account is still waiting for approval." : "This account is frozen. Contact eInvite.me for help.") : true);
+    const userAllowed = (u) => (!u ? "Account not found." : u.role === "designer" ? "Designer accounts can't use the ChatGPT plugin." : u.status !== "active" ? (u.status === "pending" ? "This account is still waiting for approval." : "This account is frozen. Contact eInvite.me for help.")
+      : MCP_ALLOWED_EMAILS.size && !MCP_ALLOWED_EMAILS.has(String(u.email || "").toLowerCase()) ? "The ChatGPT plugin is being tested and isn't open to this account yet." : true);
     let usersCache = { at: 0, users: [] };
     const findUser = async (id) => {
       if (Date.now() - usersCache.at > 10000) usersCache = { at: Date.now(), users: await readDraftUsers() };
@@ -3213,7 +3223,7 @@ if (process.env.MCP_ENABLED === "1") {
       wwwAuthenticate: oauth.wwwAuthenticate,
       findUser, userAllowed, readUsersDraft, writeUsersDraft, kvRead, kvWrite, uniqueSlug,
     }));
-    console.log(`chatgpt plugin: MCP server on ${MCP_PUBLIC_URL}/mcp`);
+    console.log(`chatgpt plugin: MCP server on ${MCP_PUBLIC_URL}/mcp${MCP_ALLOWED_EMAILS.size ? ` (limited to ${MCP_ALLOWED_EMAILS.size} account(s))` : ""}`);
   }
 }
 

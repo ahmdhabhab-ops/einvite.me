@@ -92,11 +92,11 @@ export function createMcpHandler({ siteUrl, verifyAccessToken, wwwAuthenticate, 
   async function account(extra) {
     const userId = extra?.authInfo?.extra?.userId;
     const user = userId ? await findUser(userId) : null;
-    if (!user || userAllowed(user) !== true) throw new ToolError("This eInvite.me account can't be used right now. Sign in again from ChatGPT's plugin settings.");
+    if (!user || userAllowed(user) !== true) throw new ToolError("This eInvite.me account can't be used right now. Sign in again from ChatGPT's plugin settings.", { authError: "invalid_token" });
     return user;
   }
   const needScope = (extra, scope) => {
-    if (!(extra?.authInfo?.scopes || []).includes(scope)) throw new ToolError(`This connection wasn't given permission (${scope}). Reconnect the plugin and allow it.`);
+    if (!(extra?.authInfo?.scopes || []).includes(scope)) throw new ToolError(`This connection wasn't given permission (${scope}). Reconnect the plugin and allow it.`, { authError: "insufficient_scope", scope: [...new Set([...(extra?.authInfo?.scopes || []), scope])].join(" ") });
   };
   async function ownInvitation(user, invitationId) {
     // Only ever the caller's own record decides which invitation is theirs;
@@ -111,7 +111,11 @@ export function createMcpHandler({ siteUrl, verifyAccessToken, wwwAuthenticate, 
   const wrap = (fn) => async (args, extra) => {
     try { return await fn(args, extra); } catch (e) {
       if (!(e instanceof ToolError)) console.error("mcp tool failed:", e.message);
-      return { isError: true, content: [{ type: "text", text: e instanceof ToolError ? e.message : "Something went wrong on eInvite.me. Please try again." }] };
+      const result = { isError: true, content: [{ type: "text", text: e instanceof ToolError ? e.message : "Something went wrong on eInvite.me. Please try again." }] };
+      // Sign-in problems carry the challenge that makes ChatGPT ask the
+      // user to (re)connect, as OpenAI's Apps SDK auth example does.
+      if (e instanceof ToolError && e.authError) result._meta = { "mcp/www_authenticate": [wwwAuthenticate({ error: e.authError, description: e.message, scope: e.scope })] };
+      return result;
     }
   };
   const securityMeta = (scopes) => ({ securitySchemes: [{ type: "oauth2", scopes }] });
@@ -275,6 +279,15 @@ export function createMcpHandler({ siteUrl, verifyAccessToken, wwwAuthenticate, 
       return ok(`${s.people.attending} people coming (${s.families.attending} families), ${s.people.declined} declined, ${s.people.no_reply} haven't replied (${s.families.no_reply} families). ${s.families.total} families invited.`, summary);
     }));
 
+    // OpenAI reads securitySchemes on the tool itself (and in _meta).
+    const listTools = server.server._requestHandlers?.get("tools/list");
+    if (listTools) {
+      server.server._requestHandlers.set("tools/list", async (request, extra) => {
+        const out = await listTools(request, extra);
+        for (const t of out.tools || []) if (t._meta?.securitySchemes) t.securitySchemes = t._meta.securitySchemes;
+        return out;
+      });
+    }
     return server;
   }
 
@@ -314,4 +327,6 @@ export function createMcpHandler({ siteUrl, verifyAccessToken, wwwAuthenticate, 
   return router;
 }
 
-class ToolError extends Error {}
+class ToolError extends Error {
+  constructor(message, { authError, scope } = {}) { super(message); this.authError = authError; this.scope = scope; }
+}
