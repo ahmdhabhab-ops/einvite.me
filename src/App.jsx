@@ -19,6 +19,8 @@ import {
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
 const CostCalculatorPage = lazy(() => import("./CostCalculator.jsx"));
+const BridalStudioPage = lazy(() => import("./BridalStudio.jsx"));
+const BridalAdminPanel = lazy(() => import("./BridalStudio.jsx").then((m) => ({ default: m.BridalAdminPanel })));
 import jsQR from "jsqr";
 import { LANDING_TEXT, LANDING_LANGS, LANDING_LANG_NAMES, LANDING_EDITORIAL } from "./landingText.js";
 
@@ -2786,6 +2788,7 @@ function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
       { key: "invoices", label: "Invoices", icon: FileText },
       { key: "team", label: "Team", icon: UserCog },
       { key: "contact", label: "Contact", icon: Globe },
+      { key: "bridal", label: "Bridal Studio", icon: Gem },
     ]),
   ];
   return (
@@ -17944,7 +17947,7 @@ export default function InvitationBuilder() {
   }, [steps.length, activeIndex]);
 
   useEffect(() => {
-    if (actingAsUser && ["users", "invoices", "team", "review", "appointments", "livechat", "contact"].includes(view)) setView("builder");
+    if (actingAsUser && ["users", "invoices", "team", "review", "appointments", "livechat", "contact", "bridal"].includes(view)) setView("builder");
   }, [actingAsUser, view]);
 
   useEffect(() => {
@@ -19784,6 +19787,14 @@ export default function InvitationBuilder() {
     );
   }
 
+  if (typeof window !== "undefined" && /^\/bridal-studio\/?$/.test(window.location.pathname)) {
+    return (
+      <Suspense fallback={<AppLoadingScreen />}>
+        <BridalStudioPage />
+      </Suspense>
+    );
+  }
+
   if (isShopPath === null) {
     return <AppLoadingScreen />; // still checking the URL
   }
@@ -20591,6 +20602,12 @@ export default function InvitationBuilder() {
         )}
 
         {view === "livechat" && !actingAsUser && <LiveChatInbox chat={liveChat} />}
+
+        {view === "bridal" && !actingAsUser && (
+          <Suspense fallback={<div className="py-10 text-center text-sm" style={{ color: MUTED }}>Loading…</div>}>
+            <BridalAdminPanel />
+          </Suspense>
+        )}
 
         {view === "contact" && !actingAsUser && (
           <>

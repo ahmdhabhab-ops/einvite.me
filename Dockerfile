@@ -33,6 +33,7 @@ COPY --from=build /app/dist ./dist
 COPY server.js ./server.js
 COPY mcp ./mcp
 COPY shared ./shared
+COPY bridal ./bridal
 COPY whatsapp-inbox-forwarder.js ./whatsapp-inbox-forwarder.js
 COPY blog ./blog
 

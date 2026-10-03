@@ -25,6 +25,8 @@ import webpush from "web-push";
 import { createInboxForwarder } from "./whatsapp-inbox-forwarder.js";
 import { createOAuth } from "./mcp/oauth.js";
 import { createMcpHandler } from "./mcp/tools.js";
+import { createBridalStudio } from "./bridal/studio.js";
+import { imageType } from "./bridal/safe-fetch.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "dist");
@@ -1484,7 +1486,7 @@ const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key =
 // endpoints, never straight from the store by anyone but the admin.
 const ADMIN_ONLY_KV = (key) =>
   /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys|wa-verify-token|wa-errors)$/.test(key) ||
-  /^einvite:(push-subs-|slim-backup-|wa-msg-|mcp-)/.test(key);
+  /^einvite:(push-subs-|slim-backup-|wa-msg-|mcp-|bridal-)/.test(key);
 
 app.get("/api/kv", async (req, res) => {
   const key = String(req.query.key || "");
@@ -3123,6 +3125,70 @@ if (process.env.MCP_ENABLED === "1") {
       findUser, userAllowed, readUsersDraft, writeUsersDraft, kvRead, kvWrite, uniqueSlug,
     }));
     console.log(`chatgpt plugin: MCP server on ${MCP_PUBLIC_URL}/mcp`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AI Bridal Studio (virtual dress try-on with fal.ai). Off unless
+// BRIDAL_STUDIO_ENABLED=1; needs FAL_KEY, which only bridal/fal.js reads.
+// See bridal/README.md.
+// ---------------------------------------------------------------------------
+const BRIDAL_BUCKET = "bridal-studio";
+if (process.env.BRIDAL_STUDIO_ENABLED === "1") {
+  if (!serviceHeaders || !gatewayEnforced()) {
+    console.error("bridal studio: not started — needs the Supabase service key and ADMIN_PASSWORD");
+  } else {
+    // Previews live in a private bucket that only this server can read.
+    const storageUrl = (p) => `${SUPABASE_URL}/storage/v1/object/${BRIDAL_BUCKET}/${p.split("/").map(encodeURIComponent).join("/")}`;
+    const bridalStorage = {
+      async put(p, buf, type) {
+        const r = await fetch(storageUrl(p), { method: "POST", headers: { ...serviceHeaders, "Content-Type": type, "x-upsert": "true" }, body: buf });
+        if (!r.ok) throw new Error(`bridal storage put failed (${r.status})`);
+      },
+      async get(p) {
+        const r = await fetch(storageUrl(p), { headers: serviceHeaders });
+        if (!r.ok) throw new Error(`bridal storage get failed (${r.status})`);
+        return Buffer.from(await r.arrayBuffer());
+      },
+      async remove(p) {
+        const r = await fetch(storageUrl(p), { method: "DELETE", headers: serviceHeaders });
+        if (!r.ok && r.status !== 404) throw new Error(`bridal storage delete failed (${r.status})`);
+      },
+    };
+    fetch(`${SUPABASE_URL}/storage/v1/bucket`, { method: "POST", headers: { ...serviceHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ id: BRIDAL_BUCKET, name: BRIDAL_BUCKET, public: false, file_size_limit: 26214400, allowed_mime_types: ["image/jpeg", "image/png", "image/webp"] }) })
+      .then(async (r) => { if (!r.ok && !/exist|duplicate/i.test(await r.text().catch(() => ""))) console.error(`bridal studio: couldn't create the private bucket (${r.status})`); })
+      .catch((e) => console.error("bridal studio: bucket check failed:", e.message));
+    let bridalUsersCache = { at: 0, users: [] };
+    const bridal = createBridalStudio({
+      requestRole,
+      findUser: async (id) => {
+        if (Date.now() - bridalUsersCache.at > 15000) bridalUsersCache = { at: Date.now(), users: await readDraftUsers() };
+        return bridalUsersCache.users.find((u) => u?.id === id) || null;
+      },
+      kvRead, kvWrite,
+      kvListKeys: async (prefix) => {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?select=key&key=like.${encodeURIComponent(`${prefix}*`)}`, { headers: serviceHeaders });
+        if (!r.ok) throw new Error(`kv list failed (${r.status})`);
+        return (await r.json()).map((x) => x.key);
+      },
+      storage: bridalStorage,
+      uploadPublicImage: (name, type, buf) => uploadToStorage("invitation-photos", name, type, buf),
+      // Catalog photos uploaded to this site's own public storage.
+      readOwnImage: async (url) => {
+        const prefix = `${SUPABASE_URL}/storage/v1/object/public/`;
+        if (!String(url).startsWith(prefix) || url.includes("..")) return null;
+        const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+        if (!r.ok) return null;
+        const body = Buffer.from(await r.arrayBuffer());
+        const type = imageType(body);
+        return type && body.length <= 12 * 1024 * 1024 ? { body, type } : null;
+      },
+      secret: createHmac("sha256", SUPABASE_SERVICE_KEY).update("einvite-bridal").digest(),
+      ownImagePrefix: `${SUPABASE_URL}/storage/v1/object/public/`,
+    });
+    app.use(bridal.router);
+    setTimeout(() => bridal.sweepExpired().catch((e) => console.error("bridal studio: sweep failed:", e.message)), 60000);
+    console.log("bridal studio: on");
   }
 }
 
