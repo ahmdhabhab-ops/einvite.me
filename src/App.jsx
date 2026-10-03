@@ -15842,6 +15842,28 @@ function ClientApp({ user, title, schedule, guestGroups, onAddGuests, slug, site
 (I asked the assistant: "${question}")` : ""}`);
     setChatSignal((n) => n + 1);
   };
+  // The phone's Back button works like WhatsApp: from another tab (or the
+  // add-guests panel) it returns to Home; only Back on Home leaves the app.
+  const deepRef = useRef(false);
+  const popRef = useRef(false);
+  useEffect(() => {
+    const deep = tab !== "home" || adding;
+    if (deep && !deepRef.current) window.history.pushState({ appDeep: true }, "");
+    else if (!deep && deepRef.current && !popRef.current) window.history.back();
+    popRef.current = false;
+    deepRef.current = deep;
+  }, [tab, adding]);
+  useEffect(() => {
+    const onPop = () => {
+      if (!deepRef.current) return;
+      popRef.current = true;
+      setAdding(false);
+      setTab("home");
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const cd = useCountdown(schedule?.date, schedule?.time);
   useEffect(() => {
     navigator.serviceWorker?.register("/sw.js").catch(() => {});
