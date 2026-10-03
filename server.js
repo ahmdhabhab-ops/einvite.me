@@ -23,6 +23,10 @@ import { fileURLToPath } from "node:url";
 import { marked } from "marked";
 import webpush from "web-push";
 import { createInboxForwarder } from "./whatsapp-inbox-forwarder.js";
+import { createOAuth } from "./mcp/oauth.js";
+import { createMcpHandler } from "./mcp/tools.js";
+import { createBridalStudio } from "./bridal/studio.js";
+import { imageType } from "./bridal/safe-fetch.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = path.join(__dirname, "dist");
@@ -1164,6 +1168,18 @@ function noteLoginFailure(keys) {
   }
 }
 
+// The account with this email and password, or null.
+async function checkClientPassword(email, password) {
+  const user = email && password ? (await readDraftUsers()).find((u) => String(u?.email || "").toLowerCase() === email) : null;
+  if (!user) return null;
+  let hash = await getAccountHash(user.id);
+  if (!hash && isLegacyPassword(user.password)) {
+    await migrateLegacyPasswords();
+    hash = await getAccountHash(user.id);
+  }
+  return hash && (await verifyPassword(password, hash)) ? user : null;
+}
+
 app.get("/api/auth/status", (_req, res) => res.set("cache-control", "no-store").json({ ready: authReady }));
 
 app.post("/api/auth/login", express.json({ limit: "4kb" }), async (req, res) => {
@@ -1173,17 +1189,8 @@ app.post("/api/auth/login", express.json({ limit: "4kb" }), async (req, res) => 
   const limitKeys = [`ip:${clientIp(req)}`, `email:${email}`];
   if (loginBlocked(limitKeys)) return res.status(429).json({ error: "Too many wrong attempts. Please try again in 15 minutes." });
   try {
-    const user = email && password ? (await readDraftUsers()).find((u) => String(u?.email || "").toLowerCase() === email) : null;
-    let ok = false;
-    if (user) {
-      let hash = await getAccountHash(user.id);
-      if (!hash && isLegacyPassword(user.password)) {
-        await migrateLegacyPasswords();
-        hash = await getAccountHash(user.id);
-      }
-      ok = !!hash && (await verifyPassword(password, hash));
-    }
-    if (!ok) {
+    const user = await checkClientPassword(email, password);
+    if (!user) {
       noteLoginFailure(limitKeys);
       return res.status(401).json({ error: "Incorrect email or password." });
     }
@@ -1479,7 +1486,7 @@ const ADMIN_WORKING_COPY = (key) => /^einvite:(bg-|introbg-)/.test(key) || key =
 // endpoints, never straight from the store by anyone but the admin.
 const ADMIN_ONLY_KV = (key) =>
   /^einvite:(access-keys|appointments|design-submissions|invoices|live-chat-team-key|staff|vapid-keys|wa-verify-token|wa-errors)$/.test(key) ||
-  /^einvite:(push-subs-|slim-backup-|wa-msg-)/.test(key);
+  /^einvite:(push-subs-|slim-backup-|wa-msg-|mcp-|bridal-)/.test(key);
 
 app.get("/api/kv", async (req, res) => {
   const key = String(req.query.key || "");
@@ -3066,6 +3073,125 @@ app.get(["/sw.js", "/manifest.webmanifest"], (req, res) => {
   if (req.path === "/sw.js") res.set("service-worker-allowed", "/");
   res.sendFile(path.join(DIST_DIR, req.path.slice(1)));
 });
+// ---------------------------------------------------------------------------
+// ChatGPT plugin (MCP server at /mcp, sign-in at /oauth/*). Off unless
+// MCP_ENABLED=1 and MCP_PUBLIC_URL (e.g. https://cores.einvite.me) are set,
+// so turning it on is a deliberate settings change. See mcp/README.md.
+// ---------------------------------------------------------------------------
+const MCP_PUBLIC_URL = String(process.env.MCP_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+const MCP_SECRET = process.env.MCP_TOKEN_SECRET || (SUPABASE_SERVICE_KEY ? createHmac("sha256", SUPABASE_SERVICE_KEY).update("einvite-mcp-tokens").digest() : "");
+// Domain check for the plugin directory submission: the token OpenAI's
+// portal shows, served as-is.
+app.get("/.well-known/openai-apps-challenge", (_req, res) => {
+  const token = String(process.env.OPENAI_APPS_CHALLENGE_TOKEN || "").trim();
+  if (!token) return res.status(404).type("text/plain").send("not set");
+  res.set("cache-control", "no-store").type("text/plain").send(token);
+});
+if (process.env.MCP_ENABLED === "1") {
+  if (!/^https?:\/\/[^/]+$/.test(MCP_PUBLIC_URL) || !MCP_SECRET || !serviceHeaders) {
+    console.error("chatgpt plugin: not started — needs MCP_PUBLIC_URL (like https://cores.einvite.me) and the Supabase service key");
+  } else {
+    // A plugin user: an active client account (not a designer account).
+    const userAllowed = (u) => (!u ? "Account not found." : u.role === "designer" ? "Designer accounts can't use the ChatGPT plugin." : u.status !== "active" ? (u.status === "pending" ? "This account is still waiting for approval." : "This account is frozen. Contact eInvite.me for help.") : true);
+    let usersCache = { at: 0, users: [] };
+    const findUser = async (id) => {
+      if (Date.now() - usersCache.at > 10000) usersCache = { at: Date.now(), users: await readDraftUsers() };
+      return usersCache.users.find((u) => u?.id === id) || null;
+    };
+    const readUsersDraft = async () => {
+      const raw = await kvRead(DRAFT_KEY);
+      const draft = raw ? JSON.parse(raw) : {};
+      return { draft, users: Array.isArray(draft.users) ? draft.users : [] };
+    };
+    const writeUsersDraft = async (draft) => {
+      await kvWrite(DRAFT_KEY, JSON.stringify(draft));
+      draftUsersCache = { at: 0, users: [] };
+      usersCache = { at: 0, users: [] };
+    };
+    const oauth = createOAuth({
+      baseUrl: MCP_PUBLIC_URL,
+      secret: MCP_SECRET,
+      extraRedirects: String(process.env.MCP_EXTRA_REDIRECT_URIS || "").split(",").map((x) => x.trim()).filter(Boolean),
+      cimdHosts: String(process.env.MCP_CIMD_HOSTS || "chatgpt.com,openai.com").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean),
+      checkPassword: (email, password) => (authReady ? checkClientPassword(email, password) : null),
+      sessionUserId: (req) => clientSessionUser(req),
+      findUser, userAllowed, loginBlocked, noteLoginFailure, clientIp, kvRead, kvWrite, escapeHtml,
+    });
+    app.use(oauth.router);
+    app.use(createMcpHandler({
+      siteUrl: MCP_PUBLIC_URL,
+      verifyAccessToken: oauth.verifyAccessToken,
+      wwwAuthenticate: oauth.wwwAuthenticate,
+      findUser, userAllowed, readUsersDraft, writeUsersDraft, kvRead, kvWrite, uniqueSlug,
+    }));
+    console.log(`chatgpt plugin: MCP server on ${MCP_PUBLIC_URL}/mcp`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AI Bridal Studio (virtual dress try-on with fal.ai). Off unless
+// BRIDAL_STUDIO_ENABLED=1; needs FAL_KEY, which only bridal/fal.js reads.
+// See bridal/README.md.
+// ---------------------------------------------------------------------------
+const BRIDAL_BUCKET = "bridal-studio";
+if (process.env.BRIDAL_STUDIO_ENABLED === "1") {
+  if (!serviceHeaders || !gatewayEnforced()) {
+    console.error("bridal studio: not started — needs the Supabase service key and ADMIN_PASSWORD");
+  } else {
+    // Previews live in a private bucket that only this server can read.
+    const storageUrl = (p) => `${SUPABASE_URL}/storage/v1/object/${BRIDAL_BUCKET}/${p.split("/").map(encodeURIComponent).join("/")}`;
+    const bridalStorage = {
+      async put(p, buf, type) {
+        const r = await fetch(storageUrl(p), { method: "POST", headers: { ...serviceHeaders, "Content-Type": type, "x-upsert": "true" }, body: buf });
+        if (!r.ok) throw new Error(`bridal storage put failed (${r.status})`);
+      },
+      async get(p) {
+        const r = await fetch(storageUrl(p), { headers: serviceHeaders });
+        if (!r.ok) throw new Error(`bridal storage get failed (${r.status})`);
+        return Buffer.from(await r.arrayBuffer());
+      },
+      async remove(p) {
+        const r = await fetch(storageUrl(p), { method: "DELETE", headers: serviceHeaders });
+        if (!r.ok && r.status !== 404) throw new Error(`bridal storage delete failed (${r.status})`);
+      },
+    };
+    fetch(`${SUPABASE_URL}/storage/v1/bucket`, { method: "POST", headers: { ...serviceHeaders, "Content-Type": "application/json" }, body: JSON.stringify({ id: BRIDAL_BUCKET, name: BRIDAL_BUCKET, public: false, file_size_limit: 26214400, allowed_mime_types: ["image/jpeg", "image/png", "image/webp"] }) })
+      .then(async (r) => { if (!r.ok && !/exist|duplicate/i.test(await r.text().catch(() => ""))) console.error(`bridal studio: couldn't create the private bucket (${r.status})`); })
+      .catch((e) => console.error("bridal studio: bucket check failed:", e.message));
+    let bridalUsersCache = { at: 0, users: [] };
+    const bridal = createBridalStudio({
+      requestRole,
+      findUser: async (id) => {
+        if (Date.now() - bridalUsersCache.at > 15000) bridalUsersCache = { at: Date.now(), users: await readDraftUsers() };
+        return bridalUsersCache.users.find((u) => u?.id === id) || null;
+      },
+      kvRead, kvWrite,
+      kvListKeys: async (prefix) => {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/kv_store?select=key&key=like.${encodeURIComponent(`${prefix}*`)}`, { headers: serviceHeaders });
+        if (!r.ok) throw new Error(`kv list failed (${r.status})`);
+        return (await r.json()).map((x) => x.key);
+      },
+      storage: bridalStorage,
+      uploadPublicImage: (name, type, buf) => uploadToStorage("invitation-photos", name, type, buf),
+      // Catalog photos uploaded to this site's own public storage.
+      readOwnImage: async (url) => {
+        const prefix = `${SUPABASE_URL}/storage/v1/object/public/`;
+        if (!String(url).startsWith(prefix) || url.includes("..")) return null;
+        const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+        if (!r.ok) return null;
+        const body = Buffer.from(await r.arrayBuffer());
+        const type = imageType(body);
+        return type && body.length <= 12 * 1024 * 1024 ? { body, type } : null;
+      },
+      secret: createHmac("sha256", SUPABASE_SERVICE_KEY).update("einvite-bridal").digest(),
+      ownImagePrefix: `${SUPABASE_URL}/storage/v1/object/public/`,
+    });
+    app.use(bridal.router);
+    setTimeout(() => bridal.sweepExpired().catch((e) => console.error("bridal studio: sweep failed:", e.message)), 60000);
+    console.log("bridal studio: on");
+  }
+}
+
 app.use(express.static(DIST_DIR, { index: false, maxAge: "1y", immutable: true }));
 
 app.get("*", (_req, res) => {
