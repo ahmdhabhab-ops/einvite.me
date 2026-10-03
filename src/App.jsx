@@ -2895,7 +2895,7 @@ function TabBar({ view, setView, isClientPortal, liveChatUnread = 0 }) {
 /* ---------------------------------------------------------------------- */
 
 function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, enabledLanguages, onToggleLanguage, onTranslate, translating }) {
-  const [showAdd, setShowAdd] = useState(false);
+  const [managing, setManaging] = useState(false);
   const disabledLangs = LANGS.filter((l) => !enabledLanguages.includes(l));
 
   const removeLanguage = (l) => {
@@ -2906,72 +2906,82 @@ function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, 
   };
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl p-3" style={{ background: INK_3 }}>
-      <span className="mr-1 text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
-        Editing
-      </span>
-      {enabledLanguages.map((l) => (
-        <button
-          key={l}
-          onClick={() => setActiveLang(l)}
-          className="relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-          style={{ background: activeLang === l ? GOLD : "transparent", color: activeLang === l ? INK : IVORY, border: `1px solid ${activeLang === l ? GOLD : "rgba(147,166,155,0.35)"}`, fontFamily: FONT_BODY }}
-        >
-          {LANG_META[l].short}
-          <span role="button" title={defaultLang === l ? "Default language" : "Set as default language"} onClick={(e) => { e.stopPropagation(); setDefaultLang(l); }}>
-            <Star size={11} fill={defaultLang === l ? (activeLang === l ? INK : GOLD) : "none"} color={activeLang === l ? INK : GOLD} />
-          </span>
-          {enabledLanguages.length > 1 && (
-            <span
-              role="button"
-              title={`Remove ${LANG_META[l].short} — its content is kept and can be turned back on anytime`}
-              onClick={(e) => { e.stopPropagation(); removeLanguage(l); }}
-              style={{ color: activeLang === l ? INK : MUTED }}
-            >
-              <X size={11} />
-            </span>
-          )}
-        </button>
-      ))}
-      {disabledLangs.length > 0 && (
-        <div className="relative">
+    <div className="mb-6 rounded-xl p-3" style={{ background: INK_3 }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-[11px] font-semibold" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+          {enabledLanguages.length > 1 ? "You are writing in:" : "Language:"}
+        </span>
+        {enabledLanguages.map((l) => (
           <button
-            onClick={() => setShowAdd((v) => !v)}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
-            style={{ border: `1px dashed rgba(147,166,155,0.4)`, color: MUTED, fontFamily: FONT_BODY }}
+            key={l}
+            onClick={() => setActiveLang(l)}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+            style={{ background: activeLang === l ? GOLD : "transparent", color: activeLang === l ? INK : IVORY, border: `1px solid ${activeLang === l ? GOLD : "rgba(147,166,155,0.35)"}`, fontFamily: FONT_BODY }}
           >
-            <Plus size={12} /> Language
+            {LANG_META[l].label}
+            {enabledLanguages.length > 1 && defaultLang === l && <span className="text-[9.5px] font-normal opacity-75">(main)</span>}
           </button>
-          {showAdd && (
-            <div className="absolute left-0 top-full z-20 mt-1 flex flex-col gap-1 rounded-lg p-1.5" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.25)` }}>
-              {disabledLangs.map((l) => (
-                <button
-                  key={l}
-                  onClick={() => { onToggleLanguage(l, true); setShowAdd(false); }}
-                  className="whitespace-nowrap rounded-md px-3 py-1.5 text-left text-xs"
-                  style={{ color: IVORY, fontFamily: FONT_BODY }}
-                >
-                  {LANG_META[l].short} — {LANG_META[l].label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+        ))}
+        <button
+          onClick={() => setManaging((v) => !v)}
+          className="ml-auto flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold"
+          style={{ color: managing ? GOLD_SOFT : MUTED, border: `1px dashed rgba(147,166,155,0.4)`, fontFamily: FONT_BODY }}
+        >
+          {managing ? <><Check size={12} /> Done</> : <><Globe size={12} /> Add / remove languages</>}
+        </button>
+      </div>
+
       {onTranslate && activeLang !== defaultLang && (
         <button
           onClick={() => onTranslate(defaultLang, activeLang)}
           disabled={!!translating}
           title={`Replace the ${LANG_META[activeLang].label} texts with an AI translation of your ${LANG_META[defaultLang].label} invitation`}
-          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
+          className="mt-2.5 flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold"
           style={{ border: `1px solid ${GOLD}`, color: GOLD_SOFT, fontFamily: FONT_BODY, opacity: translating ? 0.6 : 1 }}
         >
-          <Sparkles size={12} /> {translating ? "Translating…" : `Translate from ${LANG_META[defaultLang].short}`}
+          <Sparkles size={12} /> {translating ? "Translating…" : `Translate automatically from ${LANG_META[defaultLang].label}`}
         </button>
       )}
-      <span className="ml-auto text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Tap <Star size={9} style={{ display: "inline", verticalAlign: "middle" }} /> for default, <X size={9} style={{ display: "inline", verticalAlign: "middle" }} /> to remove a language
-      </span>
+
+      {managing && (
+        <div className="mt-3 rounded-lg p-3" style={{ background: INK_2 }}>
+          <div className="flex flex-col gap-1.5">
+            {enabledLanguages.map((l) => (
+              <div key={l} className="flex items-center justify-between gap-2 text-[12px]" style={{ color: IVORY, fontFamily: FONT_BODY }}>
+                <span>{LANG_META[l].label}</span>
+                <div className="flex items-center gap-2">
+                  {defaultLang === l ? (
+                    <span className="flex items-center gap-1 text-[11px]" style={{ color: GOLD_SOFT }}><Star size={11} fill={GOLD} color={GOLD} /> Main language</span>
+                  ) : (
+                    <button onClick={() => setDefaultLang(l)} className="flex items-center gap-1 text-[11px] underline" style={{ color: MUTED }}><Star size={11} /> Make main</button>
+                  )}
+                  {enabledLanguages.length > 1 && (
+                    <button onClick={() => removeLanguage(l)} title="Its texts are kept and come back if you add it again" className="flex items-center gap-0.5 text-[11px] underline" style={{ color: UI_ERROR }}><X size={11} /> Remove</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {disabledLangs.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Add:</span>
+              {disabledLangs.map((l) => (
+                <button
+                  key={l}
+                  onClick={() => onToggleLanguage(l, true)}
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold"
+                  style={{ border: `1px dashed rgba(147,166,155,0.4)`, color: IVORY, fontFamily: FONT_BODY }}
+                >
+                  <Plus size={11} /> {LANG_META[l].label}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-2.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+            The main language is the one guests see first. Guests can switch to the others from the invitation.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -4019,7 +4029,7 @@ function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
       <div className="mb-2 whitespace-nowrap text-[10px] font-semibold uppercase" style={{ color: MUTED, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>
         Pages in this invitation
       </div>
-      <div className="flex flex-col gap-1.5">
+      <div className="grid gap-1.5 sm:grid-cols-2">
         {orderedAllSteps.map((step, i) => {
           const Icon = step.icon;
           const isRequired = step.key === REQUIRED_STEP_KEY;
@@ -4057,7 +4067,7 @@ function PagesManager({ orderedAllSteps, enabledSteps, onToggle, onMove }) {
         })}
       </div>
       <p className="mt-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-        Use the arrows to reorder pages — the cover always opens the story. Hidden pages keep their content.
+        <Eye size={10} style={{ display: "inline", verticalAlign: "middle" }} /> shows or hides a page, the arrows move it earlier or later. The cover is always first. A hidden page keeps what you wrote.
       </p>
     </div>
   );
@@ -4111,6 +4121,21 @@ function MusicLinkImport({ onImport }) {
   );
 }
 
+// Collapsed by default: keeps the rarely-changed settings of a page out of
+// the way so a client sees only what most invitations actually need.
+function MoreOptions({ label = "More options", children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 rounded-xl" style={{ border: `1px solid rgba(147,166,155,0.25)` }}>
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-[12px] font-semibold" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
+        <span className="flex items-center gap-1.5"><Settings size={13} /> {label}</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && <div className="px-3.5 pb-3.5">{children}</div>}
+    </div>
+  );
+}
+
 function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAudio, onImportAudioLink, onRemoveAudio, intro, updateIntro, activeLang, onUploadIntroMedia, onRemoveIntroMedia, introMediaLibrary, isAdmin, onAddLibraryItem, onRemoveLibraryItem, onPickLibraryItem }) {
   const introMedia = intro.media[activeLang];
   return (
@@ -4126,7 +4151,8 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
         </div>
       </div>
 
-      <div className="mt-4">
+      <MoreOptions label="Icon & symbol between the names">
+      <div>
         <FieldLabel>Icon behind names (optional)</FieldLabel>
         <FamilyIconPicker
           value={c.coverHeartIcon === undefined ? "heart" : c.coverHeartIcon}
@@ -4152,6 +4178,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
           </button>
         </div>
       </div>
+      </MoreOptions>
 
       <div className="mt-4">
         <FieldLabel>Introductory phrase</FieldLabel>
@@ -4190,7 +4217,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
         </p>
       )}
       {music.enabled && (
-        <div className="mt-3">
+        <MoreOptions label="Music button style">
           <FieldLabel>Music icon</FieldLabel>
           <div className="flex gap-2">
             {Object.entries(MUSIC_ICONS).map(([key, opt]) => (
@@ -4205,7 +4232,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
               </button>
             ))}
           </div>
-        </div>
+        </MoreOptions>
       )}
       <p className="mt-4 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
         Names and intro are saved per language. Background and music are shared across every language.
@@ -4276,7 +4303,8 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
 
       {/* Nothing below applies without an intro screen. */}
       {intro.type !== "none" && (<>
-      <div className="mt-4">
+      <MoreOptions label="Opening text & speed">
+      <div>
         <FieldLabel>Tap to start text ({LANG_META[activeLang].short})</FieldLabel>
         <TextInput value={c.tapText} onChange={(v) => updateContent({ tapText: v })} placeholder="TAP TO START" />
       </div>
@@ -4304,6 +4332,7 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
           ))}
         </div>
       </div>
+      </MoreOptions>
 
       <div className="mt-4">
         <FieldLabel>
@@ -4400,35 +4429,39 @@ function FamilyStep({ c, updateContent, bg, setBg }) {
           <FieldLabel>Side one title</FieldLabel>
           <TextInput value={c.side1Title} onChange={(v) => updateContent({ side1Title: v })} />
           <div className="mt-3">
-            <FieldLabel>Title color (optional)</FieldLabel>
-            <SwatchColorPicker value={c.side1TitleColor} onChange={(v) => updateContent({ side1TitleColor: v })} />
-          </div>
-          <div className="mt-3">
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side1Names} onChange={(v) => updateContent({ side1Names: v })} />
-          </div>
-          <div className="mt-3">
-            <FieldLabel>Names color (optional)</FieldLabel>
-            <SwatchColorPicker value={c.side1NamesColor} onChange={(v) => updateContent({ side1NamesColor: v })} />
           </div>
         </div>
         <div>
           <FieldLabel>Side two title</FieldLabel>
           <TextInput value={c.side2Title} onChange={(v) => updateContent({ side2Title: v })} />
           <div className="mt-3">
-            <FieldLabel>Title color (optional)</FieldLabel>
-            <SwatchColorPicker value={c.side2TitleColor} onChange={(v) => updateContent({ side2TitleColor: v })} />
-          </div>
-          <div className="mt-3">
             <FieldLabel>Names</FieldLabel>
             <TextInput value={c.side2Names} onChange={(v) => updateContent({ side2Names: v })} />
           </div>
-          <div className="mt-3">
-            <FieldLabel>Names color (optional)</FieldLabel>
-            <SwatchColorPicker value={c.side2NamesColor} onChange={(v) => updateContent({ side2NamesColor: v })} />
-          </div>
         </div>
       </div>
+      <MoreOptions label="Colors of the titles & names">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <FieldLabel>Side one title color</FieldLabel>
+            <SwatchColorPicker value={c.side1TitleColor} onChange={(v) => updateContent({ side1TitleColor: v })} />
+            <div className="mt-3">
+              <FieldLabel>Side one names color</FieldLabel>
+              <SwatchColorPicker value={c.side1NamesColor} onChange={(v) => updateContent({ side1NamesColor: v })} />
+            </div>
+          </div>
+          <div>
+            <FieldLabel>Side two title color</FieldLabel>
+            <SwatchColorPicker value={c.side2TitleColor} onChange={(v) => updateContent({ side2TitleColor: v })} />
+            <div className="mt-3">
+              <FieldLabel>Side two names color</FieldLabel>
+              <SwatchColorPicker value={c.side2NamesColor} onChange={(v) => updateContent({ side2NamesColor: v })} />
+            </div>
+          </div>
+        </div>
+      </MoreOptions>
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
   );
@@ -4803,8 +4836,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
         </div>
       )}
 
-      <Divider />
-
+      <MoreOptions label="Change the wording (buttons, form, voice message)">
       <div className="grid grid-cols-2 gap-3">
         <div>
           <FieldLabel>"Attending" button label</FieldLabel>
@@ -4882,6 +4914,7 @@ function RsvpStep({ c, updateContent, bg, setBg, rsvpSettings, updateRsvpSetting
           </>
         );
       })()}
+      </MoreOptions>
 
       <BackgroundPicker bg={bg} onChange={setBg} />
     </div>
@@ -17729,6 +17762,7 @@ export default function InvitationBuilder() {
   const [designerSubmitCount, setDesignerSubmitCount] = useState(0);
   const [editingShopDesignId, setEditingShopDesignId] = useState(null); // set while the admin is editing an existing shop design's styling directly in the Builder
   const [layoutEditMode, setLayoutEditMode] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [sliderDragging, setSliderDragging] = useState(false); // true while BlockStylePanel's Horizontal/Vertical sliders are actively held — see SliderDragContext
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -20181,11 +20215,8 @@ export default function InvitationBuilder() {
         )}
 
         {view === "builder" && (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-[250px_1fr_320px]">
-            <div className="rounded-2xl p-3 md:sticky md:top-10 md:self-start" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
-              <PagesManager orderedAllSteps={orderedAllSteps} enabledSteps={enabledSteps} onToggle={toggleStepVisibility} onMove={moveStepOrder} />
-            </div>
-            <div className="rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_320px]">
+            <div className="min-w-0 rounded-2xl p-6" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.12)` }}>
               {editingShopDesignId && (
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-xl p-3" style={{ background: "rgba(201,164,76,0.1)", border: `1px solid rgba(201,164,76,0.3)` }}>
                   <span className="text-[12px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
@@ -20203,7 +20234,11 @@ export default function InvitationBuilder() {
                 </div>
               )}
               <LangSwitcher activeLang={activeLang} setActiveLang={setActiveLang} defaultLang={defaultLang} setDefaultLang={setDefaultLang} enabledLanguages={enabledLanguages} onToggleLanguage={toggleLanguage} onTranslate={confirmAndTranslate} translating={translatingLang} />
-              <div className="mb-4 flex items-center justify-end gap-2">
+              <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+                <span className="mr-auto text-[11px] font-semibold" style={{ color: MUTED, fontFamily: FONT_BODY }}>Page {safeIndex + 1} of {steps.length}</span>
+                <GhostButton active={pagesOpen} onClick={() => setPagesOpen((o) => !o)}>
+                  <BookOpen size={13} /> {pagesOpen ? "Done" : "Show, hide or reorder pages"}
+                </GhostButton>
                 {isAdminPath && !actingAsUser && (
                   <button
                     onClick={() => setShowSaveAsShopDesign(true)}
@@ -20231,6 +20266,11 @@ export default function InvitationBuilder() {
                 </button>}
               </div>
               {activeUserRecord?.role === "designer" && <DesignerSubmissionsStrip refreshKey={designerSubmitCount} />}
+              {pagesOpen && (
+                <div className="mb-5">
+                  <PagesManager orderedAllSteps={orderedAllSteps} enabledSteps={enabledSteps} onToggle={toggleStepVisibility} onMove={moveStepOrder} />
+                </div>
+              )}
               <StepRail steps={steps} activeIndex={safeIndex} visited={visited} onSelect={selectStep} />
 
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -20353,7 +20393,7 @@ export default function InvitationBuilder() {
                   {layoutEditMode && <GhostButton onClick={redoLayoutChange}><Redo2 size={12} /> Redo</GhostButton>}
                   {layoutEditMode && <GhostButton onClick={resetLayout}>Reset layout</GhostButton>}
                   <GhostButton active={layoutEditMode} onClick={toggleLayoutEditMode}>
-                    <Move size={13} /> {layoutEditMode ? "Done positioning" : "Position text"}
+                    <Move size={13} /> {layoutEditMode ? "Done moving" : "Move & style on the phone"}
                   </GhostButton>
                 </div>
               </div>
@@ -20568,17 +20608,19 @@ export default function InvitationBuilder() {
               )}
 
               <div className="mt-7 flex flex-wrap items-center justify-between gap-3 border-t pt-5" style={{ borderColor: "rgba(147,166,155,0.15)" }}>
-                <GhostButton onClick={() => selectStep(Math.max(0, activeIndex - 1))}>
-                  <ChevronDown size={13} /> Back
-                </GhostButton>
+                {safeIndex > 0 ? (
+                  <GhostButton onClick={() => selectStep(safeIndex - 1)}>
+                    <ArrowLeft size={13} /> Back
+                  </GhostButton>
+                ) : <span />}
                 <div className="flex items-center gap-3">
                   {saveStatus === "saved" && <span className="text-[11px]" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>Saved ✓</span>}
                   {saveStatus === "error" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Couldn't save — try again</span>}
                   {saveStatus === "errorImages" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Text saved, but photos are too large — try a smaller image</span>}
                   {saveStatus === "unavailable" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Saving isn't available — your browser is blocking storage (try disabling private/incognito mode)</span>}
                   {saveStatus === "notLoaded" && <span className="text-[11px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>Still loading your saved data — wait a moment and try again</span>}
-                  {activeIndex < steps.length - 1 ? (
-                    <GoldButton onClick={() => selectStep(activeIndex + 1)}>Next <ChevronUp size={14} /></GoldButton>
+                  {safeIndex < steps.length - 1 ? (
+                    <GoldButton onClick={() => selectStep(safeIndex + 1)}>Next: {steps[safeIndex + 1].label} <ArrowRight size={14} /></GoldButton>
                   ) : (
                     <GoldButton onClick={saveDraft}><Check size={14} /> {saveStatus === "saving" ? "Saving…" : "Finish & Save"}</GoldButton>
                   )}
