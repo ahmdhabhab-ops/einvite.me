@@ -782,7 +782,12 @@ const REVEAL_SPEED_MS = [
   { key: "fast", label: "Fast", ms: 350 },
   { key: "medium", label: "Medium", ms: 700 },
   { key: "slow", label: "Slow", ms: 1200 },
+  // Plays the intro video (or converted GIF) once to its end before the
+  // invitation opens; the default when the intro is a video.
+  { key: "full", label: "Whole animation", ms: "full", videoOnly: true },
 ];
+// The longest an intro animation may hold the invitation closed.
+const GATE_FULL_MAX_MS = 10000;
 
 const FONT_OPTIONS = [
   { key: "auto", label: "Default", value: null },
@@ -2303,6 +2308,19 @@ async function uploadVideoToStorage(file) {
 // shrinks it to 720p / ~5 MB, grabs its first frame as a poster, and stores
 // both. Falls back to uploading the original as-is if the server can't do
 // it (e.g. running locally without it), so an upload never just fails.
+// An animated GIF for the intro becomes a short MP4 on the server (ffmpeg),
+// so it waits on its first frame until the tap, starts from the beginning
+// on the tap, and the opening can wait for it to finish, like a video.
+// Null if the server couldn't convert it (the GIF is then used as before).
+async function gifToVideo(file) {
+  try {
+    const res = await fetch("/api/video/optimize?audio=0", { method: "POST", headers: { "Content-Type": "image/gif" }, body: file });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.url ? data : null;
+  } catch { return null; }
+}
+
 async function uploadOptimizedVideo(file, { audio = true } = {}) {
   try {
     const res = await fetch(`/api/video/optimize?audio=${audio ? 1 : 0}`, {
@@ -4242,22 +4260,25 @@ function CoverStep({ c, updateContent, bg, setBg, music, updateMusic, onUploadAu
         <p className="mb-2 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
           How long the tap-to-start reveal takes before the invitation opens.
         </p>
-        <div className="flex gap-2">
-          {REVEAL_SPEED_MS.map(({ key, label, ms }) => (
-            <button
-              key={key}
-              onClick={() => updateIntro({ revealHoldMs: ms })}
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{
-                background: (intro.revealHoldMs ?? 700) === ms ? GOLD : INK_3,
-                color: (intro.revealHoldMs ?? 700) === ms ? INK : MUTED,
-                border: `1px solid ${(intro.revealHoldMs ?? 700) === ms ? GOLD : "rgba(147,166,155,0.3)"}`,
-                fontFamily: FONT_BODY,
-              }}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          {REVEAL_SPEED_MS.filter((o) => !o.videoOnly || introMedia?.type === "video").map(({ key, label, ms }) => {
+            const current = intro.revealHoldMs ?? (introMedia?.type === "video" ? "full" : 700);
+            return (
+              <button
+                key={key}
+                onClick={() => updateIntro({ revealHoldMs: ms })}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+                style={{
+                  background: current === ms ? GOLD : INK_3,
+                  color: current === ms ? INK : MUTED,
+                  border: `1px solid ${current === ms ? GOLD : "rgba(147,166,155,0.3)"}`,
+                  fontFamily: FONT_BODY,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
       </MoreOptions>
@@ -8175,7 +8196,7 @@ function WaxSealGate({ tapText, design, customMedia, videoRef, started, revealin
                 if (!started && !revealing) { e.currentTarget.pause(); return; }
                 e.currentTarget.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
               }}
-              onPause={(e) => { if (started || revealing) e.currentTarget.play().catch(() => {}); }} // only auto-resume once the gate has actually been tapped
+              onPause={(e) => { if ((started || revealing) && !e.currentTarget.ended) e.currentTarget.play().catch(() => {}); }} // only auto-resume once the gate has actually been tapped
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
@@ -8507,7 +8528,22 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   // Admin-adjustable via the "Transition speed" control in CoverStep — how
   // long the tap-to-start reveal holds before the invitation actually opens.
   // Applies uniformly regardless of gate style or background media type.
-  const revealHoldMs = data.intro.revealHoldMs ?? 700;
+  const holdSetting = data.intro.revealHoldMs ?? (introMedia?.type === "video" ? "full" : 700);
+  const revealHoldMs = typeof holdSetting === "number" ? holdSetting : 700;
+  // Opens the invitation after the tap: after the chosen time, or, for
+  // "Whole animation", once the intro video has played to its end (at the
+  // gate's slowed-down speed), never longer than GATE_FULL_MAX_MS.
+  const finishGateAfterTap = () => {
+    const done = () => { onStart(); setGateClosing(false); };
+    const v = gateVideoRef.current;
+    if (holdSetting !== "full" || introMedia?.type !== "video" || !v) { setTimeout(done, revealHoldMs); return; }
+    v.loop = false;
+    let finished = false;
+    const finish = () => { if (finished) return; finished = true; v.removeEventListener("ended", finish); done(); };
+    v.addEventListener("ended", finish);
+    const known = Number.isFinite(v.duration) && v.duration > 0 ? (v.duration / GATE_VIDEO_PLAYBACK_RATE) * 1000 + 300 : GATE_FULL_MAX_MS;
+    setTimeout(finish, Math.max(revealHoldMs, Math.min(GATE_FULL_MAX_MS, known)));
+  };
 
   // Kept in sync so the async play()/pause() priming below (whose promise can
   // resolve after a render or two) can check the CURRENT started state rather
@@ -8837,7 +8873,11 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
   // art) — without it, the transparent parts let whatever sits behind the gate
   // in the DOM (the cover slide's own photo and text) show straight through.
   const gateImageReady = useImageReady(gateImage);
-  const gateBackground = gateImage ? (gateImageReady ? `url(${gateImage}) center/cover, ${INK}` : INK) : introIsVideo ? INK : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
+  // A GIF intro switches from its first frame to the animated file on the
+  // tap; until that file has loaded, keep showing the first frame instead of
+  // a dark screen.
+  const gifPoster = introMedia?.type === "image" && introMedia.posterUrl ? introMedia.posterUrl : null;
+  const gateBackground = gateImage ? (gateImageReady ? `url(${gateImage}) center/cover, ${gifPoster ? `url(${gifPoster}) center/cover, ` : ""}${INK}` : gifPoster ? `url(${gifPoster}) center/cover, ${INK}` : INK) : introIsVideo ? INK : BG_PRESETS[data.pageBackgrounds.cover.preset].css;
   const GateIcon = GATE_ICONS[data.intro.icon] || Heart;
   const tapText = data.content[lang].cover.tapText || t.tapToStart;
 
@@ -9135,7 +9175,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                     }
                     startMusicOnTap();
                     setGateClosing(true);
-                    setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
+                    finishGateAfterTap();
                   }}
                   className="absolute inset-0"
                   style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
@@ -9175,7 +9215,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                         if (!started && !gateClosing) { e.currentTarget.pause(); return; }
                         e.currentTarget.playbackRate = GATE_VIDEO_PLAYBACK_RATE;
                       }}
-                      onPause={(e) => { if (started || gateClosing) e.currentTarget.play().catch(() => {}); }}
+                      onPause={(e) => { if ((started || gateClosing) && !e.currentTarget.ended) e.currentTarget.play().catch(() => {}); }}
                       className="absolute inset-0 h-full w-full object-cover"
                     />
                   )}
@@ -9195,7 +9235,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
                       }
                       startMusicOnTap();
                       setGateClosing(true);
-                      setTimeout(() => { onStart(); setGateClosing(false); }, revealHoldMs);
+                      finishGateAfterTap();
                     }}
                     className="absolute inset-0 flex flex-col items-center justify-center gap-4"
                     style={{ pointerEvents: gateClosing ? "none" : "auto", cursor: "pointer" }}
@@ -18585,6 +18625,12 @@ export default function InvitationBuilder() {
     const isGif = file.type === "image/gif";
     try {
       let url, posterUrl = null;
+      const fromGif = isGif ? await withVideoTask(() => gifToVideo(file)) : null;
+      if (fromGif) {
+        const newItem = { id: uid(), type: "video", url: fromGif.url, posterUrl: fromGif.posterUrl || (await uploadGifPosterFrame(file, "site-decorations")), name: file.name };
+        setIntroMediaLibrary((list) => [...list, newItem]);
+        return;
+      }
       if (isVideo) {
         const optimized = await withVideoTask(() => uploadOptimizedVideo(file, { audio: false }));
         url = optimized.url;
@@ -19295,6 +19341,12 @@ export default function InvitationBuilder() {
       // then stays at the same 2400px/0.92 ceiling every other full-screen
       // background photo in the app uses, rather than being squeezed down
       // toward a small target size.
+      const fromGif = isGif ? await withVideoTask(() => gifToVideo(file)) : null;
+      if (fromGif) {
+        const posterUrl = fromGif.posterUrl || (await uploadGifPosterFrame(file, "site-decorations"));
+        setIntro((i) => ({ ...i, media: { ...i.media, [activeLang]: { type: "video", url: fromGif.url, posterUrl, name: file.name } } }));
+        return;
+      }
       const optimized = isVideo ? await withVideoTask(() => uploadOptimizedVideo(file, { audio: false })) : null; // intro videos play muted
       const url = isVideo ? optimized.url : await uploadImageToStorage(file, "site-decorations", 2400, 0.92, 3 * 1024 * 1024);
       // A GIF also gets a static poster frame uploaded alongside it — see
