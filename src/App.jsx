@@ -10074,15 +10074,6 @@ function RsvpSettingsView({ rsvpSettings, updateRsvpSettings }) {
         <NumberStepper value={rsvpSettings.maxGuestsOpenInvite} onChange={(v) => updateRsvpSettings({ maxGuestsOpenInvite: v })} min={0} max={20} />
       </div>
 
-      <Divider />
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="text-[13px] font-medium" style={{ color: IVORY, fontFamily: FONT_BODY }}>Max Total RSVPs</div>
-          <div className="text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Closes "Attending" on the open invitation link once this many confirmed guests are reached. 0 = unlimited.</div>
-        </div>
-        <NumberStepper value={rsvpSettings.maxTotalRsvps} onChange={(v) => updateRsvpSettings({ maxTotalRsvps: v })} min={0} max={2000} />
-      </div>
     </div>
   );
 }
@@ -19325,7 +19316,7 @@ export default function InvitationBuilder() {
   };
 
   const totalAttending = flattenMembers(guestGroups).filter((m) => m.status === "yes").length;
-  const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks, rsvpSettings, totalAttending, integrations };
+  const data = { content, timeline, locations, registry, pageBackgrounds, music, rsvpSchedule, layouts, intro, customBlocks, rsvpSettings: { ...rsvpSettings, maxTotalRsvps: 0 }, totalAttending, integrations };
   const stepKey = steps[safeIndex].key;
   const c = content[activeLang];
   // The couple's names for messages (the WhatsApp invitation, the dashboard
@@ -19763,7 +19754,9 @@ export default function InvitationBuilder() {
           return {
             ...guestView.snapshot,
             totalAttending: batchTotalAttending,
-            rsvpSettings: { ...guestView.snapshot.rsvpSettings, maxTotalRsvps: matchingBatch ? matchingBatch.maxGuests : guestView.snapshot.rsvpSettings.maxTotalRsvps },
+            // Only the Dashboard's extra open links have a total limit now;
+            // an older "Max Total RSVPs" saved for the main link is ignored.
+            rsvpSettings: { ...guestView.snapshot.rsvpSettings, maxTotalRsvps: matchingBatch ? matchingBatch.maxGuests : 0 },
           };
         }
         return { ...guestView.snapshot, totalAttending: allYes.length };
