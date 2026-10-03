@@ -19,7 +19,7 @@
 
 import express from "express";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { runTryOn, downloadResult, falConfigured, FalError, TRY_ON_MODEL } from "./fal.js";
+import { runTryOn, downloadResult, falConfigured, falKeySource, FalError, TRY_ON_MODEL } from "./fal.js";
 import { safeGet, safeGetImage, imageType, extractProduct, checkLink, FetchRefused } from "./safe-fetch.js";
 
 const SHOPS_KEY = "einvite:bridal-shops";
@@ -455,7 +455,7 @@ export function createBridalStudio(deps) {
   r.get("/api/bridal/admin/usage", h(async (req, res) => {
     needAdmin(req);
     const u = await usage();
-    res.json({ ...u, settings: settings(), ready: falConfigured() });
+    res.json({ ...u, model: TRY_ON_MODEL, settings: settings(), ready: falConfigured(), keySetting: falKeySource() });
   }));
 
   return { router: r, sweepExpired, _jobs: jobs };
