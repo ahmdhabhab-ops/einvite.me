@@ -10148,6 +10148,32 @@ function MembersEditor({ group, onChange }) {
 // One clear word per family: Pending until someone answers, then Yes or No.
 // It updates by itself because the dashboard polls the server for new RSVPs.
 // For bigger families it also shows how many of them are coming (e.g. 2/3).
+// The owner can also set a family's reply by hand (a guest who answered by
+// phone, or one to correct). It counts as the newest reply.
+function RsvpStatusPicker({ group, onChange }) {
+  const ms = group.members || [];
+  const current = ms.some((m) => m.status === "yes") ? "yes" : ms.length && ms.every((m) => m.status === "no") ? "no" : "pending";
+  return (
+    <label className="relative inline-flex cursor-pointer" title="Change this family's reply">
+      <RsvpBadges members={ms} />
+      <select
+        aria-label="Reply"
+        value={current}
+        onChange={(e) => {
+          const status = e.target.value;
+          const members = ms.length ? ms.map((m) => ({ ...m, status })) : [{ id: uid(), name: group.name || group.lastName || "Guest", status }];
+          onChange({ members, additionalGuests: status === "yes" ? group.additionalGuests || 0 : 0, rsvpVia: "manual", rsvpAt: Date.now() });
+        }}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        <option value="pending">Pending</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </label>
+  );
+}
+
 function RsvpBadges({ members }) {
   const yes = members.filter((m) => m.status === "yes").length;
   const no = members.filter((m) => m.status === "no").length;
@@ -11437,7 +11463,10 @@ function mergeServerGuestGroups(local, server, syncedAt) {
     const viewedAt = Math.max(Number(g.viewedAt) || 0, Number(sv.viewedAt) || 0) || undefined;
     let next = g;
     if ((Number(sv.updatedAt) || 0) > (Number(g.updatedAt) || 0)) {
-      next = { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, updatedAt: sv.updatedAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
+      next = { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, ...(sv.rsvpAt ? { rsvpAt: sv.rsvpAt } : {}), updatedAt: sv.updatedAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
+    } else if ((Number(sv.rsvpAt) || 0) > (Number(g.rsvpAt) || 0)) {
+      // A reply this screen hadn't seen wins over later edits made here.
+      next = { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, rsvpAt: sv.rsvpAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
     } else if ((Number(sv.viewedAt) || 0) > (Number(g.viewedAt) || 0) && (Number(sv.viewedAt) || 0) > (Number(g.updatedAt) || 0)) {
       next = { ...g, invitationViewed: true, viewedAt };
     }
@@ -12174,7 +12203,7 @@ function DashboardView({ guestGroups, addGuestGroup, addGuestGroups, updateGuest
                       />
                     </td>
                     <td className="px-2 py-0.5">
-                      <RsvpBadges members={g.members} />
+                      <RsvpStatusPicker group={g} onChange={(patch) => updateGuestGroup(g.id, patch)} />
                     </td>
                     <td className="px-1 py-0.5 text-center">
                       <DeliveryTicks
@@ -16828,7 +16857,7 @@ function QuickRsvpPage({ slug }) {
         const latest = res?.value ? JSON.parse(res.value) : state.snapshot;
         newGroup = {
           id: uid(), lastName: "", members: [{ id: uid(), name: cleanName, status }],
-          additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: Date.now(),
+          additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: Date.now(), rsvpAt: Date.now(),
         };
         const updated = { ...latest, guestGroups: [newGroup, ...(latest.guestGroups || [])] };
         const saveResult = await persistentStorage.set(key, JSON.stringify(updated), false);
@@ -17848,7 +17877,12 @@ export default function InvitationBuilder() {
       } catch {}
     };
     const t = setInterval(tick, 20000);
-    return () => { cancelled = true; clearInterval(t); };
+    // Phones pause hidden tabs: catch up as soon as the screen is back, so
+    // nothing is edited on top of an old copy of the replies.
+    const onVisible = () => { if (!document.hidden) tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => { cancelled = true; clearInterval(t); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
   }, [builderDataMode, activeInvitationId]);
 
   const getActiveSnapshot = () => ({
@@ -18912,7 +18946,7 @@ export default function InvitationBuilder() {
       // separate, unlinked entry. Saved immediately (not the debounced
       // path other edits use) since an RSVP needs prompt, reliable
       // persistence.
-      const updatedGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
+      const updatedGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now(), rsvpAt: Date.now() };
       const newList = guestGroups.map((g) => (g.id === existing.id ? updatedGroup : g));
       setGuestGroups(newList);
       // Same guard as saveDraft — see its own comment.
@@ -19726,10 +19760,10 @@ export default function InvitationBuilder() {
       const existing = guestView.groupId ? existingGroups.find((g) => g.id === guestView.groupId) : null;
 
       if (existing) {
-        resultGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now() };
+        resultGroup = { ...existing, members: newMembers.length ? newMembers : existing.members, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, invitationViewed: true, updatedAt: Date.now(), rsvpAt: Date.now() };
         latest = { ...latest, guestGroups: existingGroups.map((g) => (g.id === existing.id ? resultGroup : g)) };
       } else {
-        resultGroup = { id: uid(), ...(familyName ? { name: familyName } : {}), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: guestView.batchId || null, updatedAt: Date.now() };
+        resultGroup = { id: uid(), ...(familyName ? { name: familyName } : {}), lastName: "", members: newMembers, additionalGuests: status === "yes" ? additionalGuests || 0 : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: guestView.batchId || null, updatedAt: Date.now(), rsvpAt: Date.now() };
         latest = { ...latest, guestGroups: [resultGroup, ...existingGroups] };
       }
 
