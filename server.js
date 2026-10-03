@@ -26,6 +26,7 @@ import { createInboxForwarder } from "./whatsapp-inbox-forwarder.js";
 import { createOAuth } from "./mcp/oauth.js";
 import { createMcpHandler } from "./mcp/tools.js";
 import { createBridalStudio } from "./bridal/studio.js";
+import { createImageTextRoutes, imageTextMode } from "./imagetext/routes.js";
 import { imageType } from "./bridal/safe-fetch.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -538,6 +539,12 @@ app.post("/api/guests/from-image", requireMember, limitGuestOcr, express.json({ 
     res.status(502).json({ error: "Couldn't read that photo — please try again, or with a clearer, straighter photo." });
   }
 });
+
+// "Edit text in image" in the Builder (reading the text in a part of an
+// image, and the paid AI erase). Off unless IMAGE_TEXT_EDIT_ENABLED is set;
+// see imagetext/routes.js.
+app.use("/api/image-text", createImageTextRoutes({ requestRole: (req) => (authReady ? requestRole(req) : { role: "admin" }), kvRead, kvWrite }));
+if (imageTextMode() !== "off") console.log(`edit text in image: on (${imageTextMode() === "admin" ? "admin only" : "everyone"}), AI erase ${process.env.IMAGE_TEXT_AI_ERASE === "1" && process.env.STABILITY_API_KEY ? "on" : "off"}`);
 
 // The app's assistant: answers the host's questions about their own guest
 // list (who's coming, who isn't, how many, who hasn't replied) from their
