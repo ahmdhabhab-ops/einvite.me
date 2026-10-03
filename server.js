@@ -1525,7 +1525,13 @@ function mergeGuestGroupsOnSave(incomingValue, serverValue) {
     seen.add(g.id);
     const viewedAt = Math.max(Number(g.viewedAt) || 0, Number(sv.viewedAt) || 0) || undefined;
     if ((Number(sv.updatedAt) || 0) > (Number(g.updatedAt) || 0)) {
-      return { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, updatedAt: sv.updatedAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
+      return { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, ...(sv.rsvpAt ? { rsvpAt: sv.rsvpAt } : {}), updatedAt: sv.updatedAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
+    }
+    // A guest's reply is newer than the reply this copy knows about: the
+    // reply wins, even when the copy was edited later (a reminder sent, a
+    // name or phone changed) from a screen that hadn't seen the reply yet.
+    if ((Number(sv.rsvpAt) || 0) > (Number(g.rsvpAt) || 0)) {
+      return { ...g, members: sv.members, additionalGuests: sv.additionalGuests, rsvpVia: sv.rsvpVia ?? g.rsvpVia, rsvpAt: sv.rsvpAt, invitationViewed: !!(sv.invitationViewed || g.invitationViewed), ...(viewedAt ? { viewedAt } : {}) };
     }
     const viewedSince = (Number(sv.viewedAt) || 0) > (Number(g.updatedAt) || 0);
     return { ...g, invitationViewed: !!(g.invitationViewed || viewedSince), ...(viewedAt ? { viewedAt } : {}) };
@@ -1856,7 +1862,8 @@ async function applyWhatsappRsvp(sent, status) {
   const existing = groups.find((g) => g.id === sent.groupId);
   if (!existing) return null;
   const members = (existing.members || []).length ? existing.members.map((m) => ({ ...m, status })) : [{ id: randomUUID().replace(/-/g, "").slice(0, 8), name: existing.name || "Guest", status }];
-  const group = { ...existing, members, invitationViewed: true, rsvpVia: "whatsapp", updatedAt: Date.now() };
+  const now = Date.now();
+  const group = { ...existing, members, invitationViewed: true, rsvpVia: "whatsapp", updatedAt: now, rsvpAt: now };
   latest.guestGroups = groups.map((g) => (g.id === group.id ? group : g));
   await kvWrite(key, JSON.stringify(latest));
   notifyOwner(sent.ownerId, rsvpNotice(group, status)).catch((err) => console.error("rsvp notification failed:", err.message));
@@ -2124,15 +2131,15 @@ app.post("/api/guest/rsvp", express.json({ limit: "16kb" }), async (req, res) =>
     ];
     let group;
     if (b.quick) {
-      group = { id: genId(), lastName: "", members, additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: now };
+      group = { id: genId(), lastName: "", members, additionalGuests: 0, table: "", phone: "", invitationSent: false, invitationViewed: true, updatedAt: now, rsvpAt: now };
       latest.guestGroups = [group, ...groups];
     } else {
       const existing = b.groupId ? groups.find((g) => g.id === String(b.groupId)) : null;
       if (existing) {
-        group = { ...existing, members: names.length || declinedNames.length ? members : existing.members, additionalGuests: status === "yes" ? additionalGuests : 0, invitationViewed: true, updatedAt: now };
+        group = { ...existing, members: names.length || declinedNames.length ? members : existing.members, additionalGuests: status === "yes" ? additionalGuests : 0, invitationViewed: true, updatedAt: now, rsvpAt: now };
         latest.guestGroups = groups.map((g) => (g.id === existing.id ? group : g));
       } else {
-        group = { id: genId(), ...(familyName ? { name: familyName } : {}), lastName: "", members, additionalGuests: status === "yes" ? additionalGuests : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: b.batchId ? String(b.batchId).slice(0, 64) : null, updatedAt: now };
+        group = { id: genId(), ...(familyName ? { name: familyName } : {}), lastName: "", members, additionalGuests: status === "yes" ? additionalGuests : 0, table: "", phone: "", tableId: null, invitationSent: false, invitationViewed: true, inviteBatchId: b.batchId ? String(b.batchId).slice(0, 64) : null, updatedAt: now, rsvpAt: now };
         latest.guestGroups = [group, ...groups];
       }
     }
