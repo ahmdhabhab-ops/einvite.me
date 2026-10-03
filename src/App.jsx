@@ -14,7 +14,7 @@ import {
   ThumbsUp, ThumbsDown, CalendarDays, Pencil, Gift, ExternalLink, Handshake, Video, AlertTriangle, Mic,
   Moon, BookOpen, Flower2, Gem, Crown, Bell, Sun, Minus, CheckCheck, DoorOpen, Sofa, Wind, ChevronsDown, Undo2, Redo2,
   Download, QrCode, Camera, Globe, AlignCenterVertical, AlignVerticalDistributeCenter,
-  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Palette, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet, Headset, Building2, Bot, AlignLeft, AlignCenter, AlignRight,
+  FlipHorizontal2, FlipVertical2, Crop, Eraser, Calculator, ArrowRight, ArrowUpRight, Palette, Printer, UserCog, FileText, BellRing, Smartphone, Phone, ScanText, FileSpreadsheet, Headset, Building2, Bot,
 } from "lucide-react";
 // Loaded on demand — see ResponsesPieChart.jsx.
 const ResponsesPieChart = lazy(() => import("./ResponsesPieChart.jsx"));
@@ -22,7 +22,6 @@ const CostCalculatorPage = lazy(() => import("./CostCalculator.jsx"));
 const BridalStudioPage = lazy(() => import("./BridalStudio.jsx"));
 const BridalAdminPanel = lazy(() => import("./BridalStudio.jsx").then((m) => ({ default: m.BridalAdminPanel })));
 import jsQR from "jsqr";
-import { findLetters, boxMask, quickFill, blendInBox, fontSizeForLines } from "./imageTextFill.js";
 import { LANDING_TEXT, LANDING_LANGS, LANDING_LANG_NAMES, LANDING_EDITORIAL } from "./landingText.js";
 
 /* ---------------------------------------------------------------------- */
@@ -2939,7 +2938,6 @@ function LangSwitcher({ activeLang, setActiveLang, defaultLang, setDefaultLang, 
 
 function BackgroundPicker({ bg, onChange }) {
   const customImageActive = hasActiveCustomImage(bg);
-  const imageText = useContext(ImageTextEditContext);
   // Switching presets only changes which source is active — the uploaded
   // photo (bg.image) is left untouched so it's still there, one click away,
   // if the user comes back to it.
@@ -3022,21 +3020,9 @@ function BackgroundPicker({ bg, onChange }) {
         )}
       </div>
       {bg.image && (
-        <button onClick={() => onChange({ ...bg, image: null, originalImage: null, useCustomImage: false })} className="mt-2 text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+        <button onClick={() => onChange({ ...bg, image: null, useCustomImage: false })} className="mt-2 text-[11px] underline" style={{ color: MUTED, fontFamily: FONT_BODY }}>
           Remove photo, use preset instead
         </button>
-      )}
-      {imageText && customImageActive && !isGifUrl(bg.image) && (
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <button onClick={() => imageText.openForBackground()} className="flex items-center gap-1 text-[11.5px] font-semibold" style={{ color: GOLD_SOFT, fontFamily: FONT_BODY }}>
-            <ScanText size={12} /> Edit text in this photo
-          </button>
-          {bg.originalImage && bg.originalImage !== bg.image && (
-            <button onClick={() => onChange({ ...bg, image: bg.originalImage, originalImage: null })} className="flex items-center gap-1 text-[11px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
-              <Undo2 size={11} /> Restore original photo
-            </button>
-          )}
-        </div>
       )}
       {bg.mode === "photo" && (
         <div className="mt-3">
@@ -3870,17 +3856,6 @@ function BlockStylePanel({ isCustom, isLocation, blockId, stepKey, current, onCh
               options={[{ value: "off", label: "Off" }, { value: "on", label: "On" }]}
             />
           </div>
-
-          {isCustom && current.type === "text" && (
-            <div className="mt-3 flex items-center justify-between rounded-lg p-3" style={{ background: INK_2 }}>
-              <FieldLabel>Align</FieldLabel>
-              <SegmentedToggle
-                value={current.align || "center"}
-                onChange={(v) => onChangeStyle({ align: v === "center" ? null : v })}
-                options={[{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }]}
-              />
-            </div>
-          )}
 
           {!isFixedWidthHeading && (
           <div className="mt-3 rounded-lg p-3" style={{ background: INK_2 }}>
@@ -6110,7 +6085,6 @@ function EraseEditor({ loaded, saving, onCancel, onApply }) {
 // block's floating toolbar (compact) and in its side panel.
 function ImageEditButtons({ block, onChange, compact }) {
   const [tool, setTool] = useState(null);
-  const imageText = useContext(ImageTextEditContext);
   const gif = isGifUrl(block.url);
   const open = (t) => {
     if (gif) { alert("Crop and erase work on photos (JPG/PNG) — not on animated GIFs."); return; }
@@ -6121,7 +6095,6 @@ function ImageEditButtons({ block, onChange, compact }) {
     { key: "flipY", icon: FlipVertical2, label: "Flip vertical", active: !!block.flipY, onClick: () => onChange({ flipY: !block.flipY }) },
     { key: "crop", icon: Crop, label: "Crop", onClick: () => open("crop") },
     { key: "erase", icon: Eraser, label: "Erase", onClick: () => open("erase") },
-    ...(imageText ? [{ key: "text", icon: ScanText, label: "Edit text", onClick: () => (gif ? alert("Edit text works on photos (JPG/PNG) — not on animated GIFs.") : imageText.openForBlock(block.id)) }] : []),
   ];
   const modal = tool && (
     <ImageEditModal
@@ -6149,7 +6122,7 @@ function ImageEditButtons({ block, onChange, compact }) {
   return (
     <div className="mb-3">
       <FieldLabel>Edit image</FieldLabel>
-      <div className={`grid ${buttons.length > 4 ? "grid-cols-5" : "grid-cols-4"} gap-1.5`}>
+      <div className="grid grid-cols-4 gap-1.5">
         {buttons.map(({ key, icon: Icon, label, active, onClick }) => (
           <button
             key={key}
@@ -6174,401 +6147,6 @@ function ImageEditButtons({ block, onChange, compact }) {
       )}
       {modal}
     </div>
-  );
-}
-
-// ---- Edit text in image ------------------------------------------------------
-// The couple draws a box around some English text in a photo (a custom
-// image or the page's background photo). The text is read (OpenAI, on the
-// server), they correct it and pick its look, the letters are removed from
-// the photo (for free in the browser, or with the paid AI erase when it's
-// switched on), and the text comes back as a normal custom text block over
-// the cleaned photo — so it can be edited, styled, moved and translated like
-// any other text. Only pixels inside the box ever change. The Builder
-// provides ImageTextEditContext only when the server has the feature on.
-const ImageTextEditContext = createContext(null);
-
-// The editor font closest to the kind of lettering that was read.
-const ITX_FONT_FOR_STYLE = { serif: "playfair", sans: "montserrat", script: "greatvibes", display: "cormorant" };
-const ITX_MIN_BOX = 8;
-
-// A part of the photo as a data: URI, scaled so its long side is at most
-// maxSide and (when given) its height is at least minH.
-function itxPieceDataUrl(source, box, { maxSide = 1400, minH = 0, type = "image/jpeg", quality = 0.92 } = {}) {
-  let s = Math.min(1, maxSide / Math.max(box.w, box.h));
-  if (minH && box.h * s < minH) s = Math.min(4, minH / box.h, maxSide / Math.max(box.w, box.h));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(box.w * s));
-  canvas.height = Math.max(1, Math.round(box.h * s));
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(source, box.x, box.y, box.w, box.h, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL(type, quality);
-}
-
-function itxExpand(box, margin, w, h) {
-  const x = Math.max(0, box.x - margin), y = Math.max(0, box.y - margin);
-  return { x, y, w: Math.min(w, box.x + box.w + margin) - x, h: Math.min(h, box.y + box.h + margin) - y };
-}
-
-// Sends the area around the box and a black/white mask of what to remove
-// (white) to the AI erase, and returns the result as pixels the size of the
-// area. The AI needs at least 64px on each side, so tiny areas are sent
-// enlarged and shrunk back.
-async function itxAiErase(regionData, region, mask) {
-  const up = Math.max(1, 64 / Math.min(region.w, region.h));
-  const down = Math.min(1, 2048 / (Math.max(region.w, region.h) * up));
-  const s = up * down;
-  const sw = Math.max(64, Math.round(region.w * s)), sh = Math.max(64, Math.round(region.h * s));
-  const piece = document.createElement("canvas");
-  piece.width = region.w; piece.height = region.h;
-  piece.getContext("2d").putImageData(regionData, 0, 0);
-  const maskCanvas = document.createElement("canvas");
-  maskCanvas.width = region.w; maskCanvas.height = region.h;
-  const mctx = maskCanvas.getContext("2d");
-  const md = mctx.createImageData(region.w, region.h);
-  for (let p = 0; p < mask.length; p++) { const v = mask[p] ? 255 : 0; md.data[p * 4] = v; md.data[p * 4 + 1] = v; md.data[p * 4 + 2] = v; md.data[p * 4 + 3] = 255; }
-  mctx.putImageData(md, 0, 0);
-  const scaled = (c, type) => {
-    const out = document.createElement("canvas");
-    out.width = sw; out.height = sh;
-    const ctx = out.getContext("2d");
-    ctx.imageSmoothingEnabled = type !== "image/png";
-    ctx.drawImage(c, 0, 0, sw, sh);
-    return out.toDataURL(type, 0.95);
-  };
-  const { image } = await apiJson("/api/image-text/erase", { method: "POST", body: { image: scaled(piece, "image/jpeg"), mask: scaled(maskCanvas, "image/png") } });
-  const result = new Image();
-  result.src = image;
-  await result.decode();
-  const back = document.createElement("canvas");
-  back.width = region.w; back.height = region.h;
-  const bctx = back.getContext("2d");
-  bctx.imageSmoothingQuality = "high";
-  bctx.drawImage(result, 0, 0, region.w, region.h);
-  return bctx.getImageData(0, 0, region.w, region.h).data;
-}
-
-function ImageTextModal({ url, config, placement, onClose, onApply }) {
-  const [loaded, setLoaded] = useState(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl = null;
-    loadEditableImage(url)
-      .then((res) => { objectUrl = res.objectUrl; if (cancelled) URL.revokeObjectURL(res.objectUrl); else setLoaded(res); })
-      .catch((err) => !cancelled && setError(err.message));
-    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [url]);
-  const stop = (e) => e.stopPropagation();
-  return createPortal(
-    <div
-      className="fixed inset-0 flex items-center justify-center p-2 sm:p-4"
-      style={{ zIndex: 10000, background: "rgba(8,12,10,0.82)" }}
-      onPointerDown={stop} onPointerMove={stop} onPointerUp={stop} onMouseDown={stop} onTouchStart={stop} onTouchMove={stop} onClick={stop} onWheel={stop}
-      data-itx-modal=""
-    >
-      <div className="flex max-h-full w-full max-w-[760px] flex-col overflow-y-auto rounded-2xl p-3 sm:p-4" style={{ background: INK_2, border: `1px solid rgba(201,164,76,0.35)` }}>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[12px] font-semibold uppercase" style={{ color: GOLD_SOFT, letterSpacing: "0.1em", fontFamily: FONT_BODY }}>Edit text in image</span>
-          <button onClick={onClose} title="Close" style={{ color: MUTED }}><X size={16} /></button>
-        </div>
-        {error ? (
-          <p className="py-10 text-center text-[13px]" style={{ color: UI_ERROR, fontFamily: FONT_BODY }}>{error}</p>
-        ) : !loaded ? (
-          <p className="py-10 text-center text-[13px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>Opening the image…</p>
-        ) : (
-          <ImageTextEditor loaded={loaded} config={config} designPerImagePx={placement(loaded.img.naturalWidth, loaded.img.naturalHeight).designPerImagePx} onClose={onClose} onApply={onApply} />
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function ImageTextEditor({ loaded, config, designPerImagePx, onClose, onApply }) {
-  const { img, type } = loaded;
-  const nw = img.naturalWidth, nh = img.naturalHeight;
-  const [stage, setStage] = useState("select"); // select -> text -> preview
-  // Smaller while the text and its look are being set, so those controls
-  // fit on screen with it.
-  const fit = fitImageOnScreen(nw, nh);
-  const textScale = stage === "text" ? Math.min(1, Math.max(150, window.innerHeight * 0.34) / fit.dh) : 1;
-  const dw = Math.round(fit.dw * textScale), dh = Math.round(fit.dh * textScale);
-  const k = dw / nw; // screen px per image px
-  const [box, setBox] = useState(null); // in image px
-  const [busy, setBusy] = useState("");
-  const [note, setNote] = useState("");
-  const [text, setText] = useState("");
-  const [fontKey, setFontKey] = useState("playfair");
-  const [fontSize, setFontSize] = useState(18); // Builder px, like every text block
-  const [sizeTouched, setSizeTouched] = useState(false);
-  const [color, setColor] = useState("#ffffff");
-  const [bold, setBold] = useState(false);
-  const [italic, setItalic] = useState(false);
-  const [align, setAlign] = useState("center");
-  const [method, setMethod] = useState("quick");
-  const [maskMode, setMaskMode] = useState("letters");
-  const [result, setResult] = useState(null); // { canvas, previewUrl, textRect }
-  const [showBefore, setShowBefore] = useState(false);
-  const [letters, setLetters] = useState(null); // letters found in the box: { bbox, color } in image px
-  const sourceRef = useRef(null);
-  const dragRef = useRef(null);
-
-  // The whole photo on a canvas, read once.
-  const source = () => {
-    if (!sourceRef.current) {
-      const c = document.createElement("canvas");
-      c.width = nw; c.height = nh;
-      c.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0);
-      sourceRef.current = c;
-    }
-    return sourceRef.current;
-  };
-  useEffect(() => () => { if (result?.previewUrl) URL.revokeObjectURL(result.previewUrl); }, [result]);
-
-  const toImage = (e, rect) => ({
-    x: Math.max(0, Math.min(nw, (e.clientX - rect.left) / k)),
-    y: Math.max(0, Math.min(nh, (e.clientY - rect.top) / k)),
-  });
-  const startBox = (e) => {
-    if (stage !== "select" || busy) return;
-    e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const a = toImage(e, rect);
-    dragRef.current = { a, rect };
-    setBox({ x: Math.round(a.x), y: Math.round(a.y), w: 0, h: 0 });
-    const move = (ev) => {
-      const d = dragRef.current;
-      if (!d) return;
-      const b = toImage(ev, d.rect);
-      setBox({ x: Math.round(Math.min(d.a.x, b.x)), y: Math.round(Math.min(d.a.y, b.y)), w: Math.round(Math.abs(b.x - d.a.x)), h: Math.round(Math.abs(b.y - d.a.y)) });
-    };
-    const end = () => {
-      dragRef.current = null;
-      window.removeEventListener("pointermove", move, true);
-      window.removeEventListener("pointerup", end, true);
-      window.removeEventListener("pointercancel", end, true);
-    };
-    window.addEventListener("pointermove", move, true);
-    window.addEventListener("pointerup", end, true);
-    window.addEventListener("pointercancel", end, true);
-  };
-  const boxOk = box && box.w >= ITX_MIN_BOX && box.h >= ITX_MIN_BOX;
-
-  // A size that makes `t` as tall as the letters were, until it's set by hand.
-  const sizeFor = (t, rect) => Math.max(8, Math.min(120, Math.round(fontSizeForLines(rect.h, Math.max(1, t.trim().split("\n").length)) * designPerImagePx)));
-  const changeText = (t) => {
-    setText(t);
-    if (!sizeTouched && box) setFontSize(sizeFor(t, letters?.bbox || box));
-  };
-
-  // Step 1 -> 2: find the letters in the box (for their size and color),
-  // then read the text.
-  const readText = async () => {
-    if (!boxOk) return;
-    setBusy("Reading the text…");
-    setNote("");
-    const ctx = source().getContext("2d", { willReadFrequently: true });
-    const d = ctx.getImageData(box.x, box.y, box.w, box.h);
-    const found = findLetters(d.data, box.w, box.h, { x: 0, y: 0, w: box.w, h: box.h });
-    const lettersFound = found ? { bbox: { ...found.bbox, x: found.bbox.x + box.x, y: found.bbox.y + box.y }, color: found.color } : null;
-    setLetters(lettersFound);
-    setMaskMode(found ? "letters" : "box");
-    let read = null;
-    if (config.ocr) {
-      try {
-        const pad = Math.round(box.h * 0.08);
-        read = await apiJson("/api/image-text/ocr", { method: "POST", body: { image: itxPieceDataUrl(source(), itxExpand(box, pad, nw, nh), { minH: 96 }) } });
-      } catch (err) {
-        setNote(err.message || "Couldn't read the text — type it in below.");
-      }
-    } else {
-      setNote("Reading text isn't switched on — type the text below.");
-    }
-    const t = read?.text || "";
-    if (read && !t) setNote(read.notEnglish ? "This doesn't look like English. For now only English text can be read — you can type it in yourself." : "No text was found in the box — type it in below, or go back and draw the box again.");
-    setText(t);
-    if (read) {
-      setFontKey(ITX_FONT_FOR_STYLE[read.style] || "playfair");
-      setBold(read.weight === "bold");
-      setItalic(!!read.italic);
-      setAlign(t.includes("\n") ? read.align : "center");
-    }
-    setColor(lettersFound?.color || read?.color || "#ffffff");
-    setSizeTouched(false);
-    setFontSize(sizeFor(t, lettersFound?.bbox || box));
-    setBusy("");
-    setStage("text");
-  };
-
-  // Step 2 -> 3: remove the letters and show the result.
-  const makePreview = async () => {
-    setBusy(method === "ai" ? "Removing the text with AI… (10–20 seconds)" : "Removing the text…");
-    setNote("");
-    await new Promise((r) => setTimeout(r, 30)); // let "Removing…" show before the work starts
-    try {
-      const margin = Math.max(24, Math.round(Math.max(box.h, box.w * 0.25) * 0.75));
-      const region = itxExpand(box, margin, nw, nh);
-      const ctx = source().getContext("2d", { willReadFrequently: true });
-      const rd = ctx.getImageData(region.x, region.y, region.w, region.h);
-      const rbox = { x: box.x - region.x, y: box.y - region.y, w: box.w, h: box.h };
-      const found = maskMode === "letters" ? findLetters(rd.data, region.w, region.h, rbox) : null;
-      const mask = found ? found.mask : boxMask(region.w, region.h, rbox);
-      const edited = method === "ai" ? await itxAiErase(rd, region, mask) : quickFill(rd.data, region.w, region.h, mask, rbox);
-      const blended = blendInBox(rd.data, edited, region.w, region.h, mask, rbox, method === "ai" ? 2 : 0);
-      const out = document.createElement("canvas");
-      out.width = nw; out.height = nh;
-      const octx = out.getContext("2d");
-      octx.drawImage(img, 0, 0);
-      octx.putImageData(new ImageData(blended, region.w, region.h), region.x, region.y);
-      const blob = await canvasToBlob(out, "image/png");
-      if (result?.previewUrl) URL.revokeObjectURL(result.previewUrl);
-      setResult({ canvas: out, previewUrl: URL.createObjectURL(blob), textRect: letters?.bbox || box });
-      setShowBefore(false);
-      setStage("preview");
-    } catch (err) {
-      setNote(err.message || "Couldn't remove the text — please try again.");
-    } finally {
-      setBusy("");
-    }
-  };
-
-  const apply = async () => {
-    setBusy("Saving…");
-    try {
-      // A photo stays a JPEG (at a quality where the re-save isn't visible);
-      // PNG/WebP keep their see-through parts as PNG.
-      const keepsTransparency = /png|webp/.test(type);
-      const blob = await canvasToBlob(result.canvas, keepsTransparency ? "image/png" : "image/jpeg", 0.95);
-      const newUrl = await uploadBlobToStorage(blob, "invitation-photos");
-      onApply({
-        url: newUrl,
-        natural: { w: nw, h: nh },
-        textRect: result.textRect,
-        text: text.trim(),
-        style: { fontFamily: fontValue(fontKey), fontSize, color, fontWeight: bold ? 700 : null, italic, align },
-      });
-    } catch {
-      setBusy("");
-      setNote("Couldn't save the image — check your connection and try again.");
-    }
-  };
-
-  const frame = (src) => (
-    <div className="flex justify-center">
-      <div
-        className="relative select-none overflow-hidden"
-        style={{ width: dw, height: dh, touchAction: "none", cursor: stage === "select" ? "crosshair" : "default" }}
-        onPointerDown={startBox}
-        data-itx-frame=""
-      >
-        <img src={src} alt="" draggable={false} style={{ width: dw, height: dh, display: "block" }} />
-        {box && stage !== "preview" && (
-          <div className="pointer-events-none absolute" style={{ left: box.x * k, top: box.y * k, width: box.w * k, height: box.h * k, border: `2px dashed ${GOLD}`, boxShadow: "0 0 0 9999px rgba(0,0,0,0.35)" }} />
-        )}
-        {stage === "preview" && !showBefore && text.trim() && (() => {
-          const r = result.textRect;
-          const size = (fontSize / designPerImagePx) * k;
-          return (
-            <div
-              className="pointer-events-none absolute flex items-center"
-              style={{ left: (r.x + r.w / 2) * k, top: (r.y + r.h / 2) * k, width: Math.max(r.w * 1.25 * k, 40), transform: "translate(-50%, -50%)", justifyContent: align === "left" ? "flex-start" : align === "right" ? "flex-end" : "center" }}
-            >
-              <p style={{ margin: 0, whiteSpace: "pre", textAlign: align, fontFamily: fontValue(fontKey) || FONT_BODY, fontSize: size, lineHeight: 1.4, color, fontWeight: bold ? 700 : 400, fontStyle: italic ? "italic" : "normal" }}>{text.trim()}</p>
-            </div>
-          );
-        })()}
-      </div>
-    </div>
-  );
-
-  const chip = (active, onClick, label, title) => <EditorChip active={active} onClick={onClick} title={title}>{label}</EditorChip>;
-  const button = (label, onClick, primary, disabled) => (
-    <button onClick={onClick} disabled={disabled || !!busy} className="rounded-full px-4 py-1.5 text-[12px] font-semibold" style={primary ? { background: GOLD, color: INK, fontFamily: FONT_BODY, opacity: disabled || busy ? 0.5 : 1 } : { color: IVORY, border: "1px solid rgba(147,166,155,0.4)", fontFamily: FONT_BODY, opacity: busy ? 0.5 : 1 }}>
-      {label}
-    </button>
-  );
-  const hint = (t) => <p className="mb-2 text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>{t}</p>;
-
-  return (
-    <>
-      {stage === "select" && hint("Drag a box around the English text you want to edit, keeping other shapes and lines out of it. Draw it again to change it.")}
-      {stage === "text" && hint("Check the text and fix anything that was read wrong. The original font can't always be matched — pick the closest one.")}
-      {stage === "preview" && hint(showBefore ? "Before: the image as it is now." : "After: the text removed from the image, and your text on top. You can still move and restyle it in the editor.")}
-      {frame(stage === "preview" && !showBefore ? result.previewUrl : img.src)}
-
-      {stage === "text" && (
-        <div className="mt-3 grid gap-3">
-          <div>
-            <FieldLabel>Text</FieldLabel>
-            <textarea
-              value={text}
-              onChange={(e) => changeText(e.target.value)}
-              rows={Math.min(5, Math.max(2, text.split("\n").length))}
-              className="w-full rounded-lg px-3 py-2 text-sm outline-none"
-              style={{ background: INK_3, color: IVORY, border: `1px solid ${INK_3}`, fontFamily: FONT_BODY, resize: "vertical" }}
-              placeholder="Type the text from the box"
-              data-itx-text=""
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel>Font</FieldLabel>
-              <Select value={fontKey} onChange={setFontKey} options={FONT_OPTIONS.filter((f) => f.key !== "auto").map((f) => ({ value: f.key, label: f.label }))} />
-            </div>
-            <div>
-              <FieldLabel>Size (px)</FieldLabel>
-              <TextInput type="number" value={String(fontSize)} onChange={(v) => { setSizeTouched(true); setFontSize(Math.max(6, Math.min(160, Number(v) || 6))); }} />
-            </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <FieldLabel>Color</FieldLabel>
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-12 cursor-pointer rounded" style={{ border: `1px solid ${INK_3}`, background: "transparent" }} />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {chip(bold, () => setBold(!bold), <b>B</b>, "Bold")}
-              {chip(italic, () => setItalic(!italic), <i>I</i>, "Italic")}
-              {chip(align === "left", () => setAlign("left"), <AlignLeft size={12} />, "Align left")}
-              {chip(align === "center", () => setAlign("center"), <AlignCenter size={12} />, "Center")}
-              {chip(align === "right", () => setAlign("right"), <AlignRight size={12} />, "Align right")}
-            </div>
-          </div>
-          <div>
-            <FieldLabel>Remove the text from the image</FieldLabel>
-            <div className="flex flex-wrap gap-1.5">
-              {chip(method === "quick", () => setMethod("quick"), "Quick fill (free)", "Fills the letters in with the colors around them. Best on plain colors, gradients and paper.")}
-              {config.aiErase && chip(method === "ai", () => setMethod("ai"), `AI erase (~$${(config.aiEraseCostUsd || 0.05).toFixed(2)})`, "Rebuilds what's behind the letters with AI. Best on photos and detailed backgrounds. Paid per image.")}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {chip(maskMode === "letters", () => setMaskMode("letters"), "Letters only", "Removes only the letters and keeps the background between them")}
-              {chip(maskMode === "box", () => setMaskMode("box"), "Whole box", "Replaces everything inside the box")}
-            </div>
-            {maskMode === "letters" && !letters && <p className="mt-1.5 text-[10.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>The letters couldn't be told apart from the background here, so the whole box will be replaced.</p>}
-          </div>
-        </div>
-      )}
-
-      {(busy || note) && (
-        <p className="mt-3 text-[12px]" style={{ color: busy ? GOLD_SOFT : UI_ERROR, fontFamily: FONT_BODY }} data-itx-status="">{busy || note}</p>
-      )}
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {stage === "preview" && chip(showBefore, () => setShowBefore(true), "Before")}
-          {stage === "preview" && chip(!showBefore, () => setShowBefore(false), "After")}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {button("Cancel", onClose)}
-          {stage === "text" && button("Back", () => { setStage("select"); setNote(""); })}
-          {stage === "preview" && button("Back", () => setStage("text"))}
-          {stage === "select" && button("Read text", readText, true, !boxOk)}
-          {stage === "text" && button("Preview", makePreview, true, !text.trim())}
-          {stage === "preview" && button("Apply", apply, true)}
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -6722,7 +6300,6 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         src={block.url}
         alt=""
         draggable={false}
-        data-itx-img={block.id}
         style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 8, opacity: imgOpacity, transform: imageFlipTransform(block) }}
       />
     );
@@ -6746,7 +6323,6 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
               src={block.url}
               alt=""
               draggable={false}
-              data-itx-img={block.id}
               style={{ width: "100%", height: "100%", display: "block", objectFit: block.noCrop ? "contain" : "cover", pointerEvents: editMode ? "auto" : "none", opacity: imgOpacity, transform: imageFlipTransform(block) }}
             />
           </div>
@@ -6876,9 +6452,8 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
           onBlur={commitText}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(); } }}
           onPointerDown={(e) => e.stopPropagation()}
-          className="outline-none"
+          className="text-center outline-none"
           style={{
-            textAlign: block.align || "center",
             display: "inline-block",
             minWidth: 20,
             maxWidth: "none",
@@ -6899,6 +6474,7 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
         </div>
       ) : (
         <p
+          className="text-center"
           onDoubleClick={(e) => {
             // Editing directly via a double-click, in addition to the
             // toolbar's pencil button. This used to trigger on a plain
@@ -6915,7 +6491,6 @@ function CustomTextBlock({ block, light, editMode, selected, onSelect, onMove, o
             setEditingText(true);
           }}
           style={{
-            textAlign: block.align || "center",
             whiteSpace: "pre-wrap",
             // No cursor override here — a single click no longer enters edit
             // mode (only a double-click does, see above), so hinting "text"
@@ -7008,7 +6583,7 @@ function StoryPage({ bg, children }) {
   const motion = useContext(PageMotionContext);
   return (
     <div className="relative h-full w-full">
-      <div className="absolute inset-0" style={{ background, animation: motion?.bg }} data-itx-bg="">
+      <div className="absolute inset-0" style={{ background, animation: motion?.bg }}>
         {isPhoto && amount > 0 && <div className="absolute inset-0" style={{ background: overlay }} />}
         {showTornEdges && <TornEdge color={bg.backdropColor || INK} />}
         {showTornEdges && <TornEdge flip color={bg.backdropColor || INK} />}
@@ -9461,7 +9036,6 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
           }
           dir={dir} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd} onWheel={onWheel}
           onPointerDown={onCanvasPointerDown} onPointerMove={onCanvasPointerMove} onPointerUp={onCanvasPointerUp}
-          data-itx-canvas=""
         >
           {/* Samsung-style centered punch-hole camera, instead of a wide notch/Dynamic Island */}
           {!fullscreen && <div className="absolute left-1/2 top-2.5 z-30 h-2.5 w-2.5 -translate-x-1/2 rounded-full" style={{ background: "#000", border: "1px solid rgba(255,255,255,0.08)" }} />}
@@ -9476,7 +9050,7 @@ function PhonePreview({ data, steps, activeIndex, onNavigate, lang, layoutEditMo
             </div>
           )}
 
-          <div key={animKey} ref={currentPageRef} className="h-full w-full" data-itx-current="">
+          <div key={animKey} ref={currentPageRef} className="h-full w-full">
             <CanvasHeightContext.Provider value={fullscreen ? canvasDesignHeight : 600}>
             <PageMotionContext.Provider value={pushInMotion}>
             <SliderDragContext.Provider value={sliderDragging}>
@@ -19030,174 +18604,6 @@ export default function InvitationBuilder() {
       alert("Couldn't add that image — either this photo format isn't supported by the browser (common for HEIC/HEIF straight off an iPhone), or the upload failed. Convert it to JPG/PNG, check your connection, and try again.");
     }
   };
-  // "Edit text in image" (see ImageTextModal). The server says whether it's
-  // switched on for this account; when it isn't, no button shows anywhere.
-  const [imageTextConfig, setImageTextConfig] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/image-text/config", { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((cfg) => !cancelled && setImageTextConfig(cfg?.enabled ? cfg : null))
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [activeInvitationId]);
-  const [imageTextJob, setImageTextJob] = useState(null); // { kind, stepKey, blockId?, url, placement }
-  const [imageTextUndo, setImageTextUndo] = useState(null);
-  // Where the photo sits on the phone screen, read from the page itself when
-  // it's on screen (so the new text lands exactly over the old one), else
-  // worked out from the block's own size and position. Returns a function
-  // of the photo's natural size giving: image px -> % of the screen, and
-  // how many Builder px one image px is.
-  const measureImagePlacement = (kind, block) => {
-    const visible = (el) => el && el.getBoundingClientRect().width > 0;
-    let el = null;
-    if (kind === "background") el = [...document.querySelectorAll("[data-itx-current] [data-itx-bg]")].find(visible);
-    else el = [...document.querySelectorAll(`[data-itx-img="${block.id}"]`)].find((e) => visible(e) && !e.closest("[data-itx-modal]"));
-    const canvas = el?.closest("[data-itx-canvas]");
-    const fit = kind === "background" ? "cover" : block.fullScreen && !block.noCrop ? "cover" : "contain";
-    const flipX = kind !== "background" && !!block.flipX;
-    const flipY = kind !== "background" && !!block.flipY;
-    let frame; // the element's box and the screen's box, in Builder px
-    if (el && canvas) {
-      const cr = canvas.getBoundingClientRect();
-      const zoom = cr.width / (canvas.offsetWidth || cr.width);
-      const er = el.getBoundingClientRect();
-      frame = { W: cr.width / zoom, H: cr.height / zoom, ex: (er.left - cr.left) / zoom, ey: (er.top - cr.top) / zoom, ew: er.width / zoom, eh: er.height / zoom };
-    } else {
-      frame = { W: 280, H: 588, ex: 0, ey: 0, ew: 280, eh: 588 };
-    }
-    return (nw, nh) => {
-      let { ex, ey, ew, eh } = frame;
-      if (!el && kind !== "background" && !block.fullScreen) {
-        ew = (frame.W * (block.width || 40)) / 100;
-        eh = Math.min((ew * nh) / nw, (frame.H * PHONE_IMAGE_MAX_HEIGHT_PCT) / 100);
-        ex = (frame.W * (block.x ?? 50)) / 100 - ew / 2;
-        ey = (frame.H * (block.y ?? 50)) / 100 - eh / 2;
-      }
-      const s = fit === "cover" ? Math.max(ew / nw, eh / nh) : Math.min(ew / nw, eh / nh);
-      const ox = ex + (ew - nw * s) / 2, oy = ey + (eh - nh * s) / 2;
-      return {
-        designPerImagePx: s,
-        toPercent: (ix, iy) => ({
-          x: ((ox + (flipX ? nw - ix : ix) * s) / frame.W) * 100,
-          y: ((oy + (flipY ? nh - iy : iy) * s) / frame.H) * 100,
-        }),
-        widthPercent: (iw) => ((iw * s) / frame.W) * 100,
-      };
-    };
-  };
-  const openImageTextEdit = (kind, blockId) => {
-    const stepKey = steps[safeIndex].key;
-    if (kind === "background") {
-      const bg = pageBackgrounds[stepKey];
-      if (!hasActiveCustomImage(bg)) return;
-      setImageTextJob({ kind, stepKey, url: bg.image, placement: measureImagePlacement(kind, null) });
-      return;
-    }
-    const block = customBlocks[activeLang][stepKey].find((b) => b.id === blockId);
-    if (!block?.url) return;
-    setImageTextJob({ kind, stepKey, blockId, url: block.url, placement: measureImagePlacement(kind, block) });
-  };
-  const imageTextContext = useMemo(() => (imageTextConfig ? {
-    openForBlock: (id) => openImageTextEdit("block", id),
-    openForBackground: () => openImageTextEdit("background"),
-  } : null), [imageTextConfig, steps, safeIndex, activeLang, customBlocks, pageBackgrounds]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Uploads a photo, puts it on the page full width, then opens it here.
-  const addImageForTextEdit = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    const stepKey = steps[safeIndex].key;
-    try {
-      const url = await uploadImageToStorage(file, "invitation-photos", 2400, 0.92);
-      const newBlock = { id: uid(), type: "image", url, x: 50, y: 50, width: 100 };
-      setCustomBlocks((c) => ({ ...c, [activeLang]: { ...c[activeLang], [stepKey]: [...c[activeLang][stepKey], newBlock] } }));
-      setSelectedBlockId(`custom:${newBlock.id}`);
-      // Once it's drawn on the phone, so its place on screen can be measured.
-      setTimeout(() => setImageTextJob({ kind: "block", stepKey, blockId: newBlock.id, url, placement: measureImagePlacement("block", newBlock) }), 400);
-    } catch {
-      alert("Couldn't add that image — either this photo format isn't supported by the browser (common for HEIC/HEIF straight off an iPhone), or the upload failed. Convert it to JPG/PNG, check your connection, and try again.");
-    }
-  };
-  const applyImageText = ({ url, natural, textRect, text, style }) => {
-    const job = imageTextJob;
-    const place = job.placement(natural.w, natural.h);
-    const centre = place.toPercent(textRect.x + textRect.w / 2, textRect.y + textRect.h / 2);
-    // A little wider than the old text, since the chosen font may be wider.
-    const width = Math.max(10, Math.min(96, Math.round(place.widthPercent(textRect.w) * 1.2 + 6)));
-    let color = style.color;
-    // A background photo is shown darkened (its "Darken photo" setting), and
-    // the old text was darkened with it; the new text sits above that, so
-    // it gets the same darkening to look the same.
-    const bg = pageBackgrounds[job.stepKey];
-    if (job.kind === "background" && bg?.mode === "photo" && (bg.darken ?? 55) > 0 && /^#[0-9a-f]{6}$/i.test(color || "")) {
-      const amount = (bg.darken ?? 55) / 100;
-      const yy = Math.max(0, Math.min(100, centre.y)) / 100;
-      const a = bg.darkenStyle === "even" ? amount : yy < 0.4 ? amount * (0.636 + (0.273 - 0.636) * (yy / 0.4)) : amount * (0.273 + (1 - 0.273) * ((yy - 0.4) / 0.6));
-      const ch = (i, base) => Math.round(parseInt(color.slice(i, i + 2), 16) * (1 - a) + base * a).toString(16).padStart(2, "0");
-      color = `#${ch(1, 10)}${ch(3, 12)}${ch(5, 10)}`;
-    }
-    const textBlock = {
-      id: uid(), type: "text", text, x: Math.round(centre.x * 10) / 10, y: Math.round(centre.y * 10) / 10, width,
-      fontFamily: style.fontFamily, color, fontSize: style.fontSize, fontWeight: style.fontWeight, italic: style.italic, align: style.align === "center" ? null : style.align,
-    };
-    const { stepKey } = job;
-    if (job.kind === "background") {
-      const prevBg = pageBackgrounds[stepKey];
-      setPageBackgrounds((p) => ({ ...p, [stepKey]: { ...p[stepKey], image: url, originalImage: p[stepKey].originalImage || p[stepKey].image } }));
-      // The background is the same in every language, so every language
-      // gets the text back (in English until it's translated).
-      const langs = enabledLanguages.length ? enabledLanguages : [activeLang];
-      const added = langs.map((lang) => ({ lang, id: lang === activeLang ? textBlock.id : uid() }));
-      setCustomBlocks((c) => {
-        const next = { ...c };
-        for (const { lang, id } of added) {
-          const pages = c[lang] || emptyCustomBlocks();
-          next[lang] = { ...pages, [stepKey]: [...(pages[stepKey] || []), { ...textBlock, id }] };
-        }
-        return next;
-      });
-      setImageTextUndo({ kind: "background", stepKey, prevBg, added });
-    } else {
-      const block = customBlocks[activeLang][stepKey].find((b) => b.id === job.blockId);
-      setCustomBlocks((c) => {
-        const list = c[activeLang][stepKey];
-        const i = list.findIndex((b) => b.id === job.blockId);
-        if (i === -1) return c;
-        const next = [...list];
-        next[i] = { ...list[i], url, originalUrl: list[i].originalUrl || list[i].url };
-        next.splice(i + 1, 0, { ...textBlock, ...(list[i].behindContent ? { behindContent: true } : {}) });
-        return { ...c, [activeLang]: { ...c[activeLang], [stepKey]: next } };
-      });
-      setImageTextUndo({ kind: "block", stepKey, lang: activeLang, blockId: job.blockId, prevUrl: block?.url, prevOriginalUrl: block?.originalUrl, added: [{ lang: activeLang, id: textBlock.id }] });
-    }
-    setSelectedBlockId(`custom:${textBlock.id}`);
-    setImageTextJob(null);
-  };
-  const undoImageText = () => {
-    const u = imageTextUndo;
-    if (!u) return;
-    const addedIds = new Set(u.added.map((a) => a.id));
-    setCustomBlocks((c) => {
-      const next = { ...c };
-      for (const { lang } of u.added) {
-        const pages = c[lang];
-        if (!pages?.[u.stepKey]) continue;
-        let list = pages[u.stepKey].filter((b) => !addedIds.has(b.id));
-        if (u.kind === "block" && lang === u.lang) list = list.map((b) => (b.id === u.blockId ? { ...b, url: u.prevUrl, originalUrl: u.prevOriginalUrl || null } : b));
-        next[lang] = { ...pages, [u.stepKey]: list };
-      }
-      return next;
-    });
-    if (u.kind === "background") setPageBackgrounds((p) => ({ ...p, [u.stepKey]: u.prevBg }));
-    setSelectedBlockId(null);
-    setImageTextUndo(null);
-  };
-  useEffect(() => {
-    if (!imageTextUndo) return;
-    const t = setTimeout(() => setImageTextUndo(null), 30000);
-    return () => clearTimeout(t);
-  }, [imageTextUndo]);
   // Admin-only: adds one photo or video to the shared Intro-background
   // library — every client sees this same library and picks (or removes)
   // their own choice from it; nothing here is copied into a client's own
@@ -20787,7 +20193,6 @@ export default function InvitationBuilder() {
   }
 
   return (
-    <ImageTextEditContext.Provider value={imageTextContext}>
     <div className="min-h-screen w-full" style={{ background: INK, fontFamily: FONT_BODY }}>
       <LightUiScope />
       <style>{`
@@ -20949,7 +20354,6 @@ export default function InvitationBuilder() {
                 <div className="flex flex-wrap items-center gap-2">
                   {layoutEditMode && <GhostButton onClick={addCustomText}><Plus size={13} /> Add text</GhostButton>}
                   {layoutEditMode && <GhostUploadButton accept="image/*" onChange={addCustomImage}><ImagePlus size={13} /> Add image</GhostUploadButton>}
-                  {layoutEditMode && imageTextConfig && <GhostUploadButton accept="image/jpeg,image/png,image/webp" onChange={addImageForTextEdit}><ScanText size={13} /> Edit text in image</GhostUploadButton>}
                   {layoutEditMode && (
                     <div className="relative">
                       <GhostButton onClick={() => setLibraryPickerOpen((o) => !o)}><ImagePlus size={13} /> Library</GhostButton>
@@ -21437,24 +20841,7 @@ export default function InvitationBuilder() {
             onSetDemo={setShopDesignDemo}
           />
         )}
-        {imageTextJob && imageTextConfig && (
-          <ImageTextModal
-            url={imageTextJob.url}
-            config={imageTextConfig}
-            placement={imageTextJob.placement}
-            onClose={() => setImageTextJob(null)}
-            onApply={applyImageText}
-          />
-        )}
-        {imageTextUndo && (
-          <div className="fixed bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-[12px]" style={{ zIndex: 9000, width: "max-content", maxWidth: "calc(100vw - 32px)", background: INK_2, border: `1px solid ${GOLD}`, color: IVORY, fontFamily: FONT_BODY, boxShadow: "0 6px 24px rgba(0,0,0,0.4)" }} data-itx-done="">
-            <span>Text separated from the image. Save to keep it.</span>
-            <button onClick={undoImageText} className="flex items-center gap-1 font-semibold" style={{ color: GOLD_SOFT }}><Undo2 size={12} /> Undo</button>
-            <button onClick={() => setImageTextUndo(null)} title="Close" style={{ color: MUTED }}><X size={13} /></button>
-          </div>
-        )}
       </div>
     </div>
-    </ImageTextEditContext.Provider>
   );
 }
