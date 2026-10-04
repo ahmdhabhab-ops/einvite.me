@@ -18468,6 +18468,12 @@ export default function InvitationBuilder() {
     // makes sense once the real data is in anyway, so this just waits.
     if (!coreLoadCompletedRef.current) return;
     if (nextId === activeInvitationId && invitationsStore[nextId]) return; // already open (a client's own invitation loads first now)
+    // Same reason as in saveDraft: the outgoing invitation would be stored
+    // with the shop design's look instead of its own.
+    if (editingShopDesignId) {
+      alert(`Finish the shop design "${editingShopDesignName}" first: "Update Shop Design" or "Cancel".`);
+      return;
+    }
     const outgoing = getActiveSnapshot();
     // The other invitations load in the background after the page opens, so
     // this one may not have arrived yet (a client's session restore right
@@ -18868,6 +18874,12 @@ export default function InvitationBuilder() {
   const [yesNoSaveTick, setYesNoSaveTick] = useState(0);
   useEffect(() => { if (yesNoSaveTick) saveDraft(); }, [yesNoSaveTick]);
   const saveDraft = async () => {
+    // While a shop design is open in the Builder, what's on screen is that
+    // design, not the admin's own invitation — saving now would replace it.
+    if (editingShopDesignId) {
+      alert(`You're editing the shop design "${editingShopDesignName}", so your own invitation wasn't saved (that would replace its design).\n\nUse "Update Shop Design" to save the design, or "Cancel" to go back to your invitation.`);
+      return;
+    }
     if (!persistentStorage.available()) {
       setSaveStatus("unavailable");
       setTimeout(() => setSaveStatus("idle"), 4000);
@@ -19360,8 +19372,8 @@ export default function InvitationBuilder() {
       gateAnimationStyle: intro.animationStyle || "floatingHearts",
       gateIcon: intro.icon || "heart",
     });
-    setEditingShopDesignId(null);
-    alert(hasDemo ? "Design updated — its own link now shows this invitation." : "Design updated, but its live preview couldn't be saved — try again in a moment.");
+    backToOwnDesign();
+    alert(hasDemo ? "Design updated — its own link now shows this invitation. Your own invitation's design is back." : "Design updated, but its live preview couldn't be saved — try again in a moment. Your own invitation's design is back.");
   };
   const updateShopDesign = async (id, patch) => {
     const exists = shopDesigns.some((d) => d.id === id);
@@ -19401,7 +19413,23 @@ export default function InvitationBuilder() {
   const editingShopDesignName = editingShopDesignId
     ? (shopDesigns.find((d) => d.id === editingShopDesignId) || INVITATION_TEMPLATES.find((t) => t.id === editingShopDesignId))?.name || "Untitled design"
     : "";
+  // The admin's own design (backgrounds, cover fonts, intro) as it was
+  // before a shop design was opened over it, so finishing or cancelling the
+  // shop design puts it back. Opening a shop design used to overwrite it for
+  // good as soon as "Save invitation" was clicked.
+  const ownDesignBeforeShopEditRef = useRef(null);
+  const backToOwnDesign = () => {
+    const before = ownDesignBeforeShopEditRef.current;
+    if (before) {
+      setPageBackgrounds(before.pageBackgrounds);
+      setLayouts(before.layouts);
+      setIntro(before.intro);
+    }
+    ownDesignBeforeShopEditRef.current = null;
+    setEditingShopDesignId(null);
+  };
   const loadShopDesignForEditing = (design) => {
+    if (!ownDesignBeforeShopEditRef.current) ownDesignBeforeShopEditRef.current = { pageBackgrounds, layouts, intro };
     setPageBackgrounds((prev) => {
       const next = { ...prev };
       if (design.coverImage) {
@@ -20898,7 +20926,7 @@ export default function InvitationBuilder() {
                     <button onClick={updateCurrentStylingOnShopDesign} className="rounded-full px-3 py-1.5 text-[11.5px] font-semibold" style={{ background: GOLD, color: INK, fontFamily: FONT_BODY }}>
                       Update Shop Design
                     </button>
-                    <button onClick={() => setEditingShopDesignId(null)} className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }}>
+                    <button onClick={backToOwnDesign} className="text-[11.5px]" style={{ color: MUTED, fontFamily: FONT_BODY }} title="Stop editing this shop design and go back to your own invitation's design">
                       Cancel
                     </button>
                   </div>
